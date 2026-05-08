@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-serif:
+    "Fraunces", "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
+
+  --color-ink: #0b0b0e;
+  --color-ink-2: #121217;
+  --color-ink-3: #1a1a22;
+  --color-bone: #f5efe6;
+  --color-bone-2: #e8e1d4;
+  --color-bone-dim: #c9c2b5;
+  --color-ember: #c7a27c;
+  --color-ember-soft: #d9b894;
+  --color-rule: rgba(245, 239, 230, 0.08);
+  --color-rule-strong: rgba(245, 239, 230, 0.16);
+
+  --ease-calm: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --shadow-glow: 0 0 0 1px rgba(199, 162, 124, 0.18), 0 12px 40px rgba(199, 162, 124, 0.08);
+  --shadow-inner-soft: inset 0 1px 0 rgba(245, 239, 230, 0.04);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    background: var(--color-ink);
+    color: var(--color-bone);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+    overflow-x: hidden;
+    /* Avoid iOS rubber-banding bleeding the background through */
+    overscroll-behavior-y: none;
+  }
+
+  /* Make Safari respect 100dvh on the chat composer's sticky area */
+  @supports (height: 100dvh) {
+    .min-h-dvh {
+      min-height: 100dvh;
+    }
+  }
+
+  /* Hide the default audio element controls' background on Safari */
+  audio {
+    width: 100%;
+    color-scheme: dark;
+  }
+
+  /* Long-press / context menu on the mic button is undesirable on touch */
+  button[aria-label="Press and hold to speak"] {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  ::selection {
+    background: rgba(199, 162, 124, 0.28);
+    color: var(--color-bone);
+  }
+
+  *:focus-visible {
+    outline: 1px solid var(--color-ember);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  button,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  textarea,
+  input {
+    font-family: inherit;
+  }
+}
+
+@layer utilities {
+  .font-serif {
+    font-family: var(--font-serif);
+    font-feature-settings: "ss01", "ss02";
+    letter-spacing: -0.01em;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+
+  .hairline {
+    border: 1px solid var(--color-rule);
+  }
+
+  .hairline-strong {
+    border: 1px solid var(--color-rule-strong);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
