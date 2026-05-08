@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Nav } from "@/components/shell/Nav";
-import { buttonClasses } from "@/components/ui/Button";
+import { buttonClasses } from "@/components/ui/buttonClasses";
 
 export default function NotFound() {
   return (
