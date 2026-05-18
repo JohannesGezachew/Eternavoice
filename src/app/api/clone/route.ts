@@ -12,7 +12,7 @@ const NameSchema = z
   .min(1, "A name helps us label the voice.")
   .max(80, "That name is a bit long.");
 
-const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_BYTES = 50 * 1024 * 1024;
 const MIN_BYTES = 50 * 1024;
 
 const SUPPORTED_TYPES = [
@@ -23,6 +23,8 @@ const SUPPORTED_TYPES = [
   "audio/wav",
   "audio/x-wav",
   "audio/ogg",
+  "video/mp4",
+  "video/quicktime",
 ];
 
 export async function POST(request: Request) {
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json(
-      { error: "That recording is larger than we accept (25 MB)." },
+      { error: "That file is larger than we accept (50 MB)." },
       { status: 413 },
     );
   }
