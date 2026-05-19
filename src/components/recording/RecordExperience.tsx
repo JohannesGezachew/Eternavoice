@@ -333,7 +333,7 @@ export function RecordExperience() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="audio/*,video/mp4"
+                    accept="audio/*,video/mp4,.m4a,.aac"
                     className="hidden"
                     onChange={handleFileInput}
                   />
@@ -361,6 +361,11 @@ export function RecordExperience() {
                         <p className="text-[13px] text-[var(--color-bone-dim)]">
                           {(uploadFile.size / 1024 / 1024).toFixed(1)} MB
                         </p>
+                        {uploadFile.size > 20 * 1024 * 1024 ? (
+                          <p className="max-w-[240px] text-[12px] leading-[1.55] text-[var(--color-bone-dim)]/70">
+                            Large file — cloning will take a minute or two. 2–5 min clips work just as well.
+                          </p>
+                        ) : null}
                         <p className="text-[12px] text-[var(--color-bone-dim)]/50">
                           Click to choose a different file
                         </p>
