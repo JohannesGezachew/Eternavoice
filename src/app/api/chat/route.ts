@@ -76,7 +76,7 @@ export async function POST(request: Request) {
           const next = ttsQueue.find((e) => e.index === nextIndex);
           if (!next) {
             if (llmDone && ttsQueue.every((e) => e.index < nextIndex)) break;
-            await new Promise((r) => setTimeout(r, 25));
+            await new Promise((r) => setTimeout(r, 10));
             continue;
           }
           try {
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
             modelId: env.ELEVENLABS_TTS_MODEL,
             outputFormat: "mp3_44100_64",
             voiceSettings: VOICE_SETTINGS,
-            optimizeStreamingLatency: 2,
+            optimizeStreamingLatency: 4,
           });
           const reader = (audioStream as ReadableStream<Uint8Array>).getReader();
           const chunks: Uint8Array[] = [];
@@ -146,8 +146,8 @@ export async function POST(request: Request) {
         const response = await openai().chat.completions.create({
           model: env.OPENAI_CHAT_MODEL,
           stream: true,
-          temperature: 0.85,
-          max_tokens: 480,
+          temperature: 0.75,
+          max_tokens: 180,
           messages: [
             { role: "system", content: systemPrompt },
             ...parsed.messages.map((m) => ({ role: m.role, content: m.content })),

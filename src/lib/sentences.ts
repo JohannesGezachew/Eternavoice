@@ -7,8 +7,8 @@
  */
 
 const TERMINALS = new Set([".", "!", "?", "…", ";", ":"]);
-const SOFT_CAP = 160;
-const HARD_CAP = 280;
+const SOFT_CAP = 100;
+const HARD_CAP = 200;
 
 export class SentenceBuffer {
   private buffer = "";
