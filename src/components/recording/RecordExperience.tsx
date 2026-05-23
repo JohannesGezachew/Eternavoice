@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { Waveform } from "./Waveform";
 import { Script } from "./Script";
@@ -10,6 +11,12 @@ import { RecordControl } from "./RecordControl";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { startRecording, type ActiveRecorder } from "@/lib/audio/recorder";
+import { clipAudio } from "@/lib/audio/clipAudio";
+
+const AudioClipper = dynamic(
+  () => import("./AudioClipper").then((m) => m.AudioClipper),
+  { ssr: false },
+);
 import {
   classifyQuality,
   makeQualityState,
@@ -58,6 +65,8 @@ export function RecordExperience() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadDuration, setUploadDuration] = useState(0);
+  const [selectedRegion, setSelectedRegion] = useState<{ start: number; end: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -75,6 +84,8 @@ export function RecordExperience() {
       setPhase("intro");
       setUploadError(null);
       setPermissionError(null);
+      setSelectedRegion(null);
+      setUploadDuration(0);
     },
     [mode],
   );
@@ -116,6 +127,8 @@ export function RecordExperience() {
     setUploadFile(null);
     setUploadPreviewUrl(null);
     setUploadError(null);
+    setSelectedRegion(null);
+    setUploadDuration(0);
     setPhase("intro");
   }, [uploadPreviewUrl]);
 
@@ -125,7 +138,16 @@ export function RecordExperience() {
     setPhase("uploading");
     try {
       const fd = new FormData();
-      fd.append("audio", uploadFile);
+      if (selectedRegion) {
+        try {
+          const clipped = await clipAudio(uploadFile, selectedRegion.start, selectedRegion.end);
+          fd.append("audio", new File([clipped], "clip.wav", { type: "audio/wav" }));
+        } catch {
+          fd.append("audio", uploadFile);
+        }
+      } else {
+        fd.append("audio", uploadFile);
+      }
       fd.append("name", name.trim() || "EternaVoice subject");
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
@@ -322,7 +344,8 @@ export function RecordExperience() {
         <section className="relative">
           {mode === "upload" ? (
             <AnimatePresence mode="wait">
-              {phase === "intro" || phase === "review" ? (
+              {/* Dropzone — only in intro phase */}
+              {phase === "intro" ? (
                 <motion.div
                   key="dropzone"
                   initial={{ opacity: 0, y: 8 }}
@@ -352,47 +375,56 @@ export function RecordExperience() {
                         : "border-[var(--color-rule-strong)] hover:border-[var(--color-ember)]/25 hover:bg-white/[0.015]",
                     )}
                   >
-                    {uploadFile ? (
-                      <>
-                        <span className="inline-flex h-2 w-2 rounded-full bg-[var(--color-ember)]" />
-                        <p className="max-w-[220px] break-words text-[15px] text-[var(--color-bone)]/90">
-                          {uploadFile.name}
-                        </p>
-                        <p className="text-[13px] text-[var(--color-bone-dim)]">
-                          {(uploadFile.size / 1024 / 1024).toFixed(1)} MB
-                        </p>
-                        {uploadFile.size > 20 * 1024 * 1024 ? (
-                          <p className="max-w-[240px] text-[12px] leading-[1.55] text-[var(--color-bone-dim)]/70">
-                            Large file — cloning will take a minute or two. 2–5 min clips work just as well.
-                          </p>
-                        ) : null}
-                        <p className="text-[12px] text-[var(--color-bone-dim)]/50">
-                          Click to choose a different file
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-[16px] text-[var(--color-bone)]/80">
-                          Drop a voice file here
-                        </p>
-                        <p className="max-w-[260px] text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
-                          Voicemails, voice notes, videos — any recording with their voice
-                        </p>
-                        <p className="text-[11px] tracking-[0.14em] text-[var(--color-bone-dim)]/50 uppercase">
-                          mp3 · mp4 · m4a · wav · ogg
-                        </p>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fileInputRef.current?.click();
-                          }}
-                          className="mt-1 rounded-xl border border-[var(--color-rule-strong)] px-5 py-2 text-[13px] text-[var(--color-bone)]/60 transition-colors hover:text-[var(--color-bone)]"
-                        >
-                          Browse files
-                        </button>
-                      </>
-                    )}
+                    <p className="text-[16px] text-[var(--color-bone)]/80">
+                      Drop a voice file here
+                    </p>
+                    <p className="max-w-[260px] text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                      Voicemails, voice notes, videos — any recording with their voice
+                    </p>
+                    <p className="text-[11px] tracking-[0.14em] text-[var(--color-bone-dim)]/50 uppercase">
+                      mp3 · mp4 · m4a · wav · ogg
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      className="mt-1 rounded-xl border border-[var(--color-rule-strong)] px-5 py-2 text-[13px] text-[var(--color-bone)]/60 transition-colors hover:text-[var(--color-bone)]"
+                    >
+                      Browse files
+                    </button>
+                  </div>
+                </motion.div>
+              ) : null}
+
+              {/* Waveform — only in review phase */}
+              {phase === "review" && uploadPreviewUrl ? (
+                <motion.div
+                  key="waveform"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.35 }}
+                  className="space-y-3"
+                >
+                  <AudioClipper
+                    url={uploadPreviewUrl}
+                    showNudge={uploadDuration > 120}
+                    onDurationReady={(d) => setUploadDuration(d)}
+                    onRegionChange={(r) => setSelectedRegion(r)}
+                  />
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-[12px] text-[var(--color-bone-dim)]/60 truncate max-w-[180px]">
+                      {uploadFile?.name}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={retakeUpload}
+                      className="text-[12px] text-[var(--color-bone-dim)]/50 transition-colors hover:text-[var(--color-bone-dim)] shrink-0"
+                    >
+                      Choose different
+                    </button>
                   </div>
                 </motion.div>
               ) : null}
@@ -468,7 +500,7 @@ export function RecordExperience() {
               </motion.div>
             ) : null}
 
-            {/* Upload review: preview + submit */}
+            {/* Upload review: name + submit */}
             {mode === "upload" && phase === "review" ? (
               <motion.div
                 key="upload-review"
@@ -492,22 +524,14 @@ export function RecordExperience() {
                       maxLength={60}
                     />
                   </div>
-                  {uploadPreviewUrl ? (
-                    <audio
-                      src={uploadPreviewUrl}
-                      controls
-                      preload="metadata"
-                      className="w-full"
-                    />
+                  {selectedRegion ? (
+                    <p className="text-[12px] text-[var(--color-bone-dim)]">
+                      Clip: {fmt(selectedRegion.start)} – {fmt(selectedRegion.end)}
+                    </p>
                   ) : null}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button variant="primary" size="md" onClick={submitUpload}>
-                      Make the clone
-                    </Button>
-                    <Button variant="outline" size="md" onClick={retakeUpload}>
-                      Choose different
-                    </Button>
-                  </div>
+                  <Button variant="primary" size="md" onClick={submitUpload}>
+                    {selectedRegion ? "Clone this clip" : "Make the clone"}
+                  </Button>
                   {uploadError ? (
                     <p className="text-[13px] text-[var(--color-ember-soft)]">
                       {uploadError}
@@ -667,4 +691,10 @@ export function RecordExperience() {
       </div>
     </div>
   );
+}
+
+function fmt(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
 }

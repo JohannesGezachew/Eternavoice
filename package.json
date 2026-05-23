@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.46.0",
+    "@wavesurfer/react": "^1.0.12",
     "framer-motion": "^12.38.0",
     "next": "^16.2.6",
     "openai": "^6.37.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "wavesurfer.js": "^7.12.7",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
