@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { startRecording, type ActiveRecorder } from "@/lib/audio/recorder";
 import { clipAudio } from "@/lib/audio/clipAudio";
+import { needsConversion } from "@/lib/audio/convertAudio";
 
 const AudioClipper = dynamic(
   () => import("./AudioClipper").then((m) => m.AudioClipper),
@@ -32,7 +33,7 @@ import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { cn, formatSeconds } from "@/lib/utils";
 
-type Phase = "intro" | "recording" | "review" | "uploading" | "ready";
+type Phase = "intro" | "recording" | "review" | "converting" | "uploading" | "ready";
 type Mode = "upload" | "record";
 
 interface Take {
@@ -66,6 +67,7 @@ export function RecordExperience() {
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadDuration, setUploadDuration] = useState(0);
+  const [conversionProgress, setConversionProgress] = useState(0);
   const [selectedRegion, setSelectedRegion] = useState<{ start: number; end: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +88,7 @@ export function RecordExperience() {
       setPermissionError(null);
       setSelectedRegion(null);
       setUploadDuration(0);
+      setConversionProgress(0);
     },
     [mode],
   );
@@ -93,11 +96,29 @@ export function RecordExperience() {
   // ── Upload handlers ────────────────────────────────────────────────────────
 
   const acceptFile = useCallback(
-    (file: File) => {
+    async (file: File) => {
+      setUploadError(null);
+
+      if (needsConversion(file)) {
+        setConversionProgress(0);
+        setPhase("converting");
+        try {
+          const { convertToMp3 } = await import("@/lib/audio/convertAudio");
+          const converted = await convertToMp3(file, setConversionProgress);
+          if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+          setUploadFile(converted);
+          setUploadPreviewUrl(URL.createObjectURL(converted));
+          setPhase("review");
+        } catch {
+          setUploadError("Couldn't convert that file. Try exporting it as mp3 or m4a first.");
+          setPhase("intro");
+        }
+        return;
+      }
+
       if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
       setUploadFile(file);
       setUploadPreviewUrl(URL.createObjectURL(file));
-      setUploadError(null);
       setPhase("review");
     },
     [uploadPreviewUrl],
@@ -129,6 +150,7 @@ export function RecordExperience() {
     setUploadError(null);
     setSelectedRegion(null);
     setUploadDuration(0);
+    setConversionProgress(0);
     setPhase("intro");
   }, [uploadPreviewUrl]);
 
@@ -356,7 +378,7 @@ export function RecordExperience() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="audio/*,video/mp4,.m4a,.aac"
+                    accept="audio/*,video/*,.m4a,.aac,.mov,.avi,.mkv,.wmv"
                     className="hidden"
                     onChange={handleFileInput}
                   />
@@ -382,7 +404,7 @@ export function RecordExperience() {
                       Voicemails, voice notes, videos — any recording with their voice
                     </p>
                     <p className="text-[11px] tracking-[0.14em] text-[var(--color-bone-dim)]/50 uppercase">
-                      mp3 · mp4 · m4a · wav · ogg
+                      mp3 · mp4 · m4a · wav · mov · ogg · and more
                     </p>
                     <button
                       type="button"
@@ -394,6 +416,45 @@ export function RecordExperience() {
                     >
                       Browse files
                     </button>
+                  </div>
+                </motion.div>
+              ) : null}
+
+              {/* Converting — while ffmpeg is running */}
+              {phase === "converting" ? (
+                <motion.div
+                  key="converting"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.35 }}
+                >
+                  <div className="flex min-h-[300px] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed border-[var(--color-rule-strong)] p-10 text-center">
+                    <span className="relative inline-flex h-2.5 w-2.5">
+                      <span className="absolute inset-[-6px] animate-ping rounded-full bg-[var(--color-ember)]/30" />
+                      <span className="relative h-2.5 w-2.5 rounded-full bg-[var(--color-ember)]" />
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-[15px] text-[var(--color-bone)]/85">
+                        Converting to audio…
+                      </p>
+                      <p className="text-[13px] text-[var(--color-bone-dim)]">
+                        Extracting the voice from your file.
+                      </p>
+                    </div>
+                    {conversionProgress > 0 ? (
+                      <div className="w-full max-w-[180px] space-y-1.5">
+                        <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/[0.06]">
+                          <div
+                            className="h-full rounded-full bg-[var(--color-ember)] transition-all duration-300 ease-out"
+                            style={{ width: `${conversionProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] text-[var(--color-bone-dim)]/50">
+                          {conversionProgress}%
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 </motion.div>
               ) : null}
@@ -464,6 +525,37 @@ export function RecordExperience() {
           ) : null}
 
           <AnimatePresence mode="wait">
+            {/* Upload converting */}
+            {mode === "upload" && phase === "converting" ? (
+              <motion.div
+                key="upload-converting"
+                variants={fadeUp}
+                initial="initial"
+                animate="enter"
+                exit="exit"
+                className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
+              >
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="upload-name-c" hint="optional">
+                      Whose voice is this
+                    </Label>
+                    <Input
+                      id="upload-name-c"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Their name"
+                      autoComplete="off"
+                      maxLength={60}
+                    />
+                  </div>
+                  <p className="text-[13px] text-[var(--color-bone-dim)]">
+                    Hold on — converting your file to audio.
+                  </p>
+                </div>
+              </motion.div>
+            ) : null}
+
             {/* Upload intro: name input + hint */}
             {mode === "upload" && phase === "intro" ? (
               <motion.div
