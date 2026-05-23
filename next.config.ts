@@ -13,10 +13,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/ffmpeg/ffmpeg-core.wasm",
-        headers: [{ key: "Content-Type", value: "application/wasm" }],
-      },
-      {
         source: "/:path*",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },

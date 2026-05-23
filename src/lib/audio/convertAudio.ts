@@ -1,7 +1,4 @@
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
-
-// Formats ElevenLabs accepts natively — everything else gets converted.
+// Formats ElevenLabs accepts natively — everything else needs server-side conversion.
 const NATIVE_TYPES = new Set([
   "audio/mpeg",
   "audio/mp3",
@@ -21,78 +18,41 @@ export function needsConversion(file: File): boolean {
   if (file.type.startsWith("video/")) return true;
   // Known native audio types pass through.
   if (file.type && NATIVE_TYPES.has(file.type)) return false;
-  // Fall back to extension — note: bare ".mp4" could be video, so convert it.
+  // Fall back to extension — bare ".mp4" could be video, always convert it.
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   return !NATIVE_EXTS.has(ext);
 }
 
-// Singleton — keeps the 31 MB WASM in memory so repeat conversions are instant.
-let _ffmpeg: FFmpeg | null = null;
-let _loadPromise: Promise<FFmpeg> | null = null;
-
-async function getFFmpeg(): Promise<FFmpeg> {
-  if (_ffmpeg?.loaded) return _ffmpeg;
-  if (_loadPromise) return _loadPromise;
-
-  _loadPromise = (async () => {
-    const ffmpeg = new FFmpeg();
-    // Served from /public/ffmpeg — same origin, no CDN dependency, no CSP issues.
-    // Direct paths work here because the files are same-origin; toBlobURL is not needed.
-    try {
-      await ffmpeg.load({
-        coreURL: "/ffmpeg/ffmpeg-core.js",
-        wasmURL: "/ffmpeg/ffmpeg-core.wasm",
-      });
-    } catch (e) {
-      _loadPromise = null; // Allow retry on next call instead of caching the failure.
-      throw e;
-    }
-    _ffmpeg = ffmpeg;
-    _loadPromise = null;
-    return ffmpeg;
-  })();
-
-  return _loadPromise;
-}
-
+// Sends the file to /api/convert (server-side ffmpeg) and returns an MP3 File.
+// onProgress receives fake incremental values so the UI stays alive during the wait.
 export async function convertToMp3(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<File> {
-  const ffmpeg = await getFFmpeg();
+  let pct = 5;
+  onProgress?.(pct);
 
-  const ext = file.name.split(".").pop() ?? "bin";
-  const inputName = `in.${ext}`;
-
-  await ffmpeg.writeFile(inputName, await fetchFile(file));
-
-  const handler = ({ progress }: { progress: number }) => {
-    onProgress?.(Math.min(99, Math.round(progress * 100)));
-  };
-  if (onProgress) ffmpeg.on("progress", handler);
+  const interval = setInterval(() => {
+    pct = Math.min(85, pct + 3);
+    onProgress?.(pct);
+  }, 2000);
 
   try {
-    await ffmpeg.exec([
-      "-i", inputName,
-      "-vn",                   // strip video track
-      "-acodec", "libmp3lame",
-      "-b:a", "128k",          // 128 kbps CBR — plenty for voice, encodes faster than VBR
-      "-ar", "22050",          // 22 kHz — voice range, halves the data vs 44.1 kHz
-      "out.mp3",
-    ]);
+    const fd = new FormData();
+    fd.append("audio", file);
+
+    const res = await fetch("/api/convert", { method: "POST", body: fd });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error((json as { error?: string }).error ?? "Conversion failed");
+    }
+
+    onProgress?.(99);
+    const blob = await res.blob();
+    const baseName = file.name.replace(/\.[^.]+$/, "");
+    return new File([blob], `${baseName}.mp3`, { type: "audio/mpeg" });
   } finally {
-    if (onProgress) ffmpeg.off("progress", handler);
-    await ffmpeg.deleteFile(inputName).catch(() => null);
+    clearInterval(interval);
   }
-
-  const data = await ffmpeg.readFile("out.mp3");
-  await ffmpeg.deleteFile("out.mp3").catch(() => null);
-
-  const baseName = file.name.replace(/\.[^.]+$/, "");
-  // Copy into a plain ArrayBuffer to satisfy strict TS Blob constraints.
-  const bytes = new Uint8Array(
-    data instanceof Uint8Array ? data : new TextEncoder().encode(String(data)),
-  );
-  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "audio/mpeg" });
-  return new File([blob], `${baseName}.mp3`, { type: "audio/mpeg" });
 }
