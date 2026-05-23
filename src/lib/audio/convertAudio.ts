@@ -14,10 +14,14 @@ const NATIVE_TYPES = new Set([
   "audio/aac",
 ]);
 
-const NATIVE_EXTS = new Set(["mp3", "mp4", "m4a", "wav", "webm", "ogg", "aac"]);
+const NATIVE_EXTS = new Set(["mp3", "m4a", "wav", "webm", "ogg", "aac"]);
 
 export function needsConversion(file: File): boolean {
+  // Any video MIME type needs audio extraction regardless of extension.
+  if (file.type.startsWith("video/")) return true;
+  // Known native audio types pass through.
   if (file.type && NATIVE_TYPES.has(file.type)) return false;
+  // Fall back to extension — note: bare ".mp4" could be video, so convert it.
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   return !NATIVE_EXTS.has(ext);
 }
@@ -64,10 +68,10 @@ export async function convertToMp3(
   try {
     await ffmpeg.exec([
       "-i", inputName,
-      "-vn",                   // strip video
+      "-vn",                   // strip video track
       "-acodec", "libmp3lame",
-      "-q:a", "2",             // high-quality VBR (~190 kbps)
-      "-ar", "44100",
+      "-b:a", "128k",          // 128 kbps CBR — plenty for voice, encodes faster than VBR
+      "-ar", "22050",          // 22 kHz — voice range, halves the data vs 44.1 kHz
       "out.mp3",
     ]);
   } finally {
