@@ -185,7 +185,7 @@ export function RecordExperience() {
       setUploadError(message);
       setPhase("review");
     }
-  }, [uploadFile, name, router, setVoice]);
+  }, [uploadFile, selectedRegion, name, router, setVoice]);
 
   // ── Record handlers ────────────────────────────────────────────────────────
 
@@ -362,6 +362,17 @@ export function RecordExperience() {
       </motion.header>
 
       <div className="mt-10 grid flex-1 gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
+        {/* Always-mounted hidden file input — kept outside AnimatePresence so the ref is never null */}
+        {mode === "upload" ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*,video/*,.m4a,.aac,.mov,.avi,.mkv,.wmv"
+            className="hidden"
+            onChange={handleFileInput}
+          />
+        ) : null}
+
         {/* Left panel */}
         <section className="relative">
           {mode === "upload" ? (
@@ -375,13 +386,6 @@ export function RecordExperience() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.35 }}
                 >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*,video/*,.m4a,.aac,.mov,.avi,.mkv,.wmv"
-                    className="hidden"
-                    onChange={handleFileInput}
-                  />
                   <div
                     onDragOver={(e) => {
                       e.preventDefault();
