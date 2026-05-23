@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.46.0",
+    "@ffmpeg/core": "^0.12.6",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@wavesurfer/react": "^1.0.12",

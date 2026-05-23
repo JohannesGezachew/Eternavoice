@@ -26,7 +26,7 @@ export function needsConversion(file: File): boolean {
   return !NATIVE_EXTS.has(ext);
 }
 
-// Singleton — keeps the 30 MB WASM in memory so repeat conversions are instant.
+// Singleton — keeps the 31 MB WASM in memory so repeat conversions are instant.
 let _ffmpeg: FFmpeg | null = null;
 let _loadPromise: Promise<FFmpeg> | null = null;
 
@@ -36,11 +36,16 @@ async function getFFmpeg(): Promise<FFmpeg> {
 
   _loadPromise = (async () => {
     const ffmpeg = new FFmpeg();
-    const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm";
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-      wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
-    });
+    // Served from /public/ffmpeg — same origin, no CDN dependency, no CSP issues.
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL("/ffmpeg/ffmpeg-core.js", "text/javascript"),
+        wasmURL: await toBlobURL("/ffmpeg/ffmpeg-core.wasm", "application/wasm"),
+      });
+    } catch (e) {
+      _loadPromise = null; // Allow retry on next call instead of caching the failure.
+      throw e;
+    }
     _ffmpeg = ffmpeg;
     _loadPromise = null;
     return ffmpeg;
