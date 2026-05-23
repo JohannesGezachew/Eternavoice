@@ -376,15 +376,15 @@ export function RecordExperience() {
         {/* Left panel */}
         <section className="relative">
           {mode === "upload" ? (
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {/* Dropzone — only in intro phase */}
               {phase === "intro" ? (
                 <motion.div
                   key="dropzone"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.35 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.25 }}
                 >
                   <div
                     onDragOver={(e) => {
@@ -428,10 +428,10 @@ export function RecordExperience() {
               {phase === "converting" ? (
                 <motion.div
                   key="converting"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.35 }}
+                  transition={{ duration: 0.2 }}
                 >
                   <div className="flex min-h-[300px] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed border-[var(--color-rule-strong)] p-10 text-center">
                     <span className="relative inline-flex h-2.5 w-2.5">
@@ -467,10 +467,10 @@ export function RecordExperience() {
               {phase === "review" && uploadPreviewUrl ? (
                 <motion.div
                   key="waveform"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.35 }}
+                  transition={{ duration: 0.25 }}
                   className="space-y-3"
                 >
                   <AudioClipper
@@ -528,7 +528,7 @@ export function RecordExperience() {
             </div>
           ) : null}
 
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {/* Upload converting */}
             {mode === "upload" && phase === "converting" ? (
               <motion.div
@@ -584,9 +584,15 @@ export function RecordExperience() {
                       maxLength={60}
                     />
                   </div>
-                  <p className="text-[13px] text-[var(--color-bone-dim)]">
-                    Drop a file on the left to continue.
-                  </p>
+                  {uploadError ? (
+                    <p className="text-[13px] text-[var(--color-ember-soft)]">
+                      {uploadError}
+                    </p>
+                  ) : (
+                    <p className="text-[13px] text-[var(--color-bone-dim)]">
+                      Drop a file on the left to continue.
+                    </p>
+                  )}
                   {existingVoice ? (
                     <p className="text-[12px] text-[var(--color-bone-dim)]">
                       A voice from this session already exists. Uploading again will replace it.
