@@ -1,5 +1,5 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { fetchFile } from "@ffmpeg/util";
 
 // Formats ElevenLabs accepts natively — everything else gets converted.
 const NATIVE_TYPES = new Set([
@@ -37,10 +37,11 @@ async function getFFmpeg(): Promise<FFmpeg> {
   _loadPromise = (async () => {
     const ffmpeg = new FFmpeg();
     // Served from /public/ffmpeg — same origin, no CDN dependency, no CSP issues.
+    // Direct paths work here because the files are same-origin; toBlobURL is not needed.
     try {
       await ffmpeg.load({
-        coreURL: await toBlobURL("/ffmpeg/ffmpeg-core.js", "text/javascript"),
-        wasmURL: await toBlobURL("/ffmpeg/ffmpeg-core.wasm", "application/wasm"),
+        coreURL: "/ffmpeg/ffmpeg-core.js",
+        wasmURL: "/ffmpeg/ffmpeg-core.wasm",
       });
     } catch (e) {
       _loadPromise = null; // Allow retry on next call instead of caching the failure.

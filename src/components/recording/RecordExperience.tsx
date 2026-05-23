@@ -109,8 +109,10 @@ export function RecordExperience() {
           setUploadFile(converted);
           setUploadPreviewUrl(URL.createObjectURL(converted));
           setPhase("review");
-        } catch {
-          setUploadError("Couldn't convert that file. Try exporting it as mp3 or m4a first.");
+        } catch (err) {
+          console.error("[EternaVoice] FFmpeg conversion failed:", err);
+          const detail = err instanceof Error ? ` (${err.message})` : "";
+          setUploadError(`Conversion failed${detail} — try a different file or export as mp3.`);
           setPhase("intro");
         }
         return;
