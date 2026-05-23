@@ -11,7 +11,7 @@ import { RecordControl } from "./RecordControl";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { startRecording, type ActiveRecorder } from "@/lib/audio/recorder";
-import { clipAudio } from "@/lib/audio/clipAudio";
+import { clipAudio, sliceWavBytes } from "@/lib/audio/clipAudio";
 import { needsConversion } from "@/lib/audio/convertAudio";
 
 const AudioClipper = dynamic(
@@ -163,25 +163,22 @@ export function RecordExperience() {
     try {
       const fd = new FormData();
 
-      // Vercel serverless functions cap request bodies at 4.5 MB.
-      // 60 s of 22 kHz mono 16-bit WAV ≈ 2.6 MB — safely under the limit.
-      // If no clip is selected and the file is long, auto-clip to the first 60 s.
+      // Vercel caps request bodies at 4.5 MB. Use direct WAV byte-slicing (no
+      // re-decode) when the file is too large to send as-is.
+      const SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB headroom under the 4.5 MB cap
       const MAX_SECS = 60;
 
+      const clip = async (start: number, end: number): Promise<File> => {
+        const fast = await sliceWavBytes(uploadFile, start, end);
+        if (fast) return fast;
+        const blob = await clipAudio(uploadFile, start, end);
+        return new File([blob], "clip.wav", { type: "audio/wav" });
+      };
+
       if (selectedRegion) {
-        try {
-          const clipped = await clipAudio(uploadFile, selectedRegion.start, selectedRegion.end);
-          fd.append("audio", new File([clipped], "clip.wav", { type: "audio/wav" }));
-        } catch {
-          fd.append("audio", uploadFile);
-        }
-      } else if (uploadDuration > MAX_SECS) {
-        try {
-          const clipped = await clipAudio(uploadFile, 0, MAX_SECS);
-          fd.append("audio", new File([clipped], "clip.wav", { type: "audio/wav" }));
-        } catch {
-          fd.append("audio", uploadFile);
-        }
+        fd.append("audio", await clip(selectedRegion.start, selectedRegion.end));
+      } else if (uploadFile.size > SIZE_LIMIT) {
+        fd.append("audio", await clip(0, MAX_SECS));
       } else {
         fd.append("audio", uploadFile);
       }
@@ -201,7 +198,7 @@ export function RecordExperience() {
       setUploadError(message);
       setPhase("review");
     }
-  }, [uploadFile, selectedRegion, uploadDuration, name, router, setVoice]);
+  }, [uploadFile, selectedRegion, name, router, setVoice]);
 
   // ── Record handlers ────────────────────────────────────────────────────────
 
