@@ -162,6 +162,12 @@ export function RecordExperience() {
     setPhase("uploading");
     try {
       const fd = new FormData();
+
+      // Vercel serverless functions cap request bodies at 4.5 MB.
+      // 60 s of 22 kHz mono 16-bit WAV ≈ 2.6 MB — safely under the limit.
+      // If no clip is selected and the file is long, auto-clip to the first 60 s.
+      const MAX_SECS = 60;
+
       if (selectedRegion) {
         try {
           const clipped = await clipAudio(uploadFile, selectedRegion.start, selectedRegion.end);
@@ -169,9 +175,17 @@ export function RecordExperience() {
         } catch {
           fd.append("audio", uploadFile);
         }
+      } else if (uploadDuration > MAX_SECS) {
+        try {
+          const clipped = await clipAudio(uploadFile, 0, MAX_SECS);
+          fd.append("audio", new File([clipped], "clip.wav", { type: "audio/wav" }));
+        } catch {
+          fd.append("audio", uploadFile);
+        }
       } else {
         fd.append("audio", uploadFile);
       }
+
       fd.append("name", name.trim() || "EternaVoice subject");
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
@@ -187,7 +201,7 @@ export function RecordExperience() {
       setUploadError(message);
       setPhase("review");
     }
-  }, [uploadFile, selectedRegion, name, router, setVoice]);
+  }, [uploadFile, selectedRegion, uploadDuration, name, router, setVoice]);
 
   // ── Record handlers ────────────────────────────────────────────────────────
 
