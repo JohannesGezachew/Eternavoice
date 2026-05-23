@@ -45,26 +45,42 @@ export async function sliceWavBytes(
   return new File([out], `${base}_clip.wav`, { type: "audio/wav" });
 }
 
+// Always resamples to 22050 Hz mono so the output is compact (~2.6 MB / 60 s)
+// regardless of the input's sample rate or channel count.
 export async function clipAudio(file: File, start: number, end: number): Promise<Blob> {
   const arrayBuffer = await file.arrayBuffer();
   const ctx = new AudioContext();
+  let decoded: AudioBuffer;
   try {
-    const decoded = await ctx.decodeAudioData(arrayBuffer);
-    const sr = decoded.sampleRate;
-    const startSample = Math.floor(start * sr);
-    const endSample = Math.floor(end * sr);
-    const length = endSample - startSample;
-    const clipped = ctx.createBuffer(decoded.numberOfChannels, length, sr);
-    for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
-      clipped.copyToChannel(
-        decoded.getChannelData(ch).subarray(startSample, endSample),
-        ch,
-      );
-    }
-    return encodeWav(clipped);
+    decoded = await ctx.decodeAudioData(arrayBuffer);
   } finally {
-    await ctx.close();
+    await ctx.close().catch(() => null);
   }
+
+  const srcSr = decoded.sampleRate;
+  const startSample = Math.floor(start * srcSr);
+  const endSample = Math.min(Math.floor(end * srcSr), decoded.length);
+  const clipLen = endSample - startSample;
+  if (clipLen <= 0) throw new Error("Clip range is empty.");
+
+  // Render clip at 22050 Hz mono via OfflineAudioContext.
+  // OfflineAudioContext handles both resampling and stereo→mono downmix.
+  const TARGET_SR = 22050;
+  const targetLen = Math.ceil((clipLen / srcSr) * TARGET_SR);
+  const offline = new OfflineAudioContext(1, targetLen, TARGET_SR);
+
+  // Build a temporary buffer containing just the clip at the original sample rate.
+  const tmp = offline.createBuffer(decoded.numberOfChannels, clipLen, srcSr);
+  for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+    tmp.copyToChannel(decoded.getChannelData(ch).subarray(startSample, endSample), ch);
+  }
+
+  const src = offline.createBufferSource();
+  src.buffer = tmp;
+  src.connect(offline.destination);
+  src.start(0);
+  const rendered = await offline.startRendering();
+  return encodeWav(rendered);
 }
 
 function encodeWav(buffer: AudioBuffer): Blob {
