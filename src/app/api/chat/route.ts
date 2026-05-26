@@ -63,6 +63,8 @@ export async function POST(request: Request) {
       const ttsQueue: Array<{ index: number; promise: Promise<Buffer | null> }> = [];
       let drainStarted = false;
       let llmDone = false;
+      let audioChunksSent = 0;
+      let ttsFailures = 0;
       let drainResolve: (() => void) | null = null;
       const drainComplete = new Promise<void>((resolve) => {
         drainResolve = resolve;
@@ -82,6 +84,7 @@ export async function POST(request: Request) {
           try {
             const audio = await next.promise;
             if (audio && audio.byteLength > 0) {
+              audioChunksSent += 1;
               send({
                 type: "audio",
                 turnId,
@@ -91,6 +94,7 @@ export async function POST(request: Request) {
               });
             }
           } catch {
+            ttsFailures += 1;
             // skip; other sentences continue
           } finally {
             nextIndex += 1;
@@ -125,6 +129,7 @@ export async function POST(request: Request) {
           }
           return Buffer.from(merged);
         } catch {
+          ttsFailures += 1;
           return null;
         }
       };
@@ -168,11 +173,25 @@ export async function POST(request: Request) {
 
         llmDone = true;
         await drainComplete;
+        if (fullText.trim() && sentenceCount > 0 && audioChunksSent === 0) {
+          send({
+            type: "notice",
+            stage: "tts",
+            message:
+              "I could write the reply, but the voice audio failed for this turn.",
+          });
+        } else if (ttsFailures > 0) {
+          send({
+            type: "notice",
+            stage: "tts",
+            message: "Part of the voice audio failed, so the reply may sound incomplete.",
+          });
+        }
         send({ type: "done", turnId, full: fullText.trim() });
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Could not generate a reply.";
-        send({ type: "error", message });
+        send({ type: "error", stage: "llm", message });
         llmDone = true;
       } finally {
         try {

@@ -16,6 +16,12 @@ const STYLE_NOTES = `Style notes:
 - It is fine — sometimes correct — to trail off, to leave a sentence unfinished, to pause.
 - Avoid exclamation marks. Avoid bullet points. Avoid headings. Speak.`;
 
+const CONTINUITY_RULES = `Conversation continuity:
+- Treat earlier turns in this chat as remembered context. Refer back naturally when it helps.
+- Keep the same emotional stance, vocabulary, and relationship boundaries throughout the conversation.
+- If the user corrects who you are or how you speak, adapt and keep that correction for the rest of the chat.
+- Do not reset your greeting or reintroduce yourself after the first exchange.`;
+
 function selfPrompt(name: string): string {
   const subject = name.trim() || "you";
   return [
@@ -24,6 +30,7 @@ function selfPrompt(name: string): string {
     `You have just met. You are gentle. You are curious about them, but you do not interrogate.`,
     HARD_RULES,
     STYLE_NOTES,
+    CONTINUITY_RULES,
     `Greet them briefly when the conversation starts. One or two short lines.`,
   ].join("\n\n");
 }
@@ -47,6 +54,7 @@ function personaPrompt(persona: PersonaConfig): string {
     `Speak in the cadence and vocabulary of a real person, not a chatbot. The rhythm of how you say things matters more than the information.`,
     HARD_RULES,
     STYLE_NOTES,
+    CONTINUITY_RULES,
     `When the conversation begins, greet them in a way that fits who you are — short, specific, warm. Avoid generic openings.`,
   ].join("\n\n");
 }

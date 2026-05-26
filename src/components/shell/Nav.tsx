@@ -13,6 +13,10 @@ export function Nav() {
             Voices
           </Link>
           <span className="hidden h-3 w-px bg-[var(--color-rule-strong)] sm:block" />
+          <Link href="/conversations" className="hidden transition hover:text-[var(--color-bone)] sm:inline">
+            Conversations
+          </Link>
+          <span className="hidden h-3 w-px bg-[var(--color-rule-strong)] sm:block" />
           <Link href="/privacy" className="hidden transition hover:text-[var(--color-bone)] sm:inline">
             Privacy
           </Link>

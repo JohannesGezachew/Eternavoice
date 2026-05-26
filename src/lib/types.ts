@@ -18,6 +18,17 @@ export interface ChatTurn {
   createdAt: number;
 }
 
+export interface ConversationRecord {
+  id: string;
+  voiceId: string;
+  voiceName: string;
+  title: string;
+  persona: PersonaConfig;
+  turns: ChatTurn[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface VoiceLibraryItem {
   id: string;
   name: string;

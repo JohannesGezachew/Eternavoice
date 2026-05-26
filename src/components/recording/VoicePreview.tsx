@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/session";
 import { Mark } from "@/components/shell/Mark";
+import { trackEvent } from "@/lib/analytics";
 
 export function VoicePreview() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export function VoicePreview() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verdict, setVerdict] = useState<"good" | "bad" | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -45,9 +47,11 @@ export function VoicePreview() {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
+      trackEvent("voice_preview_generated");
       window.setTimeout(() => void audioRef.current?.play().catch(() => null), 50);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not generate a preview.");
+      trackEvent("voice_preview_failed");
     } finally {
       setLoading(false);
     }
@@ -101,13 +105,51 @@ export function VoicePreview() {
               </div>
 
               {previewUrl ? (
-                <audio
-                  ref={audioRef}
-                  src={previewUrl}
-                  controls
-                  className="w-full"
-                  preload="auto"
-                />
+                <div className="space-y-4">
+                  <audio
+                    ref={audioRef}
+                    src={previewUrl}
+                    controls
+                    className="w-full"
+                    preload="auto"
+                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVerdict("good");
+                        trackEvent("voice_preview_rated", { verdict: "good" });
+                      }}
+                      className={`rounded-xl border px-4 py-3 text-left text-[13px] transition ${
+                        verdict === "good"
+                          ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.06] text-[var(--color-bone)]"
+                          : "border-[var(--color-rule-strong)] text-[var(--color-bone)]/75 hover:border-[var(--color-ember)]/35"
+                      }`}
+                    >
+                      Sounds right
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVerdict("bad");
+                        trackEvent("voice_preview_rated", { verdict: "bad" });
+                      }}
+                      className={`rounded-xl border px-4 py-3 text-left text-[13px] transition ${
+                        verdict === "bad"
+                          ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.06] text-[var(--color-bone)]"
+                          : "border-[var(--color-rule-strong)] text-[var(--color-bone)]/75 hover:border-[var(--color-ember)]/35"
+                      }`}
+                    >
+                      Needs improvement
+                    </button>
+                  </div>
+                  {verdict === "bad" ? (
+                    <p className="text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                      Try a cleaner 30–60 second clip with one speaker, less music,
+                      and a steady distance from the microphone.
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
 
               {error ? (
@@ -123,7 +165,12 @@ export function VoicePreview() {
                 <Button variant="outline" size="md" onClick={() => router.push("/record")}>
                   Improve the clone
                 </Button>
-                <Button variant="ghost" size="md" onClick={() => router.push("/persona")}>
+                <Button
+                  variant="ghost"
+                  size="md"
+                  disabled={!previewUrl || verdict !== "good"}
+                  onClick={() => router.push("/persona")}
+                >
                   Continue
                 </Button>
               </div>
