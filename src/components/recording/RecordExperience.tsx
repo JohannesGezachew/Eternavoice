@@ -845,7 +845,7 @@ export function RecordExperience() {
                         Creating the clone{cloneElapsed ? ` · ${cloneElapsed}s` : ""}
                       </p>
                       <p className="mt-1 text-[12px] text-[var(--color-bone-dim)]">
-                        ElevenLabs can take a few seconds, and longer for larger clips.
+                        Voice creation can take a few seconds, and longer for larger clips.
                       </p>
                     </div>
                   </div>
@@ -933,7 +933,7 @@ function cloneSteps(elapsed: number): Array<{
   const steps = [
     { label: "Preparing the selected audio", at: 0 },
     { label: "Uploading sample", at: 2 },
-    { label: "Creating ElevenLabs voice", at: 5 },
+    { label: "Creating your voice", at: 5 },
     { label: "Preparing preview", at: 12 },
   ];
 

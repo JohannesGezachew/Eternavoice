@@ -1,4 +1,4 @@
-// Formats ElevenLabs accepts natively — everything else needs conversion.
+// Formats the hosted voice engine accepts natively — everything else needs conversion.
 const NATIVE_TYPES = new Set([
   "audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a",
   "audio/wav", "audio/x-wav", "audio/webm", "audio/ogg", "audio/aac",
