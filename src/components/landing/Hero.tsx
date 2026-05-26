@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { buttonClasses } from "@/components/ui/Button";
@@ -10,16 +9,13 @@ import { useSession } from "@/lib/session";
 export function Hero() {
   const voiceId = useSession((s) => s.voiceId);
   const voiceName = useSession((s) => s.voiceName);
-  // Avoid SSR/hydration mismatch — Zustand persist hydrates client-side only.
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
 
-  const hasVoice = hydrated && Boolean(voiceId);
+  const hasVoice = Boolean(voiceId);
   return (
     <section className="relative">
       <div className="mx-auto w-full max-w-6xl px-6 pt-12 pb-24 sm:px-8 sm:pt-20 sm:pb-32">
         <motion.div
-          initial="initial"
+          initial={false}
           animate="enter"
           variants={stagger(0.08)}
           className="max-w-3xl"
