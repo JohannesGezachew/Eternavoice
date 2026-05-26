@@ -11,6 +11,7 @@ import { Mark } from "@/components/shell/Mark";
 import { Composer } from "./Composer";
 import { Message } from "./Message";
 import { trackEvent } from "@/lib/analytics";
+import { reportError } from "@/lib/reportError";
 import type { ChatTurn } from "@/lib/types";
 
 export function ConversationExperience() {
@@ -18,10 +19,12 @@ export function ConversationExperience() {
   const voiceId = useSession((s) => s.voiceId);
   const persona = useSession((s) => s.persona);
   const turns = useSession((s) => s.turns);
+  const memories = useSession((s) => s.memories);
   const status = useSession((s) => s.status);
   const setStatus = useSession((s) => s.setStatus);
   const appendTurn = useSession((s) => s.appendTurn);
   const appendAssistantToken = useSession((s) => s.appendAssistantToken);
+  const appendAssistantAudio = useSession((s) => s.appendAssistantAudio);
   const setTurnFeedback = useSession((s) => s.setTurnFeedback);
   const resetConversation = useSession((s) => s.resetConversation);
   const resetAll = useSession((s) => s.resetAll);
@@ -101,7 +104,12 @@ export function ConversationExperience() {
       let textReceived = false;
       try {
         for await (const event of streamChat(
-          { voiceId, persona, messages },
+          {
+            voiceId,
+            persona,
+            messages,
+            memories: memories.map((memory) => ({ content: memory.content })),
+          },
           controller.signal,
         )) {
           if (event.type === "text") {
@@ -113,6 +121,12 @@ export function ConversationExperience() {
             appendAssistantToken(event.turnId, event.delta);
           } else if (event.type === "audio") {
             receivedAudio = true;
+            appendAssistantAudio(event.turnId, {
+              sentenceIndex: event.sentenceIndex,
+              mime: event.mime,
+              base64: event.base64,
+              pauseMs: event.pauseMs,
+            });
             try {
               const buf = base64ToArrayBuffer(event.base64);
               await queueRef.current?.enqueue(buf, event.pauseMs ?? 0);
@@ -138,6 +152,7 @@ export function ConversationExperience() {
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           console.warn("streamChat failed:", err);
+          reportError("conversation-stream", err);
         }
         if (timedOut) {
           setResponseError("The response is taking too long. Tap retry.");
@@ -154,7 +169,7 @@ export function ConversationExperience() {
         if (streamError) setStatus("idle");
       }
     },
-    [voiceId, persona, appendAssistantToken, setStatus],
+    [voiceId, persona, memories, appendAssistantToken, appendAssistantAudio, setStatus],
   );
 
   const ensureUnlocked = useCallback(async () => {
@@ -286,6 +301,25 @@ export function ConversationExperience() {
     trackEvent("conversation_interrupted", { status });
   }, [setStatus, status]);
 
+  const replayTurn = useCallback(
+    async (turn: ChatTurn) => {
+      if (!turn.audio?.length) return;
+      await ensureUnlocked();
+      queueRef.current?.stop();
+      setResponseError(null);
+      setResponseNotice(null);
+      trackEvent("conversation_reply_replayed", { chunks: turn.audio.length });
+      for (const item of [...turn.audio].sort((a, b) => a.sentenceIndex - b.sentenceIndex)) {
+        try {
+          await queueRef.current?.enqueue(base64ToArrayBuffer(item.base64), item.pauseMs ?? 0);
+        } catch {
+          setResponseNotice("One saved audio segment could not be replayed.");
+        }
+      }
+    },
+    [ensureUnlocked],
+  );
+
   if (!voiceId) return null;
 
   // The "spotlight" message: the latest turn shown above the orb. Streaming
@@ -324,6 +358,12 @@ export function ConversationExperience() {
               className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
             >
               History
+            </Link>
+            <Link
+              href="/memories"
+              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              Memory
             </Link>
             <button
               type="button"
@@ -454,6 +494,7 @@ export function ConversationExperience() {
           <Transcript
             turns={turns}
             streamingTurnId={streamingTurnId}
+            onReplay={(turn) => void replayTurn(turn)}
             onFeedback={(turnId, feedback) => {
               setTurnFeedback(turnId, feedback);
               trackEvent("conversation_turn_feedback", { feedback });
@@ -469,10 +510,12 @@ function Transcript({
   turns,
   streamingTurnId,
   onFeedback,
+  onReplay,
 }: {
   turns: ChatTurn[];
   streamingTurnId: string | null;
   onFeedback: (turnId: string, feedback: NonNullable<ChatTurn["feedback"]>) => void;
+  onReplay: (turn: ChatTurn) => void;
 }) {
   return (
     <section className="mt-8 w-full max-w-3xl pb-8">
@@ -484,6 +527,11 @@ function Transcript({
                 key={turn.id}
                 turn={turn}
                 streaming={turn.id === streamingTurnId}
+                onReplay={
+                  turn.role === "assistant" && turn.audio?.length
+                    ? () => onReplay(turn)
+                    : undefined
+                }
                 onFeedback={
                   turn.role === "assistant"
                     ? (feedback) => onFeedback(turn.id, feedback)
