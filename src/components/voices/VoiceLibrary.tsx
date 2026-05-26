@@ -17,6 +17,8 @@ export function VoiceLibrary() {
   const forgetVoice = useSession((s) => s.forgetVoice);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const startRename = (id: string, name: string) => {
     setEditingId(id);
@@ -30,6 +32,30 @@ export function VoiceLibrary() {
     renameVoice(editingId, nextName);
     setEditingId(null);
     setDraftName("");
+  };
+
+  const deleteProviderVoice = async (id: string, name: string) => {
+    const confirmed = window.confirm(
+      `Delete "${name}" from ElevenLabs and remove it from this device? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/voices/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(json?.error || "Could not delete that provider voice.");
+      }
+      forgetVoice(id);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete that provider voice.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -56,8 +82,14 @@ export function VoiceLibrary() {
           </h1>
           <p className="text-[15px] leading-[1.7] text-[var(--color-bone)]/68">
             Saved voices live on this device until account storage is added.
-            Rename them, switch the active voice, or forget a local entry.
+            Rename them, switch the active voice, forget a local entry, or delete a
+            provider voice when it should free an ElevenLabs slot.
           </p>
+          {deleteError ? (
+            <p className="text-[13px] text-[var(--color-ember-soft)]">
+              {deleteError}
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-10 grid gap-3">
@@ -117,6 +149,15 @@ export function VoiceLibrary() {
                     </Button>
                     <Button variant="ghost" size="md" onClick={() => forgetVoice(voice.id)}>
                       Forget
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      loading={deletingId === voice.id}
+                      disabled={deletingId === voice.id}
+                      onClick={() => void deleteProviderVoice(voice.id, voice.name)}
+                    >
+                      Delete slot
                     </Button>
                   </div>
                 </section>
