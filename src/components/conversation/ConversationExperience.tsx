@@ -14,6 +14,9 @@ import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
 import type { ChatTurn } from "@/lib/types";
 
+const CHAT_CONTEXT_TURNS = 12;
+const MEMORY_CONTEXT_LIMIT = 10;
+
 export function ConversationExperience() {
   const router = useRouter();
   const voiceId = useSession((s) => s.voiceId);
@@ -94,7 +97,11 @@ export function ConversationExperience() {
       setStatus("thinking");
       setResponseError(null);
       setResponseNotice(null);
-      trackEvent("conversation_reply_started", { turnCount: messages.length });
+      const requestStartedAt = performance.now();
+      trackEvent("conversation_reply_started", {
+        turnCount: messages.length,
+        sentTurnCount: Math.min(messages.length, CHAT_CONTEXT_TURNS),
+      });
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -108,13 +115,17 @@ export function ConversationExperience() {
       let receivedAudio = false;
       let streamError: string | null = null;
       let textReceived = false;
+      let firstAudioEnqueued = false;
       try {
         for await (const event of streamChat(
           {
             voiceId,
             persona,
-            messages,
-            memories: memories.map((memory) => ({ content: memory.content })),
+            messages: messages.slice(-CHAT_CONTEXT_TURNS),
+            memories: [...memories]
+              .sort((a, b) => b.updatedAt - a.updatedAt)
+              .slice(0, MEMORY_CONTEXT_LIMIT)
+              .map((memory) => ({ content: memory.content })),
           },
           controller.signal,
         )) {
@@ -136,9 +147,21 @@ export function ConversationExperience() {
             try {
               const buf = base64ToArrayBuffer(event.base64);
               await queueRef.current?.enqueue(buf, event.pauseMs ?? 0);
+              if (!firstAudioEnqueued) {
+                firstAudioEnqueued = true;
+                trackEvent("conversation_latency_timing", {
+                  label: "client_first_audio_enqueued",
+                  elapsedMs: Math.round(performance.now() - requestStartedAt),
+                });
+              }
             } catch {
               // ignore one-off decode error
             }
+          } else if (event.type === "timing") {
+            trackEvent("conversation_latency_timing", {
+              label: event.label,
+              elapsedMs: event.elapsedMs,
+            });
           } else if (event.type === "done") {
             setStreamingTurnId(null);
             if (!receivedAudio) {
