@@ -32,6 +32,7 @@ import {
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { cn, formatSeconds } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
 
 type Phase = "intro" | "recording" | "review" | "converting" | "uploading" | "ready";
 type Mode = "upload" | "record";
@@ -184,6 +185,10 @@ export function RecordExperience() {
     setPhase("uploading");
     try {
       const fd = new FormData();
+      trackEvent("clone_started", {
+        mode: "upload",
+        selectedRegion: Boolean(selectedRegion),
+      });
 
       const clip = async (start: number, end: number): Promise<File> => {
         const fast = await sliceWavBytes(uploadFile, start, end);
@@ -224,11 +229,13 @@ export function RecordExperience() {
         throw new Error(await readCloneError(res));
       }
       const json = (await res.json()) as { voiceId: string; name: string };
+      trackEvent("clone_completed", { mode: "upload" });
       setVoice(json.voiceId, json.name);
       setPhase("ready");
       setTimeout(() => router.push("/voice-preview"), 700);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong.";
+      trackEvent("clone_failed", { mode: "upload", message });
       setUploadError(message);
       setPhase("review");
     } finally {
@@ -320,6 +327,7 @@ export function RecordExperience() {
         type: take.mimeType,
       });
       const fd = new FormData();
+      trackEvent("clone_started", { mode: "record" });
       fd.append("audio", file, file.name);
       fd.append("name", subjectName);
       const res = await fetch("/api/clone", { method: "POST", body: fd });
@@ -327,12 +335,14 @@ export function RecordExperience() {
         throw new Error(await readCloneError(res));
       }
       const json = (await res.json()) as { voiceId: string; name: string };
+      trackEvent("clone_completed", { mode: "record" });
       setVoice(json.voiceId, json.name);
       setPhase("ready");
       setTimeout(() => router.push("/voice-preview"), 700);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Something went wrong on our side.";
+      trackEvent("clone_failed", { mode: "record", message });
       setUploadError(message);
       setPhase("review");
     } finally {

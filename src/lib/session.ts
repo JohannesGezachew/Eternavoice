@@ -2,9 +2,21 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { ChatTurn, ConversationStatus, PersonaConfig, VoiceLibraryItem } from "./types";
+import type {
+  ChatTurn,
+  ConversationRecord,
+  ConversationStatus,
+  PersonaConfig,
+  VoiceLibraryItem,
+} from "./types";
 
-export type { ChatTurn, ConversationStatus, PersonaConfig, VoiceLibraryItem };
+export type {
+  ChatTurn,
+  ConversationRecord,
+  ConversationStatus,
+  PersonaConfig,
+  VoiceLibraryItem,
+};
 
 const STORAGE_KEY = "eternavoice-session";
 
@@ -29,6 +41,8 @@ interface SessionState {
   voices: VoiceLibraryItem[];
   persona: PersonaConfig;
   turns: ChatTurn[];
+  conversations: ConversationRecord[];
+  currentConversationId: string | null;
   status: ConversationStatus;
 
   setVoice: (voiceId: string, name: string) => void;
@@ -39,6 +53,9 @@ interface SessionState {
   setPersona: (persona: PersonaConfig) => void;
   appendTurn: (turn: ChatTurn) => void;
   appendAssistantToken: (id: string, token: string) => void;
+  newConversation: () => void;
+  openConversation: (conversationId: string) => void;
+  deleteConversation: (conversationId: string) => void;
   setStatus: (status: ConversationStatus) => void;
   resetConversation: () => void;
   resetAll: () => void;
@@ -49,6 +66,52 @@ const defaultPersona: PersonaConfig = {
   name: "",
 };
 
+function newId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function conversationTitle(turns: ChatTurn[]): string {
+  const firstUser = turns.find((turn) => turn.role === "user" && turn.content.trim());
+  const source = firstUser?.content ?? turns.find((turn) => turn.content.trim())?.content;
+  if (!source) return "New conversation";
+  const clean = source.replace(/\s+/g, " ").trim();
+  return clean.length > 64 ? `${clean.slice(0, 61)}...` : clean;
+}
+
+function upsertConversation(
+  state: SessionState,
+  turns: ChatTurn[],
+): Pick<SessionState, "conversations" | "currentConversationId"> {
+  if (!state.voiceId) {
+    return {
+      conversations: state.conversations,
+      currentConversationId: state.currentConversationId,
+    };
+  }
+
+  const now = Date.now();
+  const id = state.currentConversationId ?? newId("c");
+  const existing = state.conversations.find((conversation) => conversation.id === id);
+  const next: ConversationRecord = {
+    id,
+    voiceId: state.voiceId,
+    voiceName: state.voiceName,
+    persona: state.persona,
+    turns,
+    title: conversationTitle(turns),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  return {
+    currentConversationId: id,
+    conversations: [
+      next,
+      ...state.conversations.filter((conversation) => conversation.id !== id),
+    ].slice(0, 40),
+  };
+}
+
 export const useSession = create<SessionState>()(
   persist(
     (set) => ({
@@ -58,6 +121,8 @@ export const useSession = create<SessionState>()(
       voices: [],
       persona: defaultPersona,
       turns: [],
+      conversations: [],
+      currentConversationId: null,
       status: "idle",
 
       setVoice: (voiceId, name) =>
@@ -78,6 +143,7 @@ export const useSession = create<SessionState>()(
             voiceName: voice.name,
             voiceCreatedAt: voice.createdAt,
             turns: [],
+            currentConversationId: null,
             status: "idle",
           };
         }),
@@ -97,32 +163,76 @@ export const useSession = create<SessionState>()(
             voiceName: next?.name ?? "",
             voiceCreatedAt: next?.createdAt ?? null,
             turns: [],
+            currentConversationId: null,
             status: "idle",
           };
         }),
       clearVoice: () => set({ voiceId: null, voiceCreatedAt: null, voiceName: "" }),
-      setPersona: (persona) => set({ persona }),
-      appendTurn: (turn) =>
-        set((s) => ({ turns: [...s.turns, turn] })),
-      appendAssistantToken: (id, token) =>
+      setPersona: (persona) =>
         set((s) => {
-          const existing = s.turns.find((t) => t.id === id);
-          if (!existing) {
-            return {
-              turns: [
-                ...s.turns,
-                { id, role: "assistant", content: token, createdAt: Date.now() },
-              ],
-            };
-          }
+          if (!s.currentConversationId) return { persona };
           return {
-            turns: s.turns.map((t) =>
-              t.id === id ? { ...t, content: t.content + token } : t,
+            persona,
+            conversations: s.conversations.map((conversation) =>
+              conversation.id === s.currentConversationId
+                ? { ...conversation, persona, updatedAt: Date.now() }
+                : conversation,
             ),
           };
         }),
+      appendTurn: (turn) =>
+        set((s) => {
+          const turns = [...s.turns, turn];
+          return { turns, ...upsertConversation(s, turns) };
+        }),
+      appendAssistantToken: (id, token) =>
+        set((s) => {
+          const existing = s.turns.find((t) => t.id === id);
+          let turns: ChatTurn[];
+          if (!existing) {
+            turns = [
+              ...s.turns,
+              { id, role: "assistant", content: token, createdAt: Date.now() },
+            ];
+          } else {
+            turns = s.turns.map((t) =>
+              t.id === id ? { ...t, content: t.content + token } : t,
+            );
+          }
+          return { turns, ...upsertConversation(s, turns) };
+        }),
+      newConversation: () =>
+        set({ turns: [], currentConversationId: newId("c"), status: "idle" }),
+      openConversation: (conversationId) =>
+        set((s) => {
+          const conversation = s.conversations.find((c) => c.id === conversationId);
+          if (!conversation) return {};
+          return {
+            voiceId: conversation.voiceId,
+            voiceName: conversation.voiceName,
+            voiceCreatedAt:
+              s.voices.find((voice) => voice.id === conversation.voiceId)?.createdAt ??
+              s.voiceCreatedAt,
+            persona: conversation.persona,
+            turns: conversation.turns,
+            currentConversationId: conversation.id,
+            status: "idle",
+          };
+        }),
+      deleteConversation: (conversationId) =>
+        set((s) => {
+          const conversations = s.conversations.filter((c) => c.id !== conversationId);
+          if (s.currentConversationId !== conversationId) return { conversations };
+          return {
+            conversations,
+            turns: [],
+            currentConversationId: null,
+            status: "idle",
+          };
+        }),
       setStatus: (status) => set({ status }),
-      resetConversation: () => set({ turns: [], status: "idle" }),
+      resetConversation: () =>
+        set({ turns: [], currentConversationId: newId("c"), status: "idle" }),
       resetAll: () =>
         set({
           voiceId: null,
@@ -131,6 +241,8 @@ export const useSession = create<SessionState>()(
           voices: [],
           persona: defaultPersona,
           turns: [],
+          conversations: [],
+          currentConversationId: null,
           status: "idle",
         }),
     }),
@@ -158,6 +270,11 @@ export const useSession = create<SessionState>()(
             : [],
         persona: state.persona,
         turns: state.turns.slice(-80),
+        conversations: state.conversations.map((conversation) => ({
+          ...conversation,
+          turns: conversation.turns.slice(-80),
+        })),
+        currentConversationId: state.currentConversationId,
       }),
       merge: (persisted, current) => {
         const state = { ...current, ...(persisted as Partial<SessionState>) };
@@ -167,6 +284,23 @@ export const useSession = create<SessionState>()(
               id: state.voiceId,
               name: state.voiceName || "Saved voice",
               createdAt: state.voiceCreatedAt ?? Date.now(),
+            },
+          ];
+        }
+        if (!state.conversations?.length && state.voiceId && state.turns?.length) {
+          const now = Date.now();
+          const id = state.currentConversationId ?? newId("c");
+          state.currentConversationId = id;
+          state.conversations = [
+            {
+              id,
+              voiceId: state.voiceId,
+              voiceName: state.voiceName,
+              title: conversationTitle(state.turns),
+              persona: state.persona,
+              turns: state.turns,
+              createdAt: state.turns[0]?.createdAt ?? now,
+              updatedAt: state.turns.at(-1)?.createdAt ?? now,
             },
           ];
         }

@@ -25,7 +25,8 @@ interface ComposerProps {
 // Voice-activity tunables. Tuned for typical room conditions with browser AGC
 // enabled. SPEECH_RMS is permissive — false triggers are filtered out by the
 // MIN_TURN_MS gate before we transcribe.
-const SPEECH_RMS = 0.025;
+const MIN_SPEECH_RMS = 0.022;
+const SPEECH_ABOVE_NOISE = 2.4;
 const END_SILENCE_MS = 1100;
 const MIN_TURN_MS = 350;
 const MAX_TURN_MS = 30_000;
@@ -59,7 +60,8 @@ export function Composer({
     firstLoudAt: number | null;
     lastLoudAt: number;
     startedAt: number;
-  }>({ firstLoudAt: null, lastLoudAt: 0, startedAt: 0 });
+    noiseFloor: number;
+  }>({ firstLoudAt: null, lastLoudAt: 0, startedAt: 0, noiseFloor: 0.006 });
 
   // Stable refs for parent callbacks. Read at call time so render churn
   // doesn't invalidate the recorder lifecycle.
@@ -153,6 +155,7 @@ export function Composer({
       firstLoudAt: null,
       lastLoudAt: performance.now(),
       startedAt: performance.now(),
+      noiseFloor: 0.006,
     };
     setHearingUser(false);
 
@@ -172,12 +175,17 @@ export function Composer({
               firstLoudAt: null,
               lastLoudAt: performance.now(),
               startedAt: performance.now(),
+              noiseFloor: Math.max(0.006, turnRef.current.noiseFloor * 0.98),
             };
             return;
           }
           const now = performance.now();
           const t = turnRef.current;
-          if (rms > SPEECH_RMS) {
+          if (t.firstLoudAt === null) {
+            t.noiseFloor = t.noiseFloor * 0.96 + Math.min(rms, 0.08) * 0.04;
+          }
+          const speechThreshold = Math.max(MIN_SPEECH_RMS, t.noiseFloor * SPEECH_ABOVE_NOISE);
+          if (rms > speechThreshold) {
             if (t.firstLoudAt === null) {
               t.firstLoudAt = now;
               setHearingUser(true);
@@ -232,6 +240,7 @@ export function Composer({
         firstLoudAt: null,
         lastLoudAt: performance.now(),
         startedAt: performance.now(),
+        noiseFloor: turnRef.current.noiseFloor,
       };
     }
   }, [personaBusy]);
