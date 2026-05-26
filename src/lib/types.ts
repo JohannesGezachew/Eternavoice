@@ -9,6 +9,22 @@ export interface PersonaConfig {
   name: string;
   relationship?: string;
   description?: string;
+  catchphrases?: string;
+  avoidPhrases?: string;
+  speechStyle?: {
+    warmth: number;
+    directness: number;
+    expressiveness: number;
+    humor: number;
+    talkativeness: number;
+  };
+  calibration?: {
+    tooFormal?: boolean;
+    tooCheerful?: boolean;
+    tooManyQuestions?: boolean;
+    tooLong?: boolean;
+    notWarmEnough?: boolean;
+  };
 }
 
 export interface ChatTurn {
@@ -16,6 +32,7 @@ export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
   createdAt: number;
+  feedback?: "more-like-this" | "too-ai" | "too-long" | "wrong-tone";
 }
 
 export interface ConversationRecord {

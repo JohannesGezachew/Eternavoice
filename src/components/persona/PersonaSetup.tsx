@@ -21,6 +21,17 @@ export function PersonaSetup() {
   const [name, setName] = useState(persona.name || voiceName || "");
   const [relationship, setRelationship] = useState(persona.relationship ?? "");
   const [description, setDescription] = useState(persona.description ?? "");
+  const [catchphrases, setCatchphrases] = useState(persona.catchphrases ?? "");
+  const [avoidPhrases, setAvoidPhrases] = useState(persona.avoidPhrases ?? "");
+  const [speechStyle, setSpeechStyle] = useState(
+    persona.speechStyle ?? {
+      warmth: 6,
+      directness: 5,
+      expressiveness: 4,
+      humor: 3,
+      talkativeness: 3,
+    },
+  );
 
   useEffect(() => {
     if (!voiceId) router.replace("/record");
@@ -32,6 +43,10 @@ export function PersonaSetup() {
       name: name.trim(),
       relationship: relationship.trim() || undefined,
       description: description.trim() || undefined,
+      catchphrases: catchphrases.trim() || undefined,
+      avoidPhrases: avoidPhrases.trim() || undefined,
+      speechStyle,
+      calibration: persona.calibration,
     });
     router.push("/conversation");
   };
@@ -138,8 +153,75 @@ export function PersonaSetup() {
                   Specifics outperform adjectives. One quirk is worth ten “kind, caring, loving”.
                 </p>
               </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="p-catch" hint="optional">
+                    Things they said
+                  </Label>
+                  <Textarea
+                    id="p-catch"
+                    value={catchphrases}
+                    onChange={(e) => setCatchphrases(e.target.value)}
+                    placeholder={"go on then\nlisten, love\nsame as ever"}
+                    rows={4}
+                    maxLength={500}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="p-avoid" hint="optional">
+                    Things they would never say
+                  </Label>
+                  <Textarea
+                    id="p-avoid"
+                    value={avoidPhrases}
+                    onChange={(e) => setAvoidPhrases(e.target.value)}
+                    placeholder={"therapy phrases\ncorporate words\nanything too cheerful"}
+                    rows={4}
+                    maxLength={500}
+                  />
+                </div>
+              </div>
             </>
           ) : null}
+
+          <div className="space-y-4">
+            <Label>How should they talk?</Label>
+            <StyleSlider
+              label="Warmth"
+              low="Reserved"
+              high="Tender"
+              value={speechStyle.warmth}
+              onChange={(warmth) => setSpeechStyle((s) => ({ ...s, warmth }))}
+            />
+            <StyleSlider
+              label="Directness"
+              low="Gentle"
+              high="Plain"
+              value={speechStyle.directness}
+              onChange={(directness) => setSpeechStyle((s) => ({ ...s, directness }))}
+            />
+            <StyleSlider
+              label="Expressiveness"
+              low="Quiet"
+              high="Expressive"
+              value={speechStyle.expressiveness}
+              onChange={(expressiveness) => setSpeechStyle((s) => ({ ...s, expressiveness }))}
+            />
+            <StyleSlider
+              label="Humor"
+              low="Serious"
+              high="Dry humor"
+              value={speechStyle.humor}
+              onChange={(humor) => setSpeechStyle((s) => ({ ...s, humor }))}
+            />
+            <StyleSlider
+              label="Talkativeness"
+              low="Few words"
+              high="More words"
+              value={speechStyle.talkativeness}
+              onChange={(talkativeness) => setSpeechStyle((s) => ({ ...s, talkativeness }))}
+            />
+          </div>
 
           <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
             <p className="text-[12px] text-[var(--color-bone-dim)]">
@@ -163,6 +245,41 @@ export function PersonaSetup() {
           </div>
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+function StyleSlider({
+  label,
+  low,
+  high,
+  value,
+  onChange,
+}: {
+  label: string;
+  low: string;
+  high: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 text-[12px] text-[var(--color-bone-dim)]">
+        <span className="text-[var(--color-bone)]/82">{label}</span>
+        <span>{value}/10</span>
+      </div>
+      <input
+        type="range"
+        min={1}
+        max={10}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-[var(--color-ember)]"
+      />
+      <div className="flex justify-between text-[11px] text-[var(--color-bone-dim)]/65">
+        <span>{low}</span>
+        <span>{high}</span>
+      </div>
     </div>
   );
 }
