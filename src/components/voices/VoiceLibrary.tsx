@@ -36,7 +36,7 @@ export function VoiceLibrary() {
 
   const deleteProviderVoice = async (id: string, name: string) => {
     const confirmed = window.confirm(
-      `Delete "${name}" from ElevenLabs and remove it from this device? This cannot be undone.`,
+      `Delete "${name}" from hosted voice storage and remove it from this device? This cannot be undone.`,
     );
     if (!confirmed) return;
 
@@ -48,11 +48,11 @@ export function VoiceLibrary() {
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(json?.error || "Could not delete that provider voice.");
+        throw new Error(json?.error || "Could not delete that hosted voice.");
       }
       forgetVoice(id);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Could not delete that provider voice.");
+      setDeleteError(err instanceof Error ? err.message : "Could not delete that hosted voice.");
     } finally {
       setDeletingId(null);
     }
@@ -83,7 +83,7 @@ export function VoiceLibrary() {
           <p className="text-[15px] leading-[1.7] text-[var(--color-bone)]/68">
             Saved voices live on this device until account storage is added.
             Rename them, switch the active voice, forget a local entry, or delete a
-            provider voice when it should free an ElevenLabs slot.
+            hosted voice when it should free storage.
           </p>
           {deleteError ? (
             <p className="text-[13px] text-[var(--color-ember-soft)]">
@@ -157,7 +157,7 @@ export function VoiceLibrary() {
                       disabled={deletingId === voice.id}
                       onClick={() => void deleteProviderVoice(voice.id, voice.name)}
                     >
-                      Delete slot
+                      Delete hosted voice
                     </Button>
                   </div>
                 </section>

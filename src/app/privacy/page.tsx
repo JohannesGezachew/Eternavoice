@@ -22,7 +22,8 @@ export default function PrivacyPage() {
       </p>
       <h2>How It Is Used</h2>
       <p>
-        Recordings are sent to ElevenLabs to create and play cloned voices.
+        Recordings are processed by EternaVoice services to create and play
+        cloned voices.
         Messages and voice input may be sent to OpenAI to generate and
         transcribe conversation turns.
       </p>
