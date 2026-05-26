@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     const raw = errorDetails(err);
     const lower = raw.toLowerCase();
 
-    console.error("[clone] ElevenLabs IVC failed:", raw);
+    console.error("[clone] voice provider failed:", raw);
 
     if (
       lower.includes("paid_plan_required") ||
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Instant Voice Cloning isn’t included on the current ElevenLabs plan. Upgrade to Creator (or higher) at elevenlabs.io/app/subscription, then try again — the same API key will work.",
+            "Voice cloning is not enabled for the current workspace. Contact support, then try again.",
         },
         { status: 402 },
       );
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Your ElevenLabs voice library is full. Delete an old voice in the ElevenLabs dashboard and try again.",
+            "Your hosted voice library is full. Delete an old voice and try again.",
         },
         { status: 409 },
       );
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 
     if (lower.includes("rate_limit") || lower.includes("too_many_requests")) {
       return NextResponse.json(
-        { error: "ElevenLabs is rate-limiting. Wait a moment and try again." },
+        { error: "Voice creation is temporarily busy. Wait a moment and try again." },
         { status: 429 },
       );
     }
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "ElevenLabs could not find enough clear speech in that clip. Pick a clean 30–60 second section with one speaker and try again.",
+            "We could not find enough clear speech in that clip. Pick a clean 30–60 second section with one speaker and try again.",
         },
         { status: 422 },
       );

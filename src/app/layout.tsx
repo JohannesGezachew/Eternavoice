@@ -12,8 +12,26 @@ export const metadata: Metadata = {
   applicationName: "EternaVoice",
   authors: [{ name: "EternaVoice" }],
   metadataBase: new URL("https://eternavoice.app"),
+  manifest: "/site.webmanifest",
   alternates: {
     canonical: "/",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-48x48.png", sizes: "48x48", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    other: [
+      {
+        rel: "mask-icon",
+        url: "/safari-pinned-tab.svg",
+        color: "#c7a27c",
+      },
+    ],
   },
   openGraph: {
     title: "EternaVoice",
@@ -41,6 +59,15 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+  },
+  appleWebApp: {
+    capable: true,
+    title: "EternaVoice",
+    statusBarStyle: "black-translucent",
+  },
+  other: {
+    "msapplication-TileColor": "#0b0b0e",
+    "msapplication-config": "/browserconfig.xml",
   },
 };
 

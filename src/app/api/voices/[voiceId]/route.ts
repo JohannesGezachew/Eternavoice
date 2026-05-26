@@ -35,8 +35,10 @@ export async function DELETE(
     await elevenlabs().voices.delete(parsed.data.voiceId);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Could not delete that provider voice.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    console.error("[voice-delete] provider failed:", err);
+    return NextResponse.json(
+      { error: "Could not delete that hosted voice." },
+      { status: 502 },
+    );
   }
 }

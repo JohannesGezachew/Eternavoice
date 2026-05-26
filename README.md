@@ -3,7 +3,7 @@
 Continuous voice conversations with someone you can no longer reach.
 Built from what they left behind. This repository is the **Phase 1
 magic-moment demo** from the V1 Engineering Brief: record a voice in
-the browser, instantly clone it via ElevenLabs IVC, and have a
+the browser, instantly clone it through the voice engine, and have a
 streaming voice conversation in that voice powered by OpenAI.
 
 **What this build is.** A polished, mobile-first web experience that
@@ -61,7 +61,7 @@ npm run format      # prettier --write .
 Browser                                   Server (Next.js Route Handlers)
 ─────────────────────────                 ─────────────────────────────
 Recording screen                          POST /api/clone
-  MediaRecorder (webm/opus or mp4)        → ElevenLabs IVC
+  MediaRecorder (webm/opus or mp4)        → Voice clone engine
   AnalyserNode → live waveform            → returns voice_id
   Real-time quality scoring
                           ↓ blob
@@ -72,7 +72,7 @@ Recording screen                          POST /api/clone
 Conversation screen                       POST /api/chat (SSE)
   Composer (text + push-to-talk)          → OpenAI Chat Completions stream
   Streaming typewriter                    → Sentence buffer
-  PlaybackQueue (decodeAudioData)         → ElevenLabs TTS stream per sentence
+  PlaybackQueue (decodeAudioData)         → Voice stream per sentence
   AnalyserNode → orb amplitude            → Interleaved text + audio SSE
                           ↑
               audio chunks (base64 mp3)
@@ -86,7 +86,7 @@ The latency target is won here. See [`src/app/api/chat/route.ts`](src/app/api/ch
 1. Open OpenAI streaming.
 2. As tokens arrive, emit `text` SSE events immediately and feed them
    into [`SentenceBuffer`](src/lib/sentences.ts).
-3. The instant a sentence completes, kick off ElevenLabs TTS for it
+3. The instant a sentence completes, kick off voice synthesis for it
    (parallel with the LLM continuing on the next sentence).
 4. Drain TTS results in original sentence order, emitting one `audio`
    SSE event per completed sentence (full mp3 blob, base64).
@@ -111,7 +111,7 @@ Extensions` because:
 |---|---|---|
 | First text token to UI | < 800 ms p50 | OpenAI streaming + immediate SSE forward |
 | First audio byte to ear | < 2.0 s p50, < 3.0 s p95 | Sentence-level parallel TTS + per-sentence playback |
-| Voice clone end-to-end | < 20 s | ElevenLabs IVC + 25 MB upload cap |
+| Voice clone end-to-end | < 20 s | Voice clone engine + 25 MB upload cap |
 | 10-minute continuous conversation | Stable | 12-turn working memory, no DB |
 
 ### Rate limits (per session cookie, in-memory)
@@ -138,7 +138,7 @@ src/
     persona/page.tsx            Step 2
     conversation/page.tsx       Step 3
     api/clone/route.ts          IVC clone (multipart)
-    api/chat/route.ts           OpenAI + ElevenLabs SSE
+    api/chat/route.ts           OpenAI + voice SSE
     api/transcribe/route.ts     gpt-4o-mini-transcribe
     error.tsx, not-found.tsx, loading.tsx
   components/
@@ -151,7 +151,7 @@ src/
   lib/
     env.ts                      Server-only env access
     openai.ts                   Cached OpenAI client
-    elevenlabs.ts               Cached ElevenLabs client + voice settings
+    voice client wrapper        Cached voice provider client + voice settings
     prompts.ts                  System-prompt assembly with hard rules
     sentences.ts                Streaming sentence buffer
     sse.ts                      Wire types + encoder
@@ -208,7 +208,7 @@ src/
 
 | Symptom | First fix |
 |---|---|
-| Clone never finishes | Check `ELEVENLABS_API_KEY` quota; retry; if still failing, re-record at lower bitrate |
+| Clone never finishes | Check voice provider quota; retry; if still failing, re-record at lower bitrate |
 | First reply > 5 s | Check OpenAI region latency; switch `OPENAI_CHAT_MODEL=gpt-4o-mini` for the demo |
 | Clone sounds robotic | The take was thin — re-record with more voice variety; tweak `VOICE_SETTINGS.stability` to 0.4 |
 | Audio doesn't play on iOS | The first user interaction must be a tap that calls send — that unlocks the AudioContext. If it's silent on iOS, send a typed message first, not a voice message |
@@ -217,7 +217,7 @@ src/
 
 ### Knobs you can turn live
 
-- **`VOICE_SETTINGS`** in [`src/lib/elevenlabs.ts`](src/lib/elevenlabs.ts):
+- **`VOICE_SETTINGS`** in the server voice client:
   `stability` lower = more emotive, higher = more consistent. `style`
   raises the original speaker's traits. Defaults are tuned conservative.
 - **`max_tokens`** in [`src/app/api/chat/route.ts`](src/app/api/chat/route.ts):
@@ -266,7 +266,7 @@ operator to run, not CI:
 - Framer Motion 12 for choreography
 - Zustand 5 for session state, sessionStorage-persisted
 - Zod 4 for runtime request validation
-- `openai` 6.x and `@elevenlabs/elevenlabs-js` 2.x
+- OpenAI SDK 6.x and the hosted voice SDK
 
 ## Brand notes
 
