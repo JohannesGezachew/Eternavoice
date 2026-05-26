@@ -7,9 +7,11 @@ import { cn } from "@/lib/utils";
 export function Message({
   turn,
   streaming,
+  onFeedback,
 }: {
   turn: ChatTurn;
   streaming?: boolean;
+  onFeedback?: (feedback: NonNullable<ChatTurn["feedback"]>) => void;
 }) {
   const isUser = turn.role === "user";
   return (
@@ -34,12 +36,38 @@ export function Message({
         {isUser ? (
           <p className="text-[15px] leading-[1.6]">{turn.content}</p>
         ) : (
-          <p>
-            {turn.content || (streaming ? "" : "")}
-            {streaming ? (
-              <span className="ml-1 inline-block h-[0.9em] w-[0.18em] -translate-y-[0.05em] animate-pulse bg-[var(--color-ember)] align-middle" />
+          <div className="space-y-3">
+            <p>
+              {turn.content || (streaming ? "" : "")}
+              {streaming ? (
+                <span className="ml-1 inline-block h-[0.9em] w-[0.18em] -translate-y-[0.05em] animate-pulse bg-[var(--color-ember)] align-middle" />
+              ) : null}
+            </p>
+            {!streaming && onFeedback ? (
+              <div className="flex flex-wrap gap-2 font-sans text-[11px]">
+                {[
+                  ["more-like-this", "More like this"],
+                  ["too-ai", "Too AI"],
+                  ["too-long", "Too long"],
+                  ["wrong-tone", "Wrong tone"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => onFeedback(value as NonNullable<ChatTurn["feedback"]>)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 transition",
+                      turn.feedback === value
+                        ? "border-[var(--color-ember)]/50 text-[var(--color-bone)]"
+                        : "border-[var(--color-rule-strong)] text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             ) : null}
-          </p>
+          </div>
         )}
       </div>
     </motion.div>

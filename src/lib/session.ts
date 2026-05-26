@@ -53,6 +53,7 @@ interface SessionState {
   setPersona: (persona: PersonaConfig) => void;
   appendTurn: (turn: ChatTurn) => void;
   appendAssistantToken: (id: string, token: string) => void;
+  setTurnFeedback: (id: string, feedback: ChatTurn["feedback"]) => void;
   newConversation: () => void;
   openConversation: (conversationId: string) => void;
   deleteConversation: (conversationId: string) => void;
@@ -199,6 +200,11 @@ export const useSession = create<SessionState>()(
               t.id === id ? { ...t, content: t.content + token } : t,
             );
           }
+          return { turns, ...upsertConversation(s, turns) };
+        }),
+      setTurnFeedback: (id, feedback) =>
+        set((s) => {
+          const turns = s.turns.map((t) => (t.id === id ? { ...t, feedback } : t));
           return { turns, ...upsertConversation(s, turns) };
         }),
       newConversation: () =>

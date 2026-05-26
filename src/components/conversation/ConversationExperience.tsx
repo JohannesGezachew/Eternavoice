@@ -22,6 +22,7 @@ export function ConversationExperience() {
   const setStatus = useSession((s) => s.setStatus);
   const appendTurn = useSession((s) => s.appendTurn);
   const appendAssistantToken = useSession((s) => s.appendAssistantToken);
+  const setTurnFeedback = useSession((s) => s.setTurnFeedback);
   const resetConversation = useSession((s) => s.resetConversation);
   const resetAll = useSession((s) => s.resetAll);
 
@@ -114,7 +115,7 @@ export function ConversationExperience() {
             receivedAudio = true;
             try {
               const buf = base64ToArrayBuffer(event.base64);
-              await queueRef.current?.enqueue(buf);
+              await queueRef.current?.enqueue(buf, event.pauseMs ?? 0);
             } catch {
               // ignore one-off decode error
             }
@@ -450,7 +451,14 @@ export function ConversationExperience() {
         </div>
 
         {showTranscript ? (
-          <Transcript turns={turns} streamingTurnId={streamingTurnId} />
+          <Transcript
+            turns={turns}
+            streamingTurnId={streamingTurnId}
+            onFeedback={(turnId, feedback) => {
+              setTurnFeedback(turnId, feedback);
+              trackEvent("conversation_turn_feedback", { feedback });
+            }}
+          />
         ) : null}
       </main>
     </div>
@@ -460,9 +468,11 @@ export function ConversationExperience() {
 function Transcript({
   turns,
   streamingTurnId,
+  onFeedback,
 }: {
   turns: ChatTurn[];
   streamingTurnId: string | null;
+  onFeedback: (turnId: string, feedback: NonNullable<ChatTurn["feedback"]>) => void;
 }) {
   return (
     <section className="mt-8 w-full max-w-3xl pb-8">
@@ -474,6 +484,11 @@ function Transcript({
                 key={turn.id}
                 turn={turn}
                 streaming={turn.id === streamingTurnId}
+                onFeedback={
+                  turn.role === "assistant"
+                    ? (feedback) => onFeedback(turn.id, feedback)
+                    : undefined
+                }
               />
             ))}
           </div>
