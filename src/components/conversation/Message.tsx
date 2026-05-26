@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 export function Message({
   turn,
   streaming,
+  onReplay,
   onFeedback,
 }: {
   turn: ChatTurn;
   streaming?: boolean;
+  onReplay?: () => void;
   onFeedback?: (feedback: NonNullable<ChatTurn["feedback"]>) => void;
 }) {
   const isUser = turn.role === "user";
@@ -43,9 +45,18 @@ export function Message({
                 <span className="ml-1 inline-block h-[0.9em] w-[0.18em] -translate-y-[0.05em] animate-pulse bg-[var(--color-ember)] align-middle" />
               ) : null}
             </p>
-            {!streaming && onFeedback ? (
+            {!streaming && (onReplay || onFeedback) ? (
               <div className="flex flex-wrap gap-2 font-sans text-[11px]">
-                {[
+                {onReplay ? (
+                  <button
+                    type="button"
+                    onClick={onReplay}
+                    className="rounded-full border border-[var(--color-rule-strong)] px-2.5 py-1 text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                  >
+                    Replay voice
+                  </button>
+                ) : null}
+                {onFeedback ? [
                   ["more-like-this", "More like this"],
                   ["too-ai", "Too AI"],
                   ["too-long", "Too long"],
@@ -64,7 +75,7 @@ export function Message({
                   >
                     {label}
                   </button>
-                ))}
+                )) : null}
               </div>
             ) : null}
           </div>

@@ -33,6 +33,12 @@ export interface ChatTurn {
   content: string;
   createdAt: number;
   feedback?: "more-like-this" | "too-ai" | "too-long" | "wrong-tone";
+  audio?: Array<{
+    sentenceIndex: number;
+    mime: string;
+    base64: string;
+    pauseMs?: number;
+  }>;
 }
 
 export interface ConversationRecord {
@@ -44,6 +50,8 @@ export interface ConversationRecord {
   turns: ChatTurn[];
   createdAt: number;
   updatedAt: number;
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 export interface VoiceLibraryItem {
@@ -52,8 +60,16 @@ export interface VoiceLibraryItem {
   createdAt: number;
 }
 
+export interface MemoryItem {
+  id: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ChatRequestPayload {
   voiceId: string;
   persona: PersonaConfig;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
+  memories?: Array<{ content: string }>;
 }
