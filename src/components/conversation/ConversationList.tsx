@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Field";
 import { Mark } from "@/components/shell/Mark";
 import { useSession } from "@/lib/session";
 
@@ -11,8 +13,24 @@ export function ConversationList() {
   const conversations = useSession((s) => s.conversations);
   const currentConversationId = useSession((s) => s.currentConversationId);
   const openConversation = useSession((s) => s.openConversation);
+  const renameConversation = useSession((s) => s.renameConversation);
+  const toggleConversationPin = useSession((s) => s.toggleConversationPin);
   const deleteConversation = useSession((s) => s.deleteConversation);
   const newConversation = useSession((s) => s.newConversation);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+
+  const startRename = (id: string, title: string) => {
+    setEditingId(id);
+    setDraftTitle(title);
+  };
+
+  const saveRename = () => {
+    if (!editingId) return;
+    renameConversation(editingId, draftTitle);
+    setEditingId(null);
+    setDraftTitle("");
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-6 sm:px-8">
@@ -44,42 +62,80 @@ export function ConversationList() {
 
         <div className="mt-10 grid gap-3">
           {conversations.length ? (
-            conversations.map((conversation) => (
-              <section
-                key={conversation.id}
-                className="hairline flex flex-col gap-4 rounded-2xl bg-white/[0.018] p-5 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <h2 className="truncate font-serif text-[24px] text-[var(--color-bone)]">
-                    {conversation.title}
-                  </h2>
-                  <p className="mt-1 text-[12px] text-[var(--color-bone-dim)]">
-                    {conversation.voiceName} · {conversation.turns.length} turns · Updated{" "}
-                    {new Date(conversation.updatedAt).toLocaleDateString()}
-                    {conversation.id === currentConversationId ? " · Current" : ""}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="primary"
-                    size="md"
-                    onClick={() => {
-                      openConversation(conversation.id);
-                      router.push("/conversation");
-                    }}
-                  >
-                    Open
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="md"
-                    onClick={() => deleteConversation(conversation.id)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </section>
-            ))
+            conversations.map((conversation) => {
+              const editing = editingId === conversation.id;
+              return (
+                <section
+                  key={conversation.id}
+                  className="hairline flex flex-col gap-4 rounded-2xl bg-white/[0.018] p-5 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 flex-1">
+                    {editing ? (
+                      <div className="flex max-w-md gap-2">
+                        <Input
+                          value={draftTitle}
+                          onChange={(e) => setDraftTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveRename();
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                          autoFocus
+                          maxLength={90}
+                        />
+                        <Button variant="outline" size="md" onClick={saveRename}>
+                          Save
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <h2 className="truncate font-serif text-[24px] text-[var(--color-bone)]">
+                          {conversation.pinned ? "Pinned · " : ""}
+                          {conversation.title}
+                        </h2>
+                        <p className="mt-1 text-[12px] text-[var(--color-bone-dim)]">
+                          {conversation.voiceName} · {conversation.turns.length} turns · Updated{" "}
+                          {new Date(conversation.updatedAt).toLocaleDateString()}
+                          {conversation.id === currentConversationId ? " · Current" : ""}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={() => {
+                        openConversation(conversation.id);
+                        router.push("/conversation");
+                      }}
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="md"
+                      onClick={() => toggleConversationPin(conversation.id)}
+                    >
+                      {conversation.pinned ? "Unpin" : "Pin"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="md"
+                      onClick={() => startRename(conversation.id, conversation.title)}
+                    >
+                      Rename
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      onClick={() => deleteConversation(conversation.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </section>
+              );
+            })
           ) : (
             <div className="hairline rounded-2xl bg-white/[0.018] p-7">
               <p className="text-[15px] text-[var(--color-bone)]/75">

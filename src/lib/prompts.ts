@@ -1,5 +1,5 @@
 import "server-only";
-import type { PersonaConfig } from "./types";
+import type { MemoryItem, PersonaConfig } from "./types";
 
 const HARD_RULES = `Hard rules — never broken:
 - Speak in short, conversational fragments, the way a real person speaks. Never lecture.
@@ -109,4 +109,25 @@ function personaPrompt(persona: PersonaConfig): string {
 
 export function buildSystemPrompt(persona: PersonaConfig): string {
   return persona.mode === "persona" ? personaPrompt(persona) : selfPrompt(persona);
+}
+
+export function buildChatPrompt(
+  persona: PersonaConfig,
+  memories: Array<Pick<MemoryItem, "content">> = [],
+): string {
+  const memoryLines = memories
+    .map((memory) => memory.content.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+
+  if (!memoryLines.length) return buildSystemPrompt(persona);
+
+  return [
+    buildSystemPrompt(persona),
+    [
+      "Known memory, reviewed by the user:",
+      ...memoryLines.map((memory) => `- ${memory}`),
+      "Use these details only when they naturally fit. Do not recite them as a list.",
+    ].join("\n"),
+  ].join("\n\n");
 }

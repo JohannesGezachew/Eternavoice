@@ -6,6 +6,7 @@ import type {
   ChatTurn,
   ConversationRecord,
   ConversationStatus,
+  MemoryItem,
   PersonaConfig,
   VoiceLibraryItem,
 } from "./types";
@@ -14,6 +15,7 @@ export type {
   ChatTurn,
   ConversationRecord,
   ConversationStatus,
+  MemoryItem,
   PersonaConfig,
   VoiceLibraryItem,
 };
@@ -43,6 +45,7 @@ interface SessionState {
   turns: ChatTurn[];
   conversations: ConversationRecord[];
   currentConversationId: string | null;
+  memories: MemoryItem[];
   status: ConversationStatus;
 
   setVoice: (voiceId: string, name: string) => void;
@@ -53,10 +56,19 @@ interface SessionState {
   setPersona: (persona: PersonaConfig) => void;
   appendTurn: (turn: ChatTurn) => void;
   appendAssistantToken: (id: string, token: string) => void;
+  appendAssistantAudio: (
+    id: string,
+    audio: NonNullable<ChatTurn["audio"]>[number],
+  ) => void;
   setTurnFeedback: (id: string, feedback: ChatTurn["feedback"]) => void;
   newConversation: () => void;
   openConversation: (conversationId: string) => void;
+  renameConversation: (conversationId: string, title: string) => void;
+  toggleConversationPin: (conversationId: string) => void;
   deleteConversation: (conversationId: string) => void;
+  addMemory: (content: string) => void;
+  updateMemory: (id: string, content: string) => void;
+  deleteMemory: (id: string) => void;
   setStatus: (status: ConversationStatus) => void;
   resetConversation: () => void;
   resetAll: () => void;
@@ -99,18 +111,42 @@ function upsertConversation(
     voiceName: state.voiceName,
     persona: state.persona,
     turns,
-    title: conversationTitle(turns),
+    title: existing?.title ?? conversationTitle(turns),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
+    pinned: existing?.pinned,
+    archived: existing?.archived,
   };
 
   return {
     currentConversationId: id,
-    conversations: [
+    conversations: sortConversations([
       next,
       ...state.conversations.filter((conversation) => conversation.id !== id),
-    ].slice(0, 40),
+    ]).slice(0, 40),
   };
+}
+
+function sortConversations(conversations: ConversationRecord[]): ConversationRecord[] {
+  return [...conversations].sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+function updateTurnAudio(
+  turns: ChatTurn[],
+  id: string,
+  audio: NonNullable<ChatTurn["audio"]>[number],
+): ChatTurn[] {
+  return turns.map((turn) => {
+    if (turn.id !== id) return turn;
+    const nextAudio = [...(turn.audio ?? [])]
+      .filter((item) => item.sentenceIndex !== audio.sentenceIndex)
+      .concat(audio)
+      .sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+    return { ...turn, audio: nextAudio };
+  });
 }
 
 export const useSession = create<SessionState>()(
@@ -124,6 +160,7 @@ export const useSession = create<SessionState>()(
       turns: [],
       conversations: [],
       currentConversationId: null,
+      memories: [],
       status: "idle",
 
       setVoice: (voiceId, name) =>
@@ -202,6 +239,11 @@ export const useSession = create<SessionState>()(
           }
           return { turns, ...upsertConversation(s, turns) };
         }),
+      appendAssistantAudio: (id, audio) =>
+        set((s) => {
+          const turns = updateTurnAudio(s.turns, id, audio);
+          return { turns, ...upsertConversation(s, turns) };
+        }),
       setTurnFeedback: (id, feedback) =>
         set((s) => {
           const turns = s.turns.map((t) => (t.id === id ? { ...t, feedback } : t));
@@ -225,6 +267,30 @@ export const useSession = create<SessionState>()(
             status: "idle",
           };
         }),
+      renameConversation: (conversationId, title) =>
+        set((s) => {
+          const clean = title.replace(/\s+/g, " ").trim();
+          if (!clean) return {};
+          return {
+            conversations: sortConversations(
+              s.conversations.map((conversation) =>
+                conversation.id === conversationId
+                  ? { ...conversation, title: clean, updatedAt: Date.now() }
+                  : conversation,
+              ),
+            ),
+          };
+        }),
+      toggleConversationPin: (conversationId) =>
+        set((s) => ({
+          conversations: sortConversations(
+            s.conversations.map((conversation) =>
+              conversation.id === conversationId
+                ? { ...conversation, pinned: !conversation.pinned, updatedAt: Date.now() }
+                : conversation,
+            ),
+          ),
+        })),
       deleteConversation: (conversationId) =>
         set((s) => {
           const conversations = s.conversations.filter((c) => c.id !== conversationId);
@@ -236,6 +302,32 @@ export const useSession = create<SessionState>()(
             status: "idle",
           };
         }),
+      addMemory: (content) =>
+        set((s) => {
+          const clean = content.replace(/\s+/g, " ").trim();
+          if (!clean) return {};
+          const now = Date.now();
+          return {
+            memories: [
+              { id: newId("m"), content: clean, createdAt: now, updatedAt: now },
+              ...s.memories,
+            ].slice(0, 80),
+          };
+        }),
+      updateMemory: (id, content) =>
+        set((s) => {
+          const clean = content.replace(/\s+/g, " ").trim();
+          if (!clean) return {};
+          return {
+            memories: s.memories.map((memory) =>
+              memory.id === id
+                ? { ...memory, content: clean, updatedAt: Date.now() }
+                : memory,
+            ),
+          };
+        }),
+      deleteMemory: (id) =>
+        set((s) => ({ memories: s.memories.filter((memory) => memory.id !== id) })),
       setStatus: (status) => set({ status }),
       resetConversation: () =>
         set({ turns: [], currentConversationId: newId("c"), status: "idle" }),
@@ -249,6 +341,7 @@ export const useSession = create<SessionState>()(
           turns: [],
           conversations: [],
           currentConversationId: null,
+          memories: [],
           status: "idle",
         }),
     }),
@@ -281,9 +374,12 @@ export const useSession = create<SessionState>()(
           turns: conversation.turns.slice(-80),
         })),
         currentConversationId: state.currentConversationId,
+        memories: state.memories,
       }),
       merge: (persisted, current) => {
         const state = { ...current, ...(persisted as Partial<SessionState>) };
+        state.memories = state.memories ?? [];
+        state.conversations = sortConversations(state.conversations ?? []);
         if (!state.voices?.length && state.voiceId) {
           state.voices = [
             {

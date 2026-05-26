@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { reportError } from "@/lib/reportError";
 
 export default function GlobalError({
   error,
@@ -13,6 +14,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
+    reportError("global-error-boundary", error);
   }, [error]);
 
   return (
