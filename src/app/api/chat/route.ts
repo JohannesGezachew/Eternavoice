@@ -3,7 +3,7 @@ import { z } from "zod";
 import { openai } from "@/lib/openai";
 import { elevenlabs, VOICE_SETTINGS } from "@/lib/elevenlabs";
 import { env } from "@/lib/env";
-import { buildSystemPrompt } from "@/lib/prompts";
+import { buildChatPrompt } from "@/lib/prompts";
 import { SentenceBuffer } from "@/lib/sentences";
 import { encodeSse, type ChatEvent } from "@/lib/sse";
 import { checkRate } from "@/lib/rateLimit";
@@ -50,6 +50,14 @@ const Body = z.object({
     )
     .min(1)
     .max(40),
+  memories: z
+    .array(
+      z.object({
+        content: z.string().min(1).max(500),
+      }),
+    )
+    .max(20)
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -162,7 +170,7 @@ export async function POST(request: Request) {
       send({ type: "ready" });
       void drain();
 
-      const systemPrompt = buildSystemPrompt(parsed.persona);
+      const systemPrompt = buildChatPrompt(parsed.persona, parsed.memories ?? []);
       const sentences = new SentenceBuffer();
       let rawText = "";
       let fullText = "";
