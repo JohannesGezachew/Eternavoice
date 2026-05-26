@@ -2,9 +2,9 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { ChatTurn, ConversationStatus, PersonaConfig } from "./types";
+import type { ChatTurn, ConversationStatus, PersonaConfig, VoiceLibraryItem } from "./types";
 
-export type { ChatTurn, ConversationStatus, PersonaConfig };
+export type { ChatTurn, ConversationStatus, PersonaConfig, VoiceLibraryItem };
 
 const STORAGE_KEY = "eternavoice-session";
 
@@ -26,11 +26,15 @@ interface SessionState {
   voiceId: string | null;
   voiceCreatedAt: number | null;
   voiceName: string;
+  voices: VoiceLibraryItem[];
   persona: PersonaConfig;
   turns: ChatTurn[];
   status: ConversationStatus;
 
   setVoice: (voiceId: string, name: string) => void;
+  setActiveVoice: (voiceId: string) => void;
+  renameVoice: (voiceId: string, name: string) => void;
+  forgetVoice: (voiceId: string) => void;
   clearVoice: () => void;
   setPersona: (persona: PersonaConfig) => void;
   appendTurn: (turn: ChatTurn) => void;
@@ -51,12 +55,51 @@ export const useSession = create<SessionState>()(
       voiceId: null,
       voiceCreatedAt: null,
       voiceName: "",
+      voices: [],
       persona: defaultPersona,
       turns: [],
       status: "idle",
 
       setVoice: (voiceId, name) =>
-        set({ voiceId, voiceName: name, voiceCreatedAt: Date.now() }),
+        set((s) => {
+          const createdAt = Date.now();
+          const voices = [
+            { id: voiceId, name, createdAt },
+            ...s.voices.filter((v) => v.id !== voiceId),
+          ];
+          return { voiceId, voiceName: name, voiceCreatedAt: createdAt, voices };
+        }),
+      setActiveVoice: (voiceId) =>
+        set((s) => {
+          const voice = s.voices.find((v) => v.id === voiceId);
+          if (!voice) return {};
+          return {
+            voiceId: voice.id,
+            voiceName: voice.name,
+            voiceCreatedAt: voice.createdAt,
+            turns: [],
+            status: "idle",
+          };
+        }),
+      renameVoice: (voiceId, name) =>
+        set((s) => ({
+          voices: s.voices.map((v) => (v.id === voiceId ? { ...v, name } : v)),
+          voiceName: s.voiceId === voiceId ? name : s.voiceName,
+        })),
+      forgetVoice: (voiceId) =>
+        set((s) => {
+          const voices = s.voices.filter((v) => v.id !== voiceId);
+          if (s.voiceId !== voiceId) return { voices };
+          const next = voices[0];
+          return {
+            voices,
+            voiceId: next?.id ?? null,
+            voiceName: next?.name ?? "",
+            voiceCreatedAt: next?.createdAt ?? null,
+            turns: [],
+            status: "idle",
+          };
+        }),
       clearVoice: () => set({ voiceId: null, voiceCreatedAt: null, voiceName: "" }),
       setPersona: (persona) => set({ persona }),
       appendTurn: (turn) =>
@@ -85,6 +128,7 @@ export const useSession = create<SessionState>()(
           voiceId: null,
           voiceCreatedAt: null,
           voiceName: "",
+          voices: [],
           persona: defaultPersona,
           turns: [],
           status: "idle",
@@ -92,9 +136,8 @@ export const useSession = create<SessionState>()(
     }),
     {
       name: STORAGE_KEY,
-      // Voice + persona persist across reloads / browser sessions so the user
-      // never has to re-record. Conversation turns intentionally do NOT persist:
-      // every visit starts a fresh conversation, but with the same voice.
+      // Voice, persona, and turns persist across reloads/browser sessions.
+      // Real cross-device persistence still requires auth + a server database.
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? localStorage : (undefined as unknown as Storage),
       ),
@@ -102,8 +145,34 @@ export const useSession = create<SessionState>()(
         voiceId: state.voiceId,
         voiceCreatedAt: state.voiceCreatedAt,
         voiceName: state.voiceName,
+        voices: state.voices.length
+          ? state.voices
+          : state.voiceId
+            ? [
+                {
+                  id: state.voiceId,
+                  name: state.voiceName || "Saved voice",
+                  createdAt: state.voiceCreatedAt ?? Date.now(),
+                },
+              ]
+            : [],
         persona: state.persona,
+        turns: state.turns.slice(-80),
       }),
+      merge: (persisted, current) => {
+        const state = { ...current, ...(persisted as Partial<SessionState>) };
+        if (!state.voices?.length && state.voiceId) {
+          state.voices = [
+            {
+              id: state.voiceId,
+              name: state.voiceName || "Saved voice",
+              createdAt: state.voiceCreatedAt ?? Date.now(),
+            },
+          ];
+        }
+        state.status = "idle";
+        return state;
+      },
     },
   ),
 );

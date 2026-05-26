@@ -20,8 +20,8 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
   const [totalDuration, setTotalDuration] = useState(0);
   const [hasRegion, setHasRegion] = useState(false);
 
-  const regionsPlugin = useRef(RegionsPlugin.create());
-  const plugins = useMemo(() => [regionsPlugin.current], []);
+  const [regionsPlugin] = useState(() => RegionsPlugin.create());
+  const plugins = useMemo(() => [regionsPlugin], [regionsPlugin]);
 
   const handleReady = useCallback(
     (ws: WaveSurfer, duration: number) => {
@@ -30,7 +30,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
       setIsLoading(false);
       onDurationReady(duration);
 
-      const rp = regionsPlugin.current;
+      const rp = regionsPlugin;
 
       rp.enableDragSelection({ color: "rgba(199,162,124,0.15)" });
 
@@ -46,14 +46,14 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
         onRegionChange({ start: region.start, end: region.end });
       });
     },
-    [onDurationReady, onRegionChange],
+    [onDurationReady, onRegionChange, regionsPlugin],
   );
 
   const clearRegion = useCallback(() => {
-    regionsPlugin.current.getRegions().forEach((r) => r.remove());
+    regionsPlugin.getRegions().forEach((r) => r.remove());
     setHasRegion(false);
     onRegionChange(null);
-  }, [onRegionChange]);
+  }, [onRegionChange, regionsPlugin]);
 
   return (
     <div className="space-y-2">

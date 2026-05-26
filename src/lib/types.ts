@@ -18,6 +18,12 @@ export interface ChatTurn {
   createdAt: number;
 }
 
+export interface VoiceLibraryItem {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
 export interface ChatRequestPayload {
   voiceId: string;
   persona: PersonaConfig;
