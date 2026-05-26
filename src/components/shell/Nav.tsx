@@ -9,9 +9,17 @@ export function Nav() {
           <Mark />
         </Link>
         <nav className="flex items-center gap-7 text-[13px] text-[var(--color-bone-dim)]">
-          <span className="hidden sm:inline">Confidential preview</span>
+          <Link href="/voices" className="transition hover:text-[var(--color-bone)]">
+            Voices
+          </Link>
           <span className="hidden h-3 w-px bg-[var(--color-rule-strong)] sm:block" />
-          <span className="hidden sm:inline">v1 · demo</span>
+          <Link href="/conversations" className="hidden transition hover:text-[var(--color-bone)] sm:inline">
+            Conversations
+          </Link>
+          <span className="hidden h-3 w-px bg-[var(--color-rule-strong)] sm:block" />
+          <Link href="/privacy" className="hidden transition hover:text-[var(--color-bone)] sm:inline">
+            Privacy
+          </Link>
         </nav>
       </div>
     </header>

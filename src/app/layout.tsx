@@ -3,21 +3,44 @@ import "./globals.css";
 import { BackgroundCanvas } from "@/components/shell/BackgroundCanvas";
 
 export const metadata: Metadata = {
-  title: "EternaVoice",
+  title: {
+    default: "EternaVoice",
+    template: "%s · EternaVoice",
+  },
   description:
-    "Continuous voice conversations with someone you can no longer speak to. Built from what they left behind.",
+    "Create a private voice clone from a recording, preview it, and have a continuous spoken conversation.",
   applicationName: "EternaVoice",
   authors: [{ name: "EternaVoice" }],
   metadataBase: new URL("https://eternavoice.app"),
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     title: "EternaVoice",
     description:
-      "Continuous voice conversations with someone you can no longer speak to.",
+      "Create a private voice clone from a recording, preview it, and have a continuous spoken conversation.",
+    url: "/",
+    siteName: "EternaVoice",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "EternaVoice",
+      },
+    ],
     type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "EternaVoice",
+    description:
+      "Create a private voice clone from a recording, preview it, and have a continuous spoken conversation.",
+    images: ["/opengraph-image"],
+  },
   robots: {
-    index: false,
-    follow: false,
+    index: true,
+    follow: true,
   },
 };
 

@@ -9,12 +9,46 @@ export interface PersonaConfig {
   name: string;
   relationship?: string;
   description?: string;
+  catchphrases?: string;
+  avoidPhrases?: string;
+  speechStyle?: {
+    warmth: number;
+    directness: number;
+    expressiveness: number;
+    humor: number;
+    talkativeness: number;
+  };
+  calibration?: {
+    tooFormal?: boolean;
+    tooCheerful?: boolean;
+    tooManyQuestions?: boolean;
+    tooLong?: boolean;
+    notWarmEnough?: boolean;
+  };
 }
 
 export interface ChatTurn {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt: number;
+  feedback?: "more-like-this" | "too-ai" | "too-long" | "wrong-tone";
+}
+
+export interface ConversationRecord {
+  id: string;
+  voiceId: string;
+  voiceName: string;
+  title: string;
+  persona: PersonaConfig;
+  turns: ChatTurn[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface VoiceLibraryItem {
+  id: string;
+  name: string;
   createdAt: number;
 }
 

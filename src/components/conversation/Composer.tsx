@@ -25,7 +25,8 @@ interface ComposerProps {
 // Voice-activity tunables. Tuned for typical room conditions with browser AGC
 // enabled. SPEECH_RMS is permissive — false triggers are filtered out by the
 // MIN_TURN_MS gate before we transcribe.
-const SPEECH_RMS = 0.025;
+const MIN_SPEECH_RMS = 0.022;
+const SPEECH_ABOVE_NOISE = 2.4;
 const END_SILENCE_MS = 1100;
 const MIN_TURN_MS = 350;
 const MAX_TURN_MS = 30_000;
@@ -59,7 +60,8 @@ export function Composer({
     firstLoudAt: number | null;
     lastLoudAt: number;
     startedAt: number;
-  }>({ firstLoudAt: null, lastLoudAt: 0, startedAt: 0 });
+    noiseFloor: number;
+  }>({ firstLoudAt: null, lastLoudAt: 0, startedAt: 0, noiseFloor: 0.006 });
 
   // Stable refs for parent callbacks. Read at call time so render churn
   // doesn't invalidate the recorder lifecycle.
@@ -153,6 +155,7 @@ export function Composer({
       firstLoudAt: null,
       lastLoudAt: performance.now(),
       startedAt: performance.now(),
+      noiseFloor: 0.006,
     };
     setHearingUser(false);
 
@@ -172,12 +175,17 @@ export function Composer({
               firstLoudAt: null,
               lastLoudAt: performance.now(),
               startedAt: performance.now(),
+              noiseFloor: Math.max(0.006, turnRef.current.noiseFloor * 0.98),
             };
             return;
           }
           const now = performance.now();
           const t = turnRef.current;
-          if (rms > SPEECH_RMS) {
+          if (t.firstLoudAt === null) {
+            t.noiseFloor = t.noiseFloor * 0.96 + Math.min(rms, 0.08) * 0.04;
+          }
+          const speechThreshold = Math.max(MIN_SPEECH_RMS, t.noiseFloor * SPEECH_ABOVE_NOISE);
+          if (rms > speechThreshold) {
             if (t.firstLoudAt === null) {
               t.firstLoudAt = now;
               setHearingUser(true);
@@ -232,6 +240,7 @@ export function Composer({
         firstLoudAt: null,
         lastLoudAt: performance.now(),
         startedAt: performance.now(),
+        noiseFloor: turnRef.current.noiseFloor,
       };
     }
   }, [personaBusy]);
@@ -271,6 +280,8 @@ export function Composer({
   // Cleanup on unmount.
   useEffect(() => {
     return () => {
+      // Mutable lifecycle token, not a DOM ref.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       armTokenRef.current++;
       recorderRef.current?.cancel();
       recorderRef.current = null;
@@ -370,45 +381,50 @@ export function Composer({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="hairline-strong flex items-end gap-3 rounded-3xl bg-[var(--color-ink-2)]/85 p-3 backdrop-blur-xl transition-colors"
+            className="hairline-strong flex flex-col gap-2 rounded-3xl bg-[var(--color-ink-2)]/85 p-3 backdrop-blur-xl transition-colors"
           >
-            <button
-              type="button"
-              onClick={() => {
-                setText("");
-                setMode("voice");
-              }}
-              aria-label="Switch to voice"
-              className="grid h-11 w-11 shrink-0 self-end place-items-center rounded-full border border-[var(--color-rule-strong)] bg-white/[0.03] text-[var(--color-bone)]/85 transition-all duration-300 hover:bg-white/[0.06]"
-            >
-              <MicIcon active={false} />
-            </button>
+            <div className="flex w-full items-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setText("");
+                  setMode("voice");
+                }}
+                aria-label="Switch to voice"
+                className="grid h-11 w-11 shrink-0 self-end place-items-center rounded-full border border-[var(--color-rule-strong)] bg-white/[0.03] text-[var(--color-bone)]/85 transition-all duration-300 hover:bg-white/[0.06]"
+              >
+                <MicIcon active={false} />
+              </button>
 
-            <textarea
-              ref={taRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              placeholder="Say something."
-              rows={1}
-              disabled={disabled}
-              className="block max-h-[220px] w-full resize-none bg-transparent px-3 py-2 text-[16px] leading-[1.55] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/60 focus:outline-none disabled:opacity-60"
-            />
+              <textarea
+                ref={taRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    submit();
+                  }
+                }}
+                placeholder={disabled ? "Waiting for the reply..." : "Type a message."}
+                rows={1}
+                disabled={disabled}
+                className="block max-h-[220px] w-full resize-none bg-transparent px-3 py-2 text-[16px] leading-[1.55] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/60 focus:outline-none disabled:opacity-60"
+              />
 
-            <button
-              type="button"
-              onClick={submit}
-              disabled={disabled || !text.trim()}
-              className="grid h-11 w-11 shrink-0 self-end place-items-center rounded-full bg-[var(--color-bone)] text-[var(--color-ink)] transition-[transform,opacity,background] duration-300 hover:bg-[var(--color-bone-2)] disabled:opacity-30 active:scale-95"
-              aria-label="Send"
-            >
-              <SendIcon />
-            </button>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={disabled || !text.trim()}
+                className="grid h-11 w-11 shrink-0 self-end place-items-center rounded-full bg-[var(--color-bone)] text-[var(--color-ink)] transition-[transform,opacity,background] duration-300 hover:bg-[var(--color-bone-2)] disabled:opacity-30 active:scale-95"
+                aria-label="Send"
+              >
+                <SendIcon />
+              </button>
+            </div>
+            <p className="px-14 text-[11px] text-[var(--color-bone-dim)]/60">
+              Enter sends. Shift Enter adds a line.
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
