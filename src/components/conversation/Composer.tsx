@@ -27,8 +27,8 @@ interface ComposerProps {
 // MIN_TURN_MS gate before we transcribe.
 const MIN_SPEECH_RMS = 0.022;
 const SPEECH_ABOVE_NOISE = 2.4;
-const END_SILENCE_MS = 1100;
-const MIN_TURN_MS = 350;
+const END_SILENCE_MS = 700;
+const MIN_TURN_MS = 280;
 const MAX_TURN_MS = 30_000;
 
 export function Composer({

@@ -23,6 +23,7 @@ export class PlaybackQueue {
   private master: GainNode | null = null;
   private nextStart = 0;
   private activeSources = 0;
+  private sources = new Set<AudioBufferSourceNode>();
   private rafId = 0;
   private timeBuffer: Uint8Array<ArrayBuffer> | null = null;
   private opts: PlaybackQueueOptions;
@@ -73,7 +74,9 @@ export class PlaybackQueue {
     const source = this.context.createBufferSource();
     source.buffer = decoded;
     source.connect(this.master);
+    this.sources.add(source);
     source.onended = () => {
+      this.sources.delete(source);
       this.activeSources -= 1;
       if (this.activeSources <= 0) {
         this.activeSources = 0;
@@ -89,13 +92,14 @@ export class PlaybackQueue {
   }
 
   stop(): void {
-    if (this.context) {
+    for (const source of this.sources) {
       try {
-        this.context.suspend();
+        source.stop();
       } catch {
         // ignored
       }
     }
+    this.sources.clear();
     this.nextStart = 0;
     this.activeSources = 0;
     this.opts.onActivityChange?.(false);
