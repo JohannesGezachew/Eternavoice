@@ -13,10 +13,13 @@ export function VoicePreview() {
   const router = useRouter();
   const voiceId = useSession((s) => s.voiceId);
   const voiceName = useSession((s) => s.voiceName);
+  const persona = useSession((s) => s.persona);
+  const setPersona = useSession((s) => s.setPersona);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<"good" | "bad" | null>(null);
+  const [calibration, setCalibration] = useState(persona.calibration ?? {});
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -58,6 +61,13 @@ export function VoicePreview() {
   }, [voiceId, voiceName, previewUrl]);
 
   if (!voiceId) return null;
+
+  const toggleCalibration = (key: keyof NonNullable<typeof persona.calibration>) => {
+    const next = { ...calibration, [key]: !calibration[key] };
+    setCalibration(next);
+    setPersona({ ...persona, calibration: next });
+    trackEvent("voice_style_calibrated", { key, enabled: Boolean(next[key]) });
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-6 py-6 sm:px-8">
@@ -144,10 +154,38 @@ export function VoicePreview() {
                     </button>
                   </div>
                   {verdict === "bad" ? (
-                    <p className="text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
-                      Try a cleaner 30–60 second clip with one speaker, less music,
-                      and a steady distance from the microphone.
-                    </p>
+                    <div className="space-y-3">
+                      <p className="text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                        Try a cleaner 30–60 second clip with one speaker, less music,
+                        and a steady distance from the microphone.
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {[
+                          ["tooFormal", "Less formal"],
+                          ["tooCheerful", "Less cheerful"],
+                          ["tooManyQuestions", "Fewer questions"],
+                          ["tooLong", "Much shorter"],
+                          ["notWarmEnough", "Warmer"],
+                        ].map(([key, label]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() =>
+                              toggleCalibration(
+                                key as keyof NonNullable<typeof persona.calibration>,
+                              )
+                            }
+                            className={`rounded-xl border px-3 py-2 text-left text-[12px] transition ${
+                              calibration[key as keyof typeof calibration]
+                                ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.06] text-[var(--color-bone)]"
+                                : "border-[var(--color-rule-strong)] text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
