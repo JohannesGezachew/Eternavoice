@@ -36,6 +36,9 @@ import { cn, formatSeconds } from "@/lib/utils";
 type Phase = "intro" | "recording" | "review" | "converting" | "uploading" | "ready";
 type Mode = "upload" | "record";
 
+const CLONE_UPLOAD_LIMIT = 4 * 1024 * 1024; // Vercel's request body cap is 4.5 MB.
+const CLONE_MAX_SECONDS = 60;
+
 interface Take {
   blob: Blob;
   mimeType: string;
@@ -163,31 +166,43 @@ export function RecordExperience() {
     try {
       const fd = new FormData();
 
-      // Vercel caps request bodies at 4.5 MB. Use direct WAV byte-slicing (no
-      // re-decode) when the file is too large to send as-is.
-      const SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB headroom under the 4.5 MB cap
-      const MAX_SECS = 60;
-
       const clip = async (start: number, end: number): Promise<File> => {
         const fast = await sliceWavBytes(uploadFile, start, end);
-        if (fast) return fast;
+        if (fast && fast.size <= CLONE_UPLOAD_LIMIT) return fast;
         const blob = await clipAudio(uploadFile, start, end);
         return new File([blob], "clip.wav", { type: "audio/wav" });
       };
 
+      let audioForClone: File;
       if (selectedRegion) {
-        fd.append("audio", await clip(selectedRegion.start, selectedRegion.end));
-      } else if (uploadFile.size > SIZE_LIMIT) {
-        fd.append("audio", await clip(0, MAX_SECS));
+        const start = selectedRegion.start;
+        const end = Math.min(selectedRegion.end, start + CLONE_MAX_SECONDS);
+        audioForClone = await clip(start, end);
+      } else if (uploadFile.size > CLONE_UPLOAD_LIMIT) {
+        audioForClone = await clip(0, CLONE_MAX_SECONDS);
       } else {
-        fd.append("audio", uploadFile);
+        audioForClone = uploadFile;
       }
 
+      if (audioForClone.size > CLONE_UPLOAD_LIMIT) {
+        const fallbackEnd = Math.min(
+          CLONE_MAX_SECONDS,
+          Math.max(15, uploadDuration || CLONE_MAX_SECONDS),
+        );
+        audioForClone = await clip(0, fallbackEnd);
+      }
+
+      if (audioForClone.size > CLONE_UPLOAD_LIMIT) {
+        throw new Error(
+          "That clip is still too large to upload. Pick a clearer 30–60 second section and try again.",
+        );
+      }
+
+      fd.append("audio", audioForClone, audioForClone.name);
       fd.append("name", name.trim() || "EternaVoice subject");
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error((json as { error?: string }).error || "Could not create the clone.");
+        throw new Error(await readCloneError(res));
       }
       const json = (await res.json()) as { voiceId: string; name: string };
       setVoice(json.voiceId, json.name);
@@ -198,7 +213,7 @@ export function RecordExperience() {
       setUploadError(message);
       setPhase("review");
     }
-  }, [uploadFile, selectedRegion, name, router, setVoice]);
+  }, [uploadFile, selectedRegion, uploadDuration, name, router, setVoice]);
 
   // ── Record handlers ────────────────────────────────────────────────────────
 
@@ -277,12 +292,11 @@ export function RecordExperience() {
         type: take.mimeType,
       });
       const fd = new FormData();
-      fd.append("audio", file);
+      fd.append("audio", file, file.name);
       fd.append("name", name.trim() || "EternaVoice subject");
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Could not create the clone.");
+        throw new Error(await readCloneError(res));
       }
       const json = (await res.json()) as { voiceId: string; name: string };
       setVoice(json.voiceId, json.name);
@@ -812,4 +826,23 @@ function fmt(s: number): string {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+async function readCloneError(res: Response): Promise<string> {
+  const fallback = "Could not create the clone.";
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    return json?.error || fallback;
+  }
+
+  const text = await res.text().catch(() => "");
+  const normalized = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  if (res.status === 413 || normalized.toLowerCase().includes("payload")) {
+    return "That clip is too large to upload. Pick a clearer 30–60 second section and try again.";
+  }
+
+  return normalized || fallback;
 }

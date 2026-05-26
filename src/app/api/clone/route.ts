@@ -5,6 +5,7 @@ import { checkRate } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 const NameSchema = z
   .string()
@@ -21,12 +22,15 @@ const SUPPORTED_TYPES = [
   "audio/mpeg",
   "audio/mp3",
   "audio/wav",
+  "audio/wave",
   "audio/x-wav",
+  "audio/vnd.wave",
   "audio/ogg",
   "audio/aac",
   "audio/x-m4a",
   "video/mp4",
   "video/quicktime",
+  "video/webm",
 ];
 
 export async function POST(request: Request) {
@@ -91,8 +95,10 @@ export async function POST(request: Request) {
       requiresVerification: result.requiresVerification,
     });
   } catch (err) {
-    const raw = err instanceof Error ? err.message : "";
+    const raw = errorDetails(err);
     const lower = raw.toLowerCase();
+
+    console.error("[clone] ElevenLabs IVC failed:", raw);
 
     if (
       lower.includes("paid_plan_required") ||
@@ -125,6 +131,23 @@ export async function POST(request: Request) {
       );
     }
 
+    if (
+      lower.includes("no_speech") ||
+      lower.includes("no voice") ||
+      lower.includes("voice_not_found") ||
+      lower.includes("audio_quality") ||
+      lower.includes("too_short") ||
+      lower.includes("invalid_file")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "ElevenLabs could not find enough clear speech in that clip. Pick a clean 30–60 second section with one speaker and try again.",
+        },
+        { status: 422 },
+      );
+    }
+
     return NextResponse.json(
       {
         error:
@@ -133,4 +156,16 @@ export async function POST(request: Request) {
       { status: 502 },
     );
   }
+}
+
+function errorDetails(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+
+  const parts = [err.message];
+  const withBody = err as Error & { statusCode?: number; body?: unknown };
+
+  if (withBody.statusCode) parts.push(`status=${withBody.statusCode}`);
+  if (withBody.body) parts.push(`body=${JSON.stringify(withBody.body)}`);
+
+  return parts.filter(Boolean).join("\n");
 }
