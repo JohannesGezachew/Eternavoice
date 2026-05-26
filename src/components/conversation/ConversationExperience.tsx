@@ -26,7 +26,9 @@ export function ConversationExperience() {
   const [amplitude, setAmplitude] = useState(0);
   const [hasUnlocked, setHasUnlocked] = useState(false);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
-  const [opened, setOpened] = useState(false);
+  const [responseError, setResponseError] = useState<string | null>(null);
+  const [hasBegun, setHasBegun] = useState(false);
+  const opened = hasBegun || turns.length > 0;
   const queueRef = useRef<PlaybackQueue | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const openingRef = useRef(false);
@@ -35,11 +37,6 @@ export function ConversationExperience() {
   useEffect(() => {
     if (!voiceId) router.replace("/record");
   }, [voiceId, router]);
-
-  // If we already have prior turns (e.g. session resumed), skip the begin gate.
-  useEffect(() => {
-    if (turns.length > 0 && !opened) setOpened(true);
-  }, [turns.length, opened]);
 
   useEffect(() => {
     const queue = new PlaybackQueue({
@@ -81,9 +78,15 @@ export function ConversationExperience() {
       abortRef.current?.abort();
       queueRef.current?.stop();
       setStatus("thinking");
+      setResponseError(null);
 
       const controller = new AbortController();
       abortRef.current = controller;
+      let timedOut = false;
+      const timeout = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, 45_000);
 
       let assistantId: string | null = null;
       let receivedAudio = false;
@@ -112,6 +115,7 @@ export function ConversationExperience() {
             if (!receivedAudio) setStatus("idle");
           } else if (event.type === "error") {
             streamError = event.message;
+            setResponseError(event.message || "The reply failed. Tap retry.");
             setStreamingTurnId(null);
           }
         }
@@ -119,9 +123,15 @@ export function ConversationExperience() {
         if ((err as Error).name !== "AbortError") {
           console.warn("streamChat failed:", err);
         }
+        if (timedOut) {
+          setResponseError("The response is taking too long. Tap retry.");
+        } else if ((err as Error).name !== "AbortError") {
+          setResponseError("Something went wrong. Tap retry.");
+        }
         setStreamingTurnId(null);
         setStatus("idle");
       } finally {
+        window.clearTimeout(timeout);
         abortRef.current = null;
         if (streamError) setStatus("idle");
       }
@@ -151,6 +161,7 @@ export function ConversationExperience() {
         createdAt: Date.now(),
       };
       appendTurn(userTurn);
+      setResponseError(null);
 
       const conversation = [...turns, userTurn].map((t) => ({
         role: t.role,
@@ -166,7 +177,7 @@ export function ConversationExperience() {
     if (!voiceId) return;
     if (openingRef.current) return;
     openingRef.current = true;
-    setOpened(true);
+    setHasBegun(true);
 
     await ensureUnlocked();
 
@@ -215,8 +226,20 @@ export function ConversationExperience() {
   const restart = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
+    setResponseError(null);
     resetConversation();
   }, [resetConversation]);
+
+  const retryLast = useCallback(async () => {
+    const lastUser = [...turns].reverse().find((turn) => turn.role === "user");
+    if (!lastUser) return;
+    setResponseError(null);
+    await runChatStream(
+      turns
+        .filter((turn) => turn.createdAt <= lastUser.createdAt)
+        .map((turn) => ({ role: turn.role, content: turn.content })),
+    );
+  }, [turns, runChatStream]);
 
   const startOver = useCallback(() => {
     abortRef.current?.abort();
@@ -250,13 +273,20 @@ export function ConversationExperience() {
               {headerSubtitle}
             </span>
           </div>
-          <div className="flex items-center gap-5 text-[12px]">
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[12px]">
             <button
               type="button"
               onClick={restart}
               className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
             >
-              Reset chat
+              New chat
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/persona")}
+              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              Change persona
             </button>
             <span className="hidden h-3 w-px bg-[var(--color-rule-strong)] sm:block" />
             <button
@@ -326,6 +356,20 @@ export function ConversationExperience() {
 
         {/* Centerpiece + composer */}
         <div className="mt-10 flex w-full max-w-2xl flex-col items-center sm:mt-14">
+          {responseError ? (
+            <div className="mb-5 flex flex-col items-center gap-3 text-center">
+              <p className="text-[13px] text-[var(--color-ember-soft)]">
+                {responseError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void retryLast()}
+                className="rounded-full border border-[var(--color-rule-strong)] px-4 py-2 text-[12px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+              >
+                Retry reply
+              </button>
+            </div>
+          ) : null}
           {opened ? (
             <Composer
               disabled={status === "thinking"}
