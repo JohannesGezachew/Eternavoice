@@ -834,16 +834,48 @@ export function RecordExperience() {
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
-                <div className="flex items-center gap-4">
-                  <span className="relative inline-flex h-2 w-2">
-                    <span className="absolute inset-[-6px] animate-ping rounded-full bg-[var(--color-ember)]/30" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-ember)]" />
-                  </span>
-                  <p className="text-[14px] text-[var(--color-bone)]/85">
-                    Lifting the clone
-                    {cloneElapsed ? ` · ${cloneElapsed}s` : ""}.
-                    {cloneElapsed >= 20 ? " Still working." : " A few seconds."}
-                  </p>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-4">
+                    <span className="relative inline-flex h-2 w-2">
+                      <span className="absolute inset-[-6px] animate-ping rounded-full bg-[var(--color-ember)]/30" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-ember)]" />
+                    </span>
+                    <div>
+                      <p className="text-[14px] text-[var(--color-bone)]/85">
+                        Creating the clone{cloneElapsed ? ` · ${cloneElapsed}s` : ""}
+                      </p>
+                      <p className="mt-1 text-[12px] text-[var(--color-bone-dim)]">
+                        ElevenLabs can take a few seconds, and longer for larger clips.
+                      </p>
+                    </div>
+                  </div>
+
+                  <ol className="space-y-3">
+                    {cloneSteps(cloneElapsed).map((step) => (
+                      <li key={step.label} className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            "h-2 w-2 rounded-full",
+                            step.state === "done"
+                              ? "bg-[var(--color-bone)]/70"
+                              : step.state === "active"
+                                ? "bg-[var(--color-ember)]"
+                                : "bg-white/[0.12]",
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            "text-[12px]",
+                            step.state === "pending"
+                              ? "text-[var(--color-bone-dim)]/45"
+                              : "text-[var(--color-bone)]/78",
+                          )}
+                        >
+                          {step.label}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
               </motion.div>
             ) : null}
@@ -892,6 +924,29 @@ function qualitySummary(verdict: QualityVerdict): string {
     default:
       return "Quality check: listen once before cloning. Clear, steady speech works best.";
   }
+}
+
+function cloneSteps(elapsed: number): Array<{
+  label: string;
+  state: "done" | "active" | "pending";
+}> {
+  const steps = [
+    { label: "Preparing the selected audio", at: 0 },
+    { label: "Uploading sample", at: 2 },
+    { label: "Creating ElevenLabs voice", at: 5 },
+    { label: "Preparing preview", at: 12 },
+  ];
+
+  return steps.map((step, index) => {
+    const next = steps[index + 1];
+    const state =
+      elapsed >= (next?.at ?? Number.POSITIVE_INFINITY)
+        ? "done"
+        : elapsed >= step.at
+          ? "active"
+          : "pending";
+    return { label: step.label, state };
+  });
 }
 
 async function readCloneError(res: Response): Promise<string> {
