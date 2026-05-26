@@ -55,6 +55,8 @@ export function RecordExperience() {
   const [phase, setPhase] = useState<Phase>("intro");
   const [name, setName] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [cloneStartedAt, setCloneStartedAt] = useState<number | null>(null);
+  const [cloneElapsed, setCloneElapsed] = useState(0);
 
   // Record-mode state
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -75,6 +77,14 @@ export function RecordExperience() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!cloneStartedAt) return;
+    const tick = window.setInterval(() => {
+      setCloneElapsed(Math.max(1, Math.floor((Date.now() - cloneStartedAt) / 1000)));
+    }, 500);
+    return () => window.clearInterval(tick);
+  }, [cloneStartedAt]);
+
+  useEffect(() => {
     return () => {
       recorderRef.current?.cancel();
       if (take) URL.revokeObjectURL(take.url);
@@ -89,6 +99,8 @@ export function RecordExperience() {
       setPhase("intro");
       setUploadError(null);
       setPermissionError(null);
+      setCloneStartedAt(null);
+      setCloneElapsed(0);
       setSelectedRegion(null);
       setUploadDuration(0);
       setConversionProgress(0);
@@ -162,6 +174,13 @@ export function RecordExperience() {
   const submitUpload = useCallback(async () => {
     if (!uploadFile) return;
     setUploadError(null);
+    const subjectName = name.trim();
+    if (!subjectName) {
+      setUploadError("Add a name before making the clone.");
+      return;
+    }
+    setCloneStartedAt(Date.now());
+    setCloneElapsed(0);
     setPhase("uploading");
     try {
       const fd = new FormData();
@@ -199,7 +218,7 @@ export function RecordExperience() {
       }
 
       fd.append("audio", audioForClone, audioForClone.name);
-      fd.append("name", name.trim() || "EternaVoice subject");
+      fd.append("name", subjectName);
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
         throw new Error(await readCloneError(res));
@@ -207,11 +226,13 @@ export function RecordExperience() {
       const json = (await res.json()) as { voiceId: string; name: string };
       setVoice(json.voiceId, json.name);
       setPhase("ready");
-      setTimeout(() => router.push("/persona"), 1100);
+      setTimeout(() => router.push("/voice-preview"), 700);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong.";
       setUploadError(message);
       setPhase("review");
+    } finally {
+      setCloneStartedAt(null);
     }
   }, [uploadFile, selectedRegion, uploadDuration, name, router, setVoice]);
 
@@ -281,6 +302,13 @@ export function RecordExperience() {
   const submit = useCallback(async () => {
     if (!take) return;
     setUploadError(null);
+    const subjectName = name.trim();
+    if (!subjectName) {
+      setUploadError("Add a name before making the clone.");
+      return;
+    }
+    setCloneStartedAt(Date.now());
+    setCloneElapsed(0);
     setPhase("uploading");
     try {
       const fileExt = take.mimeType.includes("mp4")
@@ -293,7 +321,7 @@ export function RecordExperience() {
       });
       const fd = new FormData();
       fd.append("audio", file, file.name);
-      fd.append("name", name.trim() || "EternaVoice subject");
+      fd.append("name", subjectName);
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
         throw new Error(await readCloneError(res));
@@ -301,12 +329,14 @@ export function RecordExperience() {
       const json = (await res.json()) as { voiceId: string; name: string };
       setVoice(json.voiceId, json.name);
       setPhase("ready");
-      setTimeout(() => router.push("/persona"), 1100);
+      setTimeout(() => router.push("/voice-preview"), 700);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Something went wrong on our side.";
       setUploadError(message);
       setPhase("review");
+    } finally {
+      setCloneStartedAt(null);
     }
   }, [take, name, router, setVoice]);
 
@@ -315,9 +345,9 @@ export function RecordExperience() {
   const undershoot = elapsedSeconds > 0 && elapsedSeconds < SCRIPT_MIN_SECONDS;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 pt-4 pb-16 sm:px-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-x-hidden px-6 pt-4 pb-16 sm:px-8">
       <motion.header
-        initial="initial"
+        initial={false}
         animate="enter"
         variants={stagger(0.05)}
         className="flex flex-col gap-3"
@@ -408,7 +438,7 @@ export function RecordExperience() {
               {phase === "intro" ? (
                 <motion.div
                   key="dropzone"
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
                   transition={{ duration: 0.25 }}
@@ -434,7 +464,7 @@ export function RecordExperience() {
                     <p className="max-w-[260px] text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
                       Voicemails, voice notes, videos — any recording with their voice
                     </p>
-                    <p className="text-[11px] tracking-[0.14em] text-[var(--color-bone-dim)]/50 uppercase">
+                    <p className="max-w-[260px] text-[11px] leading-[1.7] tracking-[0.14em] break-words text-[var(--color-bone-dim)]/50 uppercase">
                       mp3 · mp4 · m4a · wav · mov · ogg · and more
                     </p>
                     <button
@@ -455,7 +485,7 @@ export function RecordExperience() {
               {phase === "converting" ? (
                 <motion.div
                   key="converting"
-                  initial={{ opacity: 0 }}
+                  initial={false}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
@@ -494,7 +524,7 @@ export function RecordExperience() {
               {phase === "review" && uploadPreviewUrl ? (
                 <motion.div
                   key="waveform"
-                  initial={{ opacity: 0 }}
+                  initial={false}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.25 }}
@@ -561,14 +591,14 @@ export function RecordExperience() {
               <motion.div
                 key="upload-converting"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="upload-name-c" hint="optional">
+                    <Label htmlFor="upload-name-c">
                       Whose voice is this
                     </Label>
                     <Input
@@ -592,14 +622,14 @@ export function RecordExperience() {
               <motion.div
                 key="upload-intro"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
                   <div>
-                    <Label htmlFor="upload-name" hint="optional">
+                    <Label htmlFor="upload-name">
                       Whose voice is this
                     </Label>
                     <Input
@@ -616,9 +646,14 @@ export function RecordExperience() {
                       {uploadError}
                     </p>
                   ) : (
-                    <p className="text-[13px] text-[var(--color-bone-dim)]">
-                      Drop a file on the left to continue.
-                    </p>
+                    <div className="space-y-3 text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                      <p>Drop a file on the left to continue.</p>
+                      <ul className="space-y-1.5">
+                        <li>Use 30–90 seconds of clear, natural speech.</li>
+                        <li>Pick one speaker with little music or background noise.</li>
+                        <li>Voicemails and voice notes usually work better than crowded videos.</li>
+                      </ul>
+                    </div>
                   )}
                   {existingVoice ? (
                     <p className="text-[12px] text-[var(--color-bone-dim)]">
@@ -634,14 +669,14 @@ export function RecordExperience() {
               <motion.div
                 key="upload-review"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
                   <div>
-                    <Label htmlFor="upload-name-r" hint="optional">
+                    <Label htmlFor="upload-name-r">
                       Whose voice is this
                     </Label>
                     <Input
@@ -675,14 +710,14 @@ export function RecordExperience() {
               <motion.div
                 key="rec-intro"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
                   <div>
-                    <Label htmlFor="subject-name" hint="optional">
+                    <Label htmlFor="subject-name">
                       Whose voice is this
                     </Label>
                     <Input
@@ -696,9 +731,10 @@ export function RecordExperience() {
                   </div>
                   <div className="flex items-center justify-between gap-6">
                     <RecordControl state="idle" onClick={start} label="Tap to begin" />
-                    <p className="max-w-[200px] text-right text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
-                      We'll ask the browser for the microphone, then you can read.
-                    </p>
+                    <div className="max-w-[220px] text-right text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+                      <p>We&apos;ll ask the browser for the microphone, then you can read.</p>
+                      <p className="mt-2">Stay close to the mic and keep the room quiet.</p>
+                    </div>
                   </div>
                   {permissionError ? (
                     <p className="text-[13px] text-[var(--color-ember-soft)]">
@@ -719,7 +755,7 @@ export function RecordExperience() {
               <motion.div
                 key="rec-recording"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
@@ -742,7 +778,7 @@ export function RecordExperience() {
               <motion.div
                 key="rec-review"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
@@ -751,6 +787,9 @@ export function RecordExperience() {
                   <p className="text-[14px] text-[var(--color-bone)]/85">
                     Listen back before we lift the clone.
                     {undershoot ? " A touch short — another twenty seconds will help realism." : ""}
+                  </p>
+                  <p className="text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                    {qualitySummary(verdict)}
                   </p>
                   <audio
                     src={take.url}
@@ -780,7 +819,7 @@ export function RecordExperience() {
               <motion.div
                 key="uploading"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
@@ -791,7 +830,9 @@ export function RecordExperience() {
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-ember)]" />
                   </span>
                   <p className="text-[14px] text-[var(--color-bone)]/85">
-                    Lifting the clone. A few seconds.
+                    Lifting the clone
+                    {cloneElapsed ? ` · ${cloneElapsed}s` : ""}.
+                    {cloneElapsed >= 20 ? " Still working." : " A few seconds."}
                   </p>
                 </div>
               </motion.div>
@@ -802,7 +843,7 @@ export function RecordExperience() {
               <motion.div
                 key="ready"
                 variants={fadeUp}
-                initial="initial"
+                initial={false}
                 animate="enter"
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
@@ -826,6 +867,21 @@ function fmt(s: number): string {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+function qualitySummary(verdict: QualityVerdict): string {
+  switch (verdict) {
+    case "ready":
+      return "Quality check: this take sounds strong enough to clone.";
+    case "too-quiet":
+      return "Quality check: the voice is a little quiet. Re-record closer to the mic if you can.";
+    case "too-loud":
+      return "Quality check: the recording is peaking. Pull back slightly and try again for a cleaner clone.";
+    case "noisy":
+      return "Quality check: there is background noise. A quieter room will usually make a better clone.";
+    default:
+      return "Quality check: listen once before cloning. Clear, steady speech works best.";
+  }
 }
 
 async function readCloneError(res: Response): Promise<string> {
