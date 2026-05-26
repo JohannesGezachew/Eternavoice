@@ -13,6 +13,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
+const MODEL_CONTEXT_TURNS = 12;
+const MEMORY_CONTEXT_LIMIT = 10;
+
 const Body = z.object({
   voiceId: z.string().min(8).max(64),
   persona: z.object({
@@ -80,12 +83,16 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const startedAt = Date.now();
       const send = (event: ChatEvent) => {
         try {
           controller.enqueue(encodeSse(event));
         } catch {
           // controller already closed
         }
+      };
+      const sendTiming = (label: string) => {
+        send({ type: "timing", turnId, label, elapsedMs: Date.now() - startedAt });
       };
 
       const ttsQueue: Array<{
@@ -97,6 +104,9 @@ export async function POST(request: Request) {
       let llmDone = false;
       let audioChunksSent = 0;
       let ttsFailures = 0;
+      let firstTextSent = false;
+      let firstTtsStarted = false;
+      let firstAudioSent = false;
       let drainResolve: (() => void) | null = null;
       const drainComplete = new Promise<void>((resolve) => {
         drainResolve = resolve;
@@ -117,6 +127,10 @@ export async function POST(request: Request) {
             const audio = await next.promise;
             if (audio && audio.byteLength > 0) {
               audioChunksSent += 1;
+              if (!firstAudioSent) {
+                firstAudioSent = true;
+                sendTiming("server_first_audio_sent");
+              }
               send({
                 type: "audio",
                 turnId,
@@ -138,6 +152,10 @@ export async function POST(request: Request) {
 
       const ttsForSentence = async (text: string): Promise<Buffer | null> => {
         try {
+          if (!firstTtsStarted) {
+            firstTtsStarted = true;
+            sendTiming("server_first_tts_started");
+          }
           const client = elevenlabs();
           const audioStream = await client.textToSpeech.stream(parsed.voiceId, {
             text,
@@ -168,9 +186,13 @@ export async function POST(request: Request) {
       };
 
       send({ type: "ready" });
+      sendTiming("server_stream_ready");
       void drain();
 
-      const systemPrompt = buildChatPrompt(parsed.persona, parsed.memories ?? []);
+      const systemPrompt = buildChatPrompt(
+        parsed.persona,
+        (parsed.memories ?? []).slice(0, MEMORY_CONTEXT_LIMIT),
+      );
       const sentences = new SentenceBuffer();
       let rawText = "";
       let fullText = "";
@@ -181,6 +203,10 @@ export async function POST(request: Request) {
         if (!polished) return;
         const index = sentenceCount++;
         fullText = `${fullText}${fullText ? " " : ""}${polished}`.trim();
+        if (!firstTextSent) {
+          firstTextSent = true;
+          sendTiming("server_first_text_sent");
+        }
         send({ type: "text", turnId, delta: `${polished} ` });
         ttsQueue.push({
           index,
@@ -197,11 +223,13 @@ export async function POST(request: Request) {
           max_tokens:
             parsed.persona.speechStyle?.talkativeness &&
             parsed.persona.speechStyle.talkativeness >= 7
-              ? 150
-              : 90,
+              ? 130
+              : 75,
           messages: [
             { role: "system", content: systemPrompt },
-            ...parsed.messages.map((m) => ({ role: m.role, content: m.content })),
+            ...parsed.messages
+              .slice(-MODEL_CONTEXT_TURNS)
+              .map((m) => ({ role: m.role, content: m.content })),
           ],
         });
 
@@ -304,9 +332,9 @@ function humanizeSentence(sentence: string, persona: z.infer<typeof Body>["perso
 }
 
 function naturalPauseMs(text: string): number {
-  const base = text.includes("...") || text.includes("—") ? 520 : 260;
-  const emotional = /\b(miss|sorry|love|gone|died|death|alone|afraid|hurt)\b/i.test(text) ? 420 : 0;
-  return Math.min(1100, base + emotional + Math.floor(Math.random() * 220));
+  const base = text.includes("...") || text.includes("—") ? 180 : 120;
+  const emotional = /\b(miss|sorry|love|gone|died|death|alone|afraid|hurt)\b/i.test(text) ? 260 : 0;
+  return Math.min(650, base + emotional + Math.floor(Math.random() * 120));
 }
 
 function fillerChance(persona: z.infer<typeof Body>["persona"]): number {

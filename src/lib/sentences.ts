@@ -7,11 +7,14 @@
  */
 
 const TERMINALS = new Set([".", "!", "?", "…", ";", ":"]);
-const SOFT_CAP = 100;
-const HARD_CAP = 200;
+const FIRST_SOFT_CAP = 62;
+const MIN_SOFT_FRAGMENT = 18;
+const SOFT_CAP = 85;
+const HARD_CAP = 170;
 
 export class SentenceBuffer {
   private buffer = "";
+  private emitted = 0;
 
   push(chunk: string): string[] {
     this.buffer += chunk;
@@ -25,11 +28,15 @@ export class SentenceBuffer {
       const lengthSoFar = i - cursor + 1;
       const isTerminal = TERMINALS.has(ch);
       const isLineBreak = ch === "\n";
+      const isBoundary = ch === "," || ch === " " || ch === "—";
+      const isFirstChunk = this.emitted + out.length === 0;
+      const overFirstSoftCap =
+        isFirstChunk && lengthSoFar >= FIRST_SOFT_CAP && isBoundary;
       const overSoftCap =
-        lengthSoFar >= SOFT_CAP && (ch === "," || ch === " " || ch === "—");
+        lengthSoFar >= SOFT_CAP && isBoundary;
       const overHardCap = lengthSoFar >= HARD_CAP;
 
-      if (isTerminal || isLineBreak || overSoftCap || overHardCap) {
+      if (isTerminal || isLineBreak || overFirstSoftCap || overSoftCap || overHardCap) {
         if (isTerminal) {
           // Don't break on `.` if it's part of a number / abbreviation
           // (basic heuristic: previous char is a digit or it's followed by a digit)
@@ -44,11 +51,13 @@ export class SentenceBuffer {
           }
         }
         const sentence = this.buffer.slice(cursor, i + 1).trim();
-        if (sentence.length >= 2) out.push(sentence);
+        const minLength = isTerminal || isLineBreak ? 2 : MIN_SOFT_FRAGMENT;
+        if (sentence.length >= minLength) out.push(sentence);
         cursor = i + 1;
       }
     }
     this.buffer = this.buffer.slice(cursor);
+    this.emitted += out.length;
     return out;
   }
 
