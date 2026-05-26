@@ -9,6 +9,8 @@ import { streamChat } from "@/lib/streamChat";
 import { PlaybackQueue, base64ToArrayBuffer } from "@/lib/audio/playbackQueue";
 import { Mark } from "@/components/shell/Mark";
 import { Composer } from "./Composer";
+import { Message } from "./Message";
+import { trackEvent } from "@/lib/analytics";
 import type { ChatTurn } from "@/lib/types";
 
 export function ConversationExperience() {
@@ -20,13 +22,18 @@ export function ConversationExperience() {
   const setStatus = useSession((s) => s.setStatus);
   const appendTurn = useSession((s) => s.appendTurn);
   const appendAssistantToken = useSession((s) => s.appendAssistantToken);
+  const setTurnFeedback = useSession((s) => s.setTurnFeedback);
   const resetConversation = useSession((s) => s.resetConversation);
   const resetAll = useSession((s) => s.resetAll);
 
   const [amplitude, setAmplitude] = useState(0);
   const [hasUnlocked, setHasUnlocked] = useState(false);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
-  const [opened, setOpened] = useState(false);
+  const [responseError, setResponseError] = useState<string | null>(null);
+  const [responseNotice, setResponseNotice] = useState<string | null>(null);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [hasBegun, setHasBegun] = useState(false);
+  const opened = hasBegun || turns.length > 0;
   const queueRef = useRef<PlaybackQueue | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const openingRef = useRef(false);
@@ -35,11 +42,6 @@ export function ConversationExperience() {
   useEffect(() => {
     if (!voiceId) router.replace("/record");
   }, [voiceId, router]);
-
-  // If we already have prior turns (e.g. session resumed), skip the begin gate.
-  useEffect(() => {
-    if (turns.length > 0 && !opened) setOpened(true);
-  }, [turns.length, opened]);
 
   useEffect(() => {
     const queue = new PlaybackQueue({
@@ -81,19 +83,29 @@ export function ConversationExperience() {
       abortRef.current?.abort();
       queueRef.current?.stop();
       setStatus("thinking");
+      setResponseError(null);
+      setResponseNotice(null);
+      trackEvent("conversation_reply_started", { turnCount: messages.length });
 
       const controller = new AbortController();
       abortRef.current = controller;
+      let timedOut = false;
+      const timeout = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, 45_000);
 
       let assistantId: string | null = null;
       let receivedAudio = false;
       let streamError: string | null = null;
+      let textReceived = false;
       try {
         for await (const event of streamChat(
           { voiceId, persona, messages },
           controller.signal,
         )) {
           if (event.type === "text") {
+            textReceived = true;
             if (!assistantId) {
               assistantId = event.turnId;
               setStreamingTurnId(event.turnId);
@@ -103,15 +115,23 @@ export function ConversationExperience() {
             receivedAudio = true;
             try {
               const buf = base64ToArrayBuffer(event.base64);
-              await queueRef.current?.enqueue(buf);
+              await queueRef.current?.enqueue(buf, event.pauseMs ?? 0);
             } catch {
               // ignore one-off decode error
             }
           } else if (event.type === "done") {
             setStreamingTurnId(null);
-            if (!receivedAudio) setStatus("idle");
+            if (!receivedAudio) {
+              setStatus("idle");
+              if (textReceived) {
+                setResponseNotice("Text reply shown. Voice audio was not returned for this turn.");
+              }
+            }
+          } else if (event.type === "notice") {
+            setResponseNotice(event.message);
           } else if (event.type === "error") {
             streamError = event.message;
+            setResponseError(event.message || "The reply failed. Tap retry.");
             setStreamingTurnId(null);
           }
         }
@@ -119,9 +139,17 @@ export function ConversationExperience() {
         if ((err as Error).name !== "AbortError") {
           console.warn("streamChat failed:", err);
         }
+        if (timedOut) {
+          setResponseError("The response is taking too long. Tap retry.");
+          trackEvent("conversation_reply_timeout");
+        } else if ((err as Error).name !== "AbortError") {
+          setResponseError("Something went wrong. Tap retry.");
+          trackEvent("conversation_reply_failed", { reason: "network" });
+        }
         setStreamingTurnId(null);
         setStatus("idle");
       } finally {
+        window.clearTimeout(timeout);
         abortRef.current = null;
         if (streamError) setStatus("idle");
       }
@@ -151,6 +179,8 @@ export function ConversationExperience() {
         createdAt: Date.now(),
       };
       appendTurn(userTurn);
+      setResponseError(null);
+      trackEvent("conversation_user_turn_sent", { mode: "text_or_voice" });
 
       const conversation = [...turns, userTurn].map((t) => ({
         role: t.role,
@@ -166,9 +196,10 @@ export function ConversationExperience() {
     if (!voiceId) return;
     if (openingRef.current) return;
     openingRef.current = true;
-    setOpened(true);
+    setHasBegun(true);
 
     await ensureUnlocked();
+    trackEvent("conversation_opened");
 
     const opener = {
       role: "user" as const,
@@ -192,10 +223,17 @@ export function ConversationExperience() {
         const fd = new FormData();
         fd.append("audio", file);
         const res = await fetch("/api/transcribe", { method: "POST", body: fd });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          const json = (await res.json().catch(() => null)) as { error?: string } | null;
+          setResponseError(json?.error || "Could not transcribe that audio. Try again or type it.");
+          trackEvent("conversation_transcription_failed", { status: res.status });
+          return null;
+        }
         const json = (await res.json()) as { text?: string };
         return (json.text ?? "").trim() || null;
       } catch {
+        setResponseError("Could not transcribe that audio. Try again or type it.");
+        trackEvent("conversation_transcription_failed", { status: "network" });
         return null;
       } finally {
         setStatus("idle");
@@ -215,8 +253,22 @@ export function ConversationExperience() {
   const restart = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
+    setResponseError(null);
+    setResponseNotice(null);
     resetConversation();
+    trackEvent("conversation_new_chat");
   }, [resetConversation]);
+
+  const retryLast = useCallback(async () => {
+    const lastUser = [...turns].reverse().find((turn) => turn.role === "user");
+    if (!lastUser) return;
+    setResponseError(null);
+    await runChatStream(
+      turns
+        .filter((turn) => turn.createdAt <= lastUser.createdAt)
+        .map((turn) => ({ role: turn.role, content: turn.content })),
+    );
+  }, [turns, runChatStream]);
 
   const startOver = useCallback(() => {
     abortRef.current?.abort();
@@ -224,6 +276,15 @@ export function ConversationExperience() {
     resetAll();
     router.push("/");
   }, [resetAll, router]);
+
+  const interrupt = useCallback(() => {
+    abortRef.current?.abort();
+    queueRef.current?.stop();
+    setStreamingTurnId(null);
+    setStatus("idle");
+    setResponseNotice("Stopped. You can speak or type again.");
+    trackEvent("conversation_interrupted", { status });
+  }, [setStatus, status]);
 
   if (!voiceId) return null;
 
@@ -250,13 +311,33 @@ export function ConversationExperience() {
               {headerSubtitle}
             </span>
           </div>
-          <div className="flex items-center gap-5 text-[12px]">
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[12px]">
             <button
               type="button"
               onClick={restart}
               className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
             >
-              Reset chat
+              New chat
+            </button>
+            <Link
+              href="/conversations"
+              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              History
+            </Link>
+            <button
+              type="button"
+              onClick={() => router.push("/persona")}
+              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              Change persona
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowTranscript((open) => !open)}
+              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              Transcript
             </button>
             <span className="hidden h-3 w-px bg-[var(--color-rule-strong)] sm:block" />
             <button
@@ -326,6 +407,34 @@ export function ConversationExperience() {
 
         {/* Centerpiece + composer */}
         <div className="mt-10 flex w-full max-w-2xl flex-col items-center sm:mt-14">
+          {status === "speaking" || status === "thinking" ? (
+            <button
+              type="button"
+              onClick={interrupt}
+              className="mb-4 rounded-full border border-[var(--color-rule-strong)] px-4 py-2 text-[12px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+            >
+              Interrupt
+            </button>
+          ) : null}
+          {responseError ? (
+            <div className="mb-5 flex flex-col items-center gap-3 text-center">
+              <p className="text-[13px] text-[var(--color-ember-soft)]">
+                {responseError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void retryLast()}
+                className="rounded-full border border-[var(--color-rule-strong)] px-4 py-2 text-[12px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+              >
+                Retry reply
+              </button>
+            </div>
+          ) : null}
+          {responseNotice ? (
+            <p className="mb-5 max-w-md text-center text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+              {responseNotice}
+            </p>
+          ) : null}
           {opened ? (
             <Composer
               disabled={status === "thinking"}
@@ -340,8 +449,56 @@ export function ConversationExperience() {
             <BeginGate onBegin={() => void openSession()} />
           )}
         </div>
+
+        {showTranscript ? (
+          <Transcript
+            turns={turns}
+            streamingTurnId={streamingTurnId}
+            onFeedback={(turnId, feedback) => {
+              setTurnFeedback(turnId, feedback);
+              trackEvent("conversation_turn_feedback", { feedback });
+            }}
+          />
+        ) : null}
       </main>
     </div>
+  );
+}
+
+function Transcript({
+  turns,
+  streamingTurnId,
+  onFeedback,
+}: {
+  turns: ChatTurn[];
+  streamingTurnId: string | null;
+  onFeedback: (turnId: string, feedback: NonNullable<ChatTurn["feedback"]>) => void;
+}) {
+  return (
+    <section className="mt-8 w-full max-w-3xl pb-8">
+      <div className="hairline max-h-[42dvh] overflow-y-auto rounded-2xl bg-white/[0.018] p-4 sm:p-5">
+        {turns.length ? (
+          <div className="space-y-3">
+            {turns.map((turn) => (
+              <Message
+                key={turn.id}
+                turn={turn}
+                streaming={turn.id === streamingTurnId}
+                onFeedback={
+                  turn.role === "assistant"
+                    ? (feedback) => onFeedback(turn.id, feedback)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[13px] text-[var(--color-bone-dim)]">
+            The transcript will appear here once the conversation starts.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 

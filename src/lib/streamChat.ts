@@ -5,9 +5,10 @@ import type { ChatRequestPayload } from "./types";
 export type ChatEvent =
   | { type: "ready" }
   | { type: "text"; turnId: string; delta: string }
-  | { type: "audio"; turnId: string; sentenceIndex: number; mime: string; base64: string }
+  | { type: "audio"; turnId: string; sentenceIndex: number; mime: string; base64: string; pauseMs?: number }
+  | { type: "notice"; message: string; stage?: "tts" | "llm" | "network" }
   | { type: "done"; turnId: string; full: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; stage?: "tts" | "llm" | "network" };
 
 export async function* streamChat(
   payload: ChatRequestPayload,
@@ -21,6 +22,11 @@ export async function* streamChat(
   });
 
   if (!res.ok || !res.body) {
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(json?.error || `Chat failed (${res.status}).`);
+    }
     const txt = await res.text().catch(() => "");
     throw new Error(txt || `Chat failed (${res.status}).`);
   }

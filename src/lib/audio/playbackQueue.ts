@@ -56,7 +56,7 @@ export class PlaybackQueue {
     }
   }
 
-  async enqueue(buffer: ArrayBuffer): Promise<void> {
+  async enqueue(buffer: ArrayBuffer, pauseMs = 0): Promise<void> {
     if (this.destroyed) return;
     await this.unlock();
     if (!this.context || !this.master) return;
@@ -85,7 +85,7 @@ export class PlaybackQueue {
       this.opts.onActivityChange?.(true);
     }
     source.start(startAt);
-    this.nextStart = startAt + decoded.duration;
+    this.nextStart = startAt + decoded.duration + Math.max(0, pauseMs) / 1000;
   }
 
   stop(): void {

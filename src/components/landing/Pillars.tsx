@@ -7,7 +7,7 @@ const items = [
   {
     label: "01",
     title: "A voice, recovered.",
-    body: "Ninety seconds of source audio is enough. The clone is created the moment you finish recording — no waiting room, no preview screen. The conversation simply begins.",
+    body: "Ninety seconds of source audio is enough. Create the clone, preview how it sounds, then continue only when the voice feels right.",
   },
   {
     label: "02",
@@ -26,7 +26,7 @@ export function Pillars() {
     <section className="relative">
       <div className="mx-auto w-full max-w-6xl px-6 pb-24 sm:px-8">
         <motion.div
-          initial="initial"
+          initial={false}
           whileInView="enter"
           viewport={{ once: true, amount: 0.2 }}
           variants={stagger(0.1)}
