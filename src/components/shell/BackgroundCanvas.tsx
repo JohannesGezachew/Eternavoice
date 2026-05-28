@@ -2,10 +2,10 @@ export function BackgroundCanvas() {
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div
-        className="absolute -top-1/3 left-1/2 h-[120vh] w-[120vh] -translate-x-1/2 rounded-full opacity-[0.55] blur-[120px]"
+        className="absolute -top-1/3 left-1/2 h-[120vh] w-[120vh] -translate-x-1/2 rounded-full opacity-[0.7] blur-[100px]"
         style={{
           background:
-            "radial-gradient(closest-side, rgba(199,162,124,0.18), rgba(199,162,124,0.04) 60%, transparent 80%)",
+            "radial-gradient(closest-side, rgba(199,162,124,0.22), rgba(199,162,124,0.06) 60%, transparent 80%)",
         }}
       />
       <div
@@ -17,7 +17,7 @@ export function BackgroundCanvas() {
       />
       <div
         aria-hidden
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-[0.065]"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
