@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/session";
 import { Mark } from "@/components/shell/Mark";
+import { fadeUp, stagger } from "@/lib/motion";
 import { trackEvent } from "@/lib/analytics";
 
 export function VoicePreview() {
@@ -83,27 +84,27 @@ export function VoicePreview() {
         </Link>
       </header>
 
-      <main className="grid flex-1 place-items-center py-14">
+      <main className="flex flex-1 items-center justify-center py-14">
         <motion.section
           initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-xl space-y-7"
+          animate="enter"
+          variants={stagger(0.07)}
+          className="w-full max-w-xl"
         >
-          <div className="space-y-3">
+          <motion.div variants={fadeUp} className="space-y-3">
             <p className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
               Step two · Preview
             </p>
             <h1 className="font-serif text-[38px] leading-[1.08] text-[var(--color-bone)] sm:text-[54px]">
               How does it sound?
             </h1>
-            <p className="max-w-lg text-[15px] leading-[1.7] text-[var(--color-bone)]/68">
+            <p className="max-w-lg text-[15px] leading-[1.7] text-[var(--color-bone)]/65">
               Listen once before setting up the persona. If the voice feels thin,
               noisy, or unlike the person, make another clone with cleaner speech.
             </p>
-          </div>
+          </motion.div>
 
-          <div className="hairline rounded-2xl bg-white/[0.02] p-6 sm:p-7">
+          <motion.div variants={fadeUp} className="mt-8 hairline rounded-2xl bg-white/[0.02] p-6 sm:p-7">
             <div className="flex flex-col gap-5">
               <div>
                 <p className="font-serif text-[22px] text-[var(--color-bone)]">
@@ -124,40 +125,37 @@ export function VoicePreview() {
                     preload="auto"
                   />
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVerdict("good");
-                        trackEvent("voice_preview_rated", { verdict: "good" });
-                      }}
-                      className={`rounded-xl border px-4 py-3 text-left text-[13px] transition ${
-                        verdict === "good"
-                          ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.06] text-[var(--color-bone)]"
-                          : "border-[var(--color-rule-strong)] text-[var(--color-bone)]/75 hover:border-[var(--color-ember)]/35"
-                      }`}
-                    >
-                      Sounds right
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVerdict("bad");
-                        trackEvent("voice_preview_rated", { verdict: "bad" });
-                      }}
-                      className={`rounded-xl border px-4 py-3 text-left text-[13px] transition ${
-                        verdict === "bad"
-                          ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.06] text-[var(--color-bone)]"
-                          : "border-[var(--color-rule-strong)] text-[var(--color-bone)]/75 hover:border-[var(--color-ember)]/35"
-                      }`}
-                    >
-                      Needs improvement
-                    </button>
+                    {(["good", "bad"] as const).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => {
+                          setVerdict(v);
+                          trackEvent("voice_preview_rated", { verdict: v });
+                        }}
+                        className={[
+                          "rounded-xl border px-4 py-3 text-left text-[13px] transition-all duration-200",
+                          verdict === v
+                            ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.07] text-[var(--color-bone)]"
+                            : "border-[var(--color-rule-strong)] text-[var(--color-bone)]/75 hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]",
+                        ].join(" ")}
+                      >
+                        {v === "good" ? "Sounds right" : "Needs improvement"}
+                      </button>
+                    ))}
                   </div>
+
                   {verdict === "bad" ? (
-                    <div className="space-y-3">
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                      className="space-y-3"
+                    >
                       <p className="text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
-                        Try a cleaner 30–60 second clip with one speaker, less music,
-                        and a steady distance from the microphone.
+                        Try a cleaner 30–60 second clip with one speaker, less
+                        background noise, and a steady distance from the mic. Or
+                        adjust the style below before continuing.
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {[
@@ -175,17 +173,18 @@ export function VoicePreview() {
                                 key as keyof NonNullable<typeof persona.calibration>,
                               )
                             }
-                            className={`rounded-xl border px-3 py-2 text-left text-[12px] transition ${
+                            className={[
+                              "rounded-xl border px-3 py-2 text-left text-[12px] transition-all duration-200",
                               calibration[key as keyof typeof calibration]
-                                ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.06] text-[var(--color-bone)]"
-                                : "border-[var(--color-rule-strong)] text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
-                            }`}
+                                ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.07] text-[var(--color-bone)]"
+                                : "border-[var(--color-rule-strong)] text-[var(--color-bone-dim)] hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]",
+                            ].join(" ")}
                           >
                             {label}
                           </button>
                         ))}
                       </div>
-                    </div>
+                    </motion.div>
                   ) : null}
                 </div>
               ) : null}
@@ -197,23 +196,23 @@ export function VoicePreview() {
               ) : null}
 
               <div className="flex flex-wrap gap-3">
-                <Button variant="primary" size="md" onClick={loadPreview} disabled={loading}>
-                  {loading ? "Making preview..." : previewUrl ? "Replay preview" : "Play preview"}
+                <Button variant="primary" size="md" onClick={loadPreview} loading={loading} disabled={loading}>
+                  {loading ? "Generating…" : previewUrl ? "Replay preview" : "Play preview"}
                 </Button>
                 <Button variant="outline" size="md" onClick={() => router.push("/record")}>
-                  Improve the clone
+                  Re-clone
                 </Button>
                 <Button
                   variant="ghost"
                   size="md"
-                  disabled={!previewUrl || verdict !== "good"}
+                  disabled={!previewUrl}
                   onClick={() => router.push("/persona")}
                 >
-                  Continue
+                  Continue →
                 </Button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </motion.section>
       </main>
     </div>

@@ -54,7 +54,7 @@ export function PersonaSetup() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pt-4 pb-16 sm:px-8">
       <motion.header
-        initial="initial"
+        initial={false}
         animate="enter"
         variants={stagger(0.05)}
         className="flex flex-col gap-3"
@@ -63,7 +63,7 @@ export function PersonaSetup() {
           variants={fadeUp}
           className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase"
         >
-          Step two · Who
+          Step three · Who
         </motion.p>
         <motion.h1
           variants={fadeUp}
@@ -144,13 +144,13 @@ export function PersonaSetup() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={
-                    "Dry humour. Loved Leeds United. Said “go on then” more than anyone\nshould. Hardly ever asked questions, but listened to everything.\nNever raised his voice."
+                    "Dry humour. Loved Leeds United. Said \"go on then\" more than anyone\nshould. Hardly ever asked questions, but listened to everything.\nNever raised his voice."
                   }
                   rows={6}
                   maxLength={1200}
                 />
                 <p className="mt-2 text-[12px] text-[var(--color-bone-dim)]">
-                  Specifics outperform adjectives. One quirk is worth ten “kind, caring, loving”.
+                  Specifics outperform adjectives. One quirk is worth ten "kind, caring, loving".
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -169,7 +169,7 @@ export function PersonaSetup() {
                 </div>
                 <div>
                   <Label htmlFor="p-avoid" hint="optional">
-                    Things they would never say
+                    Things they&apos;d never say
                   </Label>
                   <Textarea
                     id="p-avoid"
@@ -184,51 +184,53 @@ export function PersonaSetup() {
             </>
           ) : null}
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             <Label>How should they talk?</Label>
-            <StyleSlider
-              label="Warmth"
-              low="Reserved"
-              high="Tender"
-              value={speechStyle.warmth}
-              onChange={(warmth) => setSpeechStyle((s) => ({ ...s, warmth }))}
-            />
-            <StyleSlider
-              label="Directness"
-              low="Gentle"
-              high="Plain"
-              value={speechStyle.directness}
-              onChange={(directness) => setSpeechStyle((s) => ({ ...s, directness }))}
-            />
-            <StyleSlider
-              label="Expressiveness"
-              low="Quiet"
-              high="Expressive"
-              value={speechStyle.expressiveness}
-              onChange={(expressiveness) => setSpeechStyle((s) => ({ ...s, expressiveness }))}
-            />
-            <StyleSlider
-              label="Humor"
-              low="Serious"
-              high="Dry humor"
-              value={speechStyle.humor}
-              onChange={(humor) => setSpeechStyle((s) => ({ ...s, humor }))}
-            />
-            <StyleSlider
-              label="Talkativeness"
-              low="Few words"
-              high="More words"
-              value={speechStyle.talkativeness}
-              onChange={(talkativeness) => setSpeechStyle((s) => ({ ...s, talkativeness }))}
-            />
+            <div className="space-y-4">
+              <StyleSlider
+                label="Warmth"
+                low="Reserved"
+                high="Tender"
+                value={speechStyle.warmth}
+                onChange={(warmth) => setSpeechStyle((s) => ({ ...s, warmth }))}
+              />
+              <StyleSlider
+                label="Directness"
+                low="Gentle"
+                high="Plain"
+                value={speechStyle.directness}
+                onChange={(directness) => setSpeechStyle((s) => ({ ...s, directness }))}
+              />
+              <StyleSlider
+                label="Expressiveness"
+                low="Quiet"
+                high="Expressive"
+                value={speechStyle.expressiveness}
+                onChange={(expressiveness) => setSpeechStyle((s) => ({ ...s, expressiveness }))}
+              />
+              <StyleSlider
+                label="Humor"
+                low="Serious"
+                high="Dry"
+                value={speechStyle.humor}
+                onChange={(humor) => setSpeechStyle((s) => ({ ...s, humor }))}
+              />
+              <StyleSlider
+                label="Talkativeness"
+                low="Few words"
+                high="More words"
+                value={speechStyle.talkativeness}
+                onChange={(talkativeness) => setSpeechStyle((s) => ({ ...s, talkativeness }))}
+              />
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--color-rule)] pt-6">
             <p className="text-[12px] text-[var(--color-bone-dim)]">
               {voiceName ? (
                 <>
-                  Using the voice you just made
-                  <span className="text-[var(--color-bone)]/70"> · {voiceName}</span>
+                  Voice:
+                  <span className="ml-1 text-[var(--color-bone)]/70">{voiceName}</span>
                 </>
               ) : (
                 "Using the voice you just made"
@@ -262,21 +264,31 @@ function StyleSlider({
   value: number;
   onChange: (value: number) => void;
 }) {
+  const pct = ((value - 1) / 9) * 100;
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3 text-[12px] text-[var(--color-bone-dim)]">
+      <div className="flex items-center justify-between gap-3 text-[12px]">
         <span className="text-[var(--color-bone)]/82">{label}</span>
-        <span>{value}/10</span>
+        <span className="tabular-nums text-[var(--color-bone-dim)]">{value}/10</span>
       </div>
-      <input
-        type="range"
-        min={1}
-        max={10}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[var(--color-ember)]"
-      />
-      <div className="flex justify-between text-[11px] text-[var(--color-bone-dim)]/65">
+      <div className="relative">
+        <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/[0.08]">
+          <div
+            className="h-full rounded-full bg-[var(--color-ember)] transition-all duration-150"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={10}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label={label}
+        />
+      </div>
+      <div className="flex justify-between text-[11px] text-[var(--color-bone-dim)]/55">
         <span>{low}</span>
         <span>{high}</span>
       </div>
@@ -308,7 +320,7 @@ function ModeCard({
     >
       <span
         className={cn(
-          "inline-flex h-2 w-2 rounded-full transition-colors",
+          "inline-flex h-2 w-2 rounded-full transition-colors duration-300",
           active ? "bg-[var(--color-ember)]" : "bg-[var(--color-bone-dim)]/50",
         )}
       />
