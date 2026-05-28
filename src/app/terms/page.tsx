@@ -13,18 +13,21 @@ export default function TermsPage() {
         <Link href="/" aria-label="Home" className="-mx-1 px-1">
           <Mark />
         </Link>
-        <Link href="/privacy" className="text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">
+        <Link
+          href="/privacy"
+          className="text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+        >
           Privacy
         </Link>
       </header>
-      <main className="py-12">
+      <main className="py-14">
         <p className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
           Last updated May 26, 2026
         </p>
-        <h1 className="font-serif mt-4 text-[42px] leading-[1.08] text-[var(--color-bone)]">
+        <h1 className="font-serif mt-4 text-[38px] leading-[1.08] tracking-[-0.02em] text-[var(--color-bone)] sm:text-[54px]">
           Terms of Service
         </h1>
-        <div className="mt-8 space-y-7 text-[15px] leading-[1.8] text-[var(--color-bone)]/72 [&_h2]:font-serif [&_h2]:text-[24px] [&_h2]:text-[var(--color-bone)]">
+        <div className="mt-10 space-y-8 border-t border-[var(--color-rule)] pt-10 text-[15px] leading-[1.85] text-[var(--color-bone)]/65 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-[22px] [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.01em] [&_h2]:text-[var(--color-bone)]">
           <p>
             These terms describe the current EternaVoice product behavior and
             should be reviewed by counsel before commercial launch.
@@ -45,8 +48,8 @@ export default function TermsPage() {
           <h2>Your Content</h2>
           <p>
             You are responsible for recordings, persona details, and messages
-            you submit. You should avoid uploading confidential or third-party
-            material unless you have permission.
+            you submit. Avoid uploading confidential or third-party material
+            unless you have permission.
           </p>
           <h2>AI Output</h2>
           <p>
