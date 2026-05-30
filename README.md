@@ -1,4 +1,7 @@
 # EternaVoice — V1
+
+Continuous voice conversations with someone you can no longer reach.
+
 ---
 
 ## Quick start
@@ -23,8 +26,7 @@ Then visit `http://localhost:3000` and follow the flow:
 | `ELEVENLABS_TTS_MODEL` | TTS model | `eleven_turbo_v2_5` |
 | `ELEVENLABS_FALLBACK_TTS_MODEL` | Latency fallback | `eleven_flash_v2_5` |
 
-Sensitive keys are read server-side only via `src/lib/env.ts`. Never
-exposed to the client.
+Sensitive keys are read server-side only via `src/lib/env.ts`.
 
 ### Scripts
 
@@ -65,7 +67,7 @@ Conversation screen                       POST /api/chat (SSE)
 
 ### Sentence-level parallel streaming
 
-The latency target is won here. See [`src/app/api/chat/route.ts`](src/app/api/chat/route.ts).
+See [`src/app/api/chat/route.ts`](src/app/api/chat/route.ts).
 
 1. Open OpenAI streaming.
 2. As tokens arrive, emit `text` SSE events immediately and feed them
@@ -77,17 +79,6 @@ The latency target is won here. See [`src/app/api/chat/route.ts`](src/app/api/ch
 5. The browser decodes each clip with `decodeAudioData` and schedules
    it gaplessly on a single `AudioContext` — see
    [`PlaybackQueue`](src/lib/audio/playbackQueue.ts).
-
-We use `decodeAudioData` per sentence instead of `MediaSource
-Extensions` because:
-
-- iOS Safari has historically been flaky with chunked MP3 in MSE,
-  whereas `decodeAudioData` is universally supported (iOS 14.5+).
-- Sentence-sized buffers are tiny (~10–30 KB), so the cost of waiting
-  for a full sentence's MP3 instead of streaming within a sentence is
-  ~150–300 ms — already inside the budget.
-- An `AnalyserNode` fed by the same playback context drives the orb
-  visualiser, which is the single biggest "alive" cue.
 
 ### Targets, measured
 
@@ -164,11 +155,7 @@ src/
 
 ## Brand notes
 
-- Palette: deep ink `#0B0B0E` / warm bone `#F5EFE6` / restrained ember
-  `#C7A27C`. Dark by default. Calmness comes from contrast restraint.
-- Type: Fraunces (serif, expressive) + Inter (sans, neutral). Loaded
-  at runtime via Google Fonts CSS so the build is offline-safe.
-- Motion: ease `[0.16, 1, 0.3, 1]`. Nothing bounces. Respects
-  `prefers-reduced-motion`.
-- Tone of voice: short, weighted, lowercase where it suits. The V1
-  scope document is the source.
+- Palette: deep ink `#0B0B0E` / warm bone `#F5EFE6` / restrained ember `#C7A27C`. Dark by default.
+- Type: Fraunces (serif, expressive) + Inter (sans, neutral). Loaded at runtime via Google Fonts CSS.
+- Motion: ease `[0.16, 1, 0.3, 1]`. Nothing bounces. Respects `prefers-reduced-motion`.
+- Tone of voice: short, weighted, lowercase where it suits.
