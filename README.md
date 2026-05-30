@@ -1,20 +1,4 @@
-# EternaVoice — V1 Magic-Moment Demo
-
-Continuous voice conversations with someone you can no longer reach.
-Built from what they left behind. This repository is the **Phase 1
-magic-moment demo** from the V1 Engineering Brief: record a voice in
-the browser, instantly clone it through the voice engine, and have a
-streaming voice conversation in that voice powered by OpenAI.
-
-**What this build is.** A polished, mobile-first web experience that
-ends in a 10-minute conversation with the cloned voice, sub-2 s p50
-turn latency, and a UI engineered to feel premium enough to land the
-pitch.
-
-**What this build deliberately is not.** No auth, no Stripe, no
-multi-subject, no four-tier persistent memory, no vector DB, no native
-apps. Those land in Phase 2 / Phase 3.
-
+# EternaVoice — V1
 ---
 
 ## Quick start
