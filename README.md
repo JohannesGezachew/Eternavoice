@@ -9,9 +9,6 @@ npm install
 npm run dev
 ```
 
-Then visit `http://localhost:3000` and follow the flow:
-**Begin → Read the script → Make the clone → Choose persona mode → Talk.**
-
 ### Required environment variables
 
 | Var | Purpose | Default |
