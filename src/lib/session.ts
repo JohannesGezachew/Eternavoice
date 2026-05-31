@@ -368,10 +368,10 @@ export const useSession = create<SessionState>()(
               ]
             : [],
         persona: state.persona,
-        turns: state.turns.slice(-80),
+        turns: state.turns.slice(-80).map((t) => ({ ...t, audio: undefined })),
         conversations: state.conversations.map((conversation) => ({
           ...conversation,
-          turns: conversation.turns.slice(-80),
+          turns: conversation.turns.slice(-80).map((t) => ({ ...t, audio: undefined })),
         })),
         currentConversationId: state.currentConversationId,
         memories: state.memories,
