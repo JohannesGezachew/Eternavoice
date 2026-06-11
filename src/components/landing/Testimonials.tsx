@@ -60,7 +60,7 @@ function Attribution({ name, initials, relation, large }: { name: string; initia
   return (
     <div className="flex items-center gap-3">
       <Avatar initials={initials} size={large ? "lg" : "sm"} />
-      <p className="text-[11px] tracking-[0.16em] text-[var(--color-ember)]/55 uppercase">
+      <p className="text-[11px] tracking-[0.16em] text-[var(--color-ember)]/75 uppercase">
         {name} <span className="opacity-50">·</span> {relation}
       </p>
     </div>
@@ -71,7 +71,7 @@ export function Testimonials() {
   const doubled = [...STANDARD, ...STANDARD];
 
   return (
-    <section className="w-full overflow-hidden py-20">
+    <section className="w-full overflow-hidden py-14 sm:py-20">
       <div className="mx-auto w-full max-w-6xl px-6 sm:px-8">
         {/* Section label */}
         <motion.p
@@ -79,9 +79,8 @@ export function Testimonials() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="mb-16 flex items-center gap-2.5 text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase"
+          className="eyebrow mb-16"
         >
-          <span className="inline-block h-1 w-1 rounded-full bg-[var(--color-ember)]" aria-hidden />
           From people who use it
         </motion.p>
 

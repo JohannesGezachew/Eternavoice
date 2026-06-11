@@ -13,15 +13,15 @@
   --color-bone: #f5efe6;
   --color-bone-2: #e8e1d4;
   --color-bone-dim: #c9c2b5;
-  --color-ember: #c7a27c;
-  --color-ember-soft: #d9b894;
+  --color-ember: #c9996a;
+  --color-ember-soft: #d9ad82;
   --color-rule: rgba(245, 239, 230, 0.08);
   --color-rule-strong: rgba(245, 239, 230, 0.16);
 
   --ease-calm: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --shadow-glow: 0 0 0 1px rgba(199, 162, 124, 0.18), 0 12px 40px rgba(199, 162, 124, 0.08);
+  --shadow-glow: 0 0 0 1px rgba(201, 153, 106, 0.18), 0 12px 40px rgba(201, 153, 106, 0.08);
   --shadow-inner-soft: inset 0 1px 0 rgba(245, 239, 230, 0.04);
 }
 
@@ -67,7 +67,7 @@
   }
 
   ::selection {
-    background: rgba(199, 162, 124, 0.28);
+    background: rgba(201, 153, 106, 0.28);
     color: var(--color-bone);
   }
 
@@ -120,6 +120,64 @@
 
   .hairline-strong {
     border: 1px solid var(--color-rule-strong);
+  }
+
+  /* Fine film grain laid over the whole page — adds tactile, analog depth
+     that separates a crafted site from a flat template. Invisible to read,
+     felt as texture. */
+  .grain-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* Consistent section eyebrow: a short ember rule + small-caps label.
+     One label system across the whole page instead of scattered pills. */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-bone-dim);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 1.75rem;
+    height: 1px;
+    background: linear-gradient(to right, var(--color-ember), transparent);
+  }
+
+  /* Centered variant: symmetric rules so the label reads truly centered. */
+  .eyebrow-center {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-bone-dim);
+  }
+
+  .eyebrow-center::before,
+  .eyebrow-center::after {
+    content: "";
+    width: 1.75rem;
+    height: 1px;
+  }
+
+  .eyebrow-center::before {
+    background: linear-gradient(to right, transparent, var(--color-ember));
+  }
+
+  .eyebrow-center::after {
+    background: linear-gradient(to left, transparent, var(--color-ember));
   }
 
   @keyframes scrollLine {
