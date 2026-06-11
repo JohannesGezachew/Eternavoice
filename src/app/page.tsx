@@ -41,6 +41,7 @@ const TRUST_SIGNALS = [
 export default function HomePage() {
   return (
     <>
+      <div className="grain-overlay" aria-hidden />
       <Nav />
       <main className="relative flex flex-1 flex-col">
         <Hero />
@@ -48,12 +49,11 @@ export default function HomePage() {
         <Pillars />
 
         {/* How it works */}
-        <section id="how-it-works" className="mx-auto w-full max-w-6xl px-6 py-24 sm:px-8 sm:py-32">
+        <section id="how-it-works" className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 sm:py-32">
           <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr] lg:items-start lg:gap-16">
             {/* Left label */}
             <div className="lg:pt-1">
-              <p className="flex items-center gap-2.5 text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
-                <span className="inline-block h-1 w-1 rounded-full bg-[var(--color-ember)]" aria-hidden />
+              <p className="eyebrow">
                 How it works
               </p>
               <h2 className="font-serif mt-4 text-[26px] leading-[1.1] text-balance text-[var(--color-bone)] sm:text-[42px]">
@@ -97,7 +97,7 @@ export default function HomePage() {
         <Testimonials />
 
         {/* Pull-quote */}
-        <section className="mx-auto w-full max-w-3xl px-6 py-24 text-center sm:px-8">
+        <section className="mx-auto w-full max-w-3xl px-6 py-16 text-center sm:px-8 sm:py-24">
           <div className="mx-auto mb-10 h-px w-10 bg-[var(--color-ember)]/50" />
           <p
             className="font-serif text-[22px] leading-[1.65] text-balance text-[var(--color-bone)]/85 sm:text-[38px]"
