@@ -28,9 +28,15 @@ export class PlaybackQueue {
   private timeBuffer: Uint8Array<ArrayBuffer> | null = null;
   private opts: PlaybackQueueOptions;
   private destroyed = false;
+  private rate = 1;
 
   constructor(opts: PlaybackQueueOptions = {}) {
     this.opts = opts;
+  }
+
+  /** Playback speed for everything queued from now on (0.5–2 sensible). */
+  setRate(rate: number): void {
+    this.rate = Math.min(2, Math.max(0.5, rate || 1));
   }
 
   async unlock(): Promise<void> {
@@ -73,6 +79,7 @@ export class PlaybackQueue {
     const startAt = Math.max(this.context.currentTime + 0.02, this.nextStart);
     const source = this.context.createBufferSource();
     source.buffer = decoded;
+    source.playbackRate.value = this.rate;
     source.connect(this.master);
     this.sources.add(source);
     source.onended = () => {
@@ -88,7 +95,7 @@ export class PlaybackQueue {
       this.opts.onActivityChange?.(true);
     }
     source.start(startAt);
-    this.nextStart = startAt + decoded.duration + Math.max(0, pauseMs) / 1000;
+    this.nextStart = startAt + decoded.duration / this.rate + Math.max(0, pauseMs) / 1000;
   }
 
   stop(): void {

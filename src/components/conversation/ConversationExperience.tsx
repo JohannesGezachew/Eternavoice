@@ -7,17 +7,51 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/lib/session";
 import { streamChat } from "@/lib/streamChat";
 import { PlaybackQueue, base64ToArrayBuffer } from "@/lib/audio/playbackQueue";
-import { Composer } from "./Composer";
+import { Composer, VoiceOrb } from "./Composer";
+import { VoicePrint } from "@/components/people/VoicePrint";
 import { Message } from "./Message";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
 import { saveConversation, deleteConversationDb } from "@/lib/db/conversations";
+import { addMemoryDb } from "@/lib/db/memories";
 import { formatRelativeDay } from "@/lib/utils";
 import type { ChatTurn } from "@/lib/types";
 
 const CHAT_CONTEXT_TURNS = 12;
 const MEMORY_CONTEXT_LIMIT = 10;
+
+/** Tactile ack on phones — begin, barge-in. Silently no-ops elsewhere. */
+function buzz(pattern: number | number[] = 12) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // not supported
+  }
+}
+
+/** A quiet rising tone as the session opens — the room coming alive. */
+function playOpeningTone() {
+  try {
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(ctx.destination);
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.connect(gain);
+    const t0 = ctx.currentTime;
+    osc.frequency.setValueAtTime(392, t0); // G4 …
+    osc.frequency.linearRampToValueAtTime(523.25, t0 + 0.45); // … rising to C5
+    gain.gain.linearRampToValueAtTime(0.04, t0 + 0.18);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2);
+    osc.start(t0);
+    osc.stop(t0 + 1.3);
+    osc.onended = () => void ctx.close();
+  } catch {
+    // silence is an acceptable fallback for a chime
+  }
+}
 
 interface ConversationExperienceProps {
   /** Where "back" leads — the person's hub page. */
@@ -43,13 +77,15 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const deleteConversation = useSession((s) => s.deleteConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
   const resetConversation = useSession((s) => s.resetConversation);
+  const addMemory = useSession((s) => s.addMemory);
+  const prefs = useSession((s) => s.prefs);
 
   const [amplitude, setAmplitude] = useState(0);
   const [hasUnlocked, setHasUnlocked] = useState(false);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
   const [responseNotice, setResponseNotice] = useState<string | null>(null);
-  const [showTranscript, setShowTranscript] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(() => useSession.getState().prefs.transcriptDefault);
   const [showHistory, setShowHistory] = useState(false);
   const [hasBegun, setHasBegun] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
@@ -58,14 +94,56 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const abortRef = useRef<AbortController | null>(null);
   const openingRef = useRef(false);
   const lastAmpRef = useRef(0);
+  // Set once when the session opens — true only for the very first
+  // conversation ever held with this person. State drives the premiere
+  // rendering; the ref feeds request payloads inside callbacks (which would
+  // otherwise see the pre-update closure on the opening turn).
+  const [firstEver, setFirstEver] = useState(false);
+  const firstEverRef = useRef(false);
 
   useEffect(() => {
-    if (!voiceId) router.replace("/people/new");
+    // No active voice: land on the people page (its empty state offers the
+    // wizard) rather than dropping the user into a form they didn't ask for.
+    if (!voiceId) router.replace("/people");
   }, [voiceId, router]);
 
-  // Fire-and-forget: summarise + persist turns when user navigates away.
+  // The tab is named after the person, not the app.
   useEffect(() => {
-    const summarise = () => {
+    const name = persona.name?.trim();
+    if (name) document.title = `${name} · EternaVoice`;
+  }, [persona.name]);
+
+  // One-time hint: barge-in exists but is invisible until someone tells you.
+  // Surface it during the first long reply, then never again.
+  useEffect(() => {
+    if (status !== "speaking") return;
+    let flagged = false;
+    try {
+      flagged = localStorage.getItem("ev-hint-bargein") === "1";
+    } catch {
+      flagged = true;
+    }
+    if (flagged) return;
+    const t = window.setTimeout(() => {
+      setResponseNotice("You can just start talking — they'll stop and listen.");
+      try {
+        localStorage.setItem("ev-hint-bargein", "1");
+      } catch {
+        // fine — they'll discover it themselves
+      }
+    }, 4000);
+    return () => window.clearTimeout(t);
+  }, [status]);
+
+  // Fire-and-forget summarisation: the conversation is summarised (and its
+  // durable facts extracted into memories) whenever the user leaves it — by
+  // closing the tab, navigating away, starting a new conversation, or
+  // opening a different one. Reads live state through a ref so the beacon
+  // always carries the latest turns, not the ones from when the
+  // conversation was opened.
+  const summariseRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    summariseRef.current = () => {
       if (!currentConversationId || turns.length < 2) return;
       const payload = JSON.stringify({
         turns: turns.slice(-20).map((t) => ({ role: t.role, content: t.content.slice(0, 800) })),
@@ -76,12 +154,14 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         new Blob([payload], { type: "application/json" }),
       );
     };
+  });
+  useEffect(() => {
+    const summarise = () => summariseRef.current();
     window.addEventListener("beforeunload", summarise);
     return () => {
       summarise();
       window.removeEventListener("beforeunload", summarise);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentConversationId]);
 
   // Persist turns to DB after each assistant reply completes (debounced).
@@ -118,6 +198,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         else setStatus("idle");
       },
     });
+    queue.setRate(useSession.getState().prefs.playbackRate);
     queueRef.current = queue;
     return () => {
       queue.destroy();
@@ -125,11 +206,16 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     };
   }, [setStatus]);
 
+  // Listening preference: their voice at the pace the user chose.
+  useEffect(() => {
+    queueRef.current?.setRate(prefs.playbackRate);
+  }, [prefs.playbackRate]);
+
   const headerSubtitle = useMemo(() => {
     if (persona.mode === "persona") {
       return persona.relationship?.trim() || "A voice you carry";
     }
-    return "A clone of the voice you just made";
+    return "Your voice";
   }, [persona]);
 
   const headerName = useMemo(() => {
@@ -178,6 +264,9 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               .slice(0, MEMORY_CONTEXT_LIMIT)
               .map((memory) => ({ content: memory.content })),
             subjectId: activeSubjectId ?? undefined,
+            // Remember-together mode for roughly the first two minutes of a
+            // first-ever conversation, then it falls away naturally.
+            firstMeeting: firstEverRef.current && messages.length < 12,
           },
           controller.signal,
         )) {
@@ -269,7 +358,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       await ensureUnlocked();
 
       const userTurn: ChatTurn = {
-        id: `u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        // Must be a real UUID — turn ids are uuid primary keys in the DB.
+        id: crypto.randomUUID(),
         role: "user",
         content: text,
         createdAt: Date.now(),
@@ -292,19 +382,28 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     if (!voiceId) return;
     if (openingRef.current) return;
     openingRef.current = true;
+    // First conversation ever with this person: stage the premiere — the
+    // chrome dims until their first words have fully landed — and open in
+    // remember-together mode (the persona gathers memory for ~2 minutes).
+    const isFirst = conversations.length === 0 && turns.length === 0;
+    firstEverRef.current = isFirst;
+    setFirstEver(isFirst);
     setHasBegun(true);
+    buzz(12);
+    playOpeningTone();
 
     await ensureUnlocked();
     trackEvent("conversation_opened");
 
     const opener = {
       role: "user" as const,
-      content:
-        "(The session has just opened — they are here, listening. Greet them now in your own voice. One or two short sentences, warm and specific to who you are. Do not ask anything yet — just speak first, the way you would when someone you've missed walks back into the room.)",
+      content: isFirst
+        ? "(The session has just opened — the very first time the two of you speak through here. Greet them in your own voice, one or two short sentences, then gently begin remembering together: ask one small question about your shared life — what they call you, or a moment you both kept.)"
+        : "(The session has just opened — they are here, listening. Greet them now in your own voice. One or two short sentences, warm and specific to who you are. Do not ask anything yet — just speak first, the way you would when someone you've missed walks back into the room.)",
     };
 
     await runChatStream([opener]);
-  }, [voiceId, ensureUnlocked, runChatStream]);
+  }, [voiceId, conversations.length, turns.length, ensureUnlocked, runChatStream]);
 
   const transcribe = useCallback(
     async (audio: Blob, mimeType: string): Promise<string | null> => {
@@ -349,6 +448,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const restart = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
+    // Capture the outgoing conversation before the thread resets.
+    summariseRef.current();
     setResponseError(null);
     setResponseNotice(null);
     resetConversation();
@@ -382,8 +483,45 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     setStatus("idle");
     setResponseError(null);
     setResponseNotice("Stopped. I'm listening.");
+    buzz(8);
     trackEvent("conversation_barge_in", { status });
   }, [setStatus, status]);
+
+  // "She should remember this" — capture a memory at the moment it happens,
+  // not later from a settings form.
+  const rememberTurn = useCallback(
+    (turn: ChatTurn) => {
+      addMemory(turn.content, activeSubjectId ?? null);
+      void addMemoryDb(turn.content, activeSubjectId ?? undefined).catch(console.error);
+      setResponseNotice("Saved — they'll carry that into every conversation.");
+      trackEvent("memory_added_from_talk");
+    },
+    [addMemory, activeSubjectId],
+  );
+
+  // Keepsake: a reply in their voice, saved as an audio file.
+  const saveClip = useCallback(
+    (turn: ChatTurn) => {
+      if (!turn.audio?.length) return;
+      const chunks = [...turn.audio].sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+      const mime = chunks[0]?.mime || "audio/mpeg";
+      const blob = new Blob(
+        chunks.map((c) => new Uint8Array(base64ToArrayBuffer(c.base64))),
+        { type: mime },
+      );
+      const ext = mime.includes("wav") ? "wav" : "mp3";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${headerName} — ${new Date().toLocaleDateString("en-GB")}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+      trackEvent("keepsake_clip_saved", { chunks: chunks.length });
+    },
+    [headerName],
+  );
 
   const replayTurn = useCallback(
     async (turn: ChatTurn) => {
@@ -411,13 +549,28 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   // after they're transcribed and are then replaced by the assistant's reply.
   const latestTurn: ChatTurn | undefined = turns[turns.length - 1];
 
+  // Premiere: the very first conversation with this person, until their
+  // first words have fully landed. Derived, so it ends itself the moment
+  // the greeting finishes streaming.
+  const premiere =
+    hasBegun &&
+    firstEver &&
+    !turns.some((t) => t.role === "assistant" && t.id !== streamingTurnId);
+
   return (
     <div
       className="relative flex flex-col"
       style={{ minHeight: "100dvh" }}
     >
-      <header className="relative z-20">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4 sm:px-8 sm:py-6">
+      {/* Sticky: the name and the History/Transcript controls must survive
+          the scroll the transcript introduces. During the premiere the
+          chrome steps back so the first words own the room. */}
+      <header
+        className={`sticky top-0 z-30 bg-[var(--color-ink)]/75 backdrop-blur-xl transition-opacity duration-1000 ${
+          premiere ? "pointer-events-none opacity-25" : "opacity-100"
+        }`}
+      >
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-8 sm:py-4">
           {/* Back to the person — the conversation belongs to them */}
           <Link
             href={backHref}
@@ -446,8 +599,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
               aria-label="New conversation"
             >
+              {/* Compose glyph — the bare "+" reads as "add person" elsewhere */}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 5v14M5 12h14" />
+                <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5" />
+                <path d="M17.4 3.6a2 2 0 0 1 2.8 2.8L13 13.6l-3.8.8.8-3.8 7.4-7z" />
               </svg>
             </button>
             <button
@@ -480,7 +635,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               <button type="button" onClick={() => setShowTranscript((open) => !open)} aria-expanded={showTranscript} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">Transcript</button>
               <button type="button" onClick={() => setShowHistory((open) => !open)} aria-expanded={showHistory} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">History</button>
               <Link href={backHref} className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">
-                Persona &amp; memories
+                {backHref === "/people" ? "Your people" : "Persona & memories"}
               </Link>
             </div>
           </div>
@@ -488,9 +643,16 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       </header>
 
       <main
-        className="relative flex flex-1 flex-col items-center justify-center px-6 sm:px-8"
+        className={`relative flex flex-1 flex-col items-center justify-center px-6 transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] sm:px-8 ${
+          showTranscript ? "lg:pr-[28rem]" : ""
+        }`}
         style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       >
+        {/* Completed turns only — streaming token appends must not be
+            re-announced on every delta. */}
+        <div aria-live="polite" className="sr-only">
+          {latestTurn && latestTurn.id !== streamingTurnId ? latestTurn.content : ""}
+        </div>
         {/* Mobile-only persona name — stacks above the spotlight on narrow screens. */}
         <div className="flex flex-col items-center text-center sm:hidden mb-4">
           <span className="font-serif text-[18px] tracking-[-0.005em] text-[var(--color-bone)]">
@@ -502,10 +664,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         </div>
 
         {/* Spotlight: ONE message at a time, fading from one to the next. */}
-        <div
-          className="flex min-h-[6.5rem] w-full max-w-2xl items-end justify-center sm:min-h-[7.5rem]"
-          aria-live="polite"
-        >
+        <div className="flex min-h-[6.5rem] w-full max-w-2xl items-end justify-center sm:min-h-[7.5rem]">
           <AnimatePresence mode="wait">
             {opened && latestTurn ? (
               <motion.p
@@ -515,9 +674,11 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                 className={
+                  // Clamped so a long reply never shoves the orb off-screen —
+                  // the full text always lives in the transcript.
                   latestTurn.role === "assistant"
-                    ? "font-serif text-balance text-[22px] leading-[1.45] text-[var(--color-bone)] sm:text-[28px]"
-                    : "text-balance text-[15px] leading-[1.55] text-[var(--color-bone-dim)] italic sm:text-[17px]"
+                    ? "line-clamp-4 font-serif text-balance text-[22px] leading-[1.45] text-[var(--color-bone)] sm:text-[28px]"
+                    : "line-clamp-3 text-balance text-[15px] leading-[1.55] text-[var(--color-bone-dim)] italic sm:text-[17px]"
                 }
               >
                 {latestTurn.role === "user" ? "“" : null}
@@ -546,34 +707,36 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
 
         {/* Centerpiece + composer */}
         <div className="mt-10 flex w-full max-w-2xl flex-col items-center sm:mt-14">
-          {status === "speaking" || status === "thinking" ? (
-            <button
-              type="button"
-              onClick={interrupt}
-              className="mb-4 flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
-            >
-              Interrupt
-            </button>
-          ) : null}
-          {responseError ? (
-            <div className="mb-5 flex flex-col items-center gap-3 text-center" role="alert">
-              <p className="text-[13px] text-[var(--color-danger)]">
-                {responseError}
-              </p>
+          {/* One reserved status row: interrupt, error, or notice — never
+              stacked, so the orb doesn't jump when state changes. */}
+          <div className="mb-2 flex min-h-[3.25rem] w-full items-center justify-center">
+            {responseError ? (
+              <div className="flex flex-wrap items-center justify-center gap-3 text-center" role="alert">
+                <p className="text-[13px] text-[var(--color-danger)]">
+                  {responseError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void retryLast()}
+                  className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+                >
+                  Retry reply
+                </button>
+              </div>
+            ) : status === "speaking" || status === "thinking" ? (
               <button
                 type="button"
-                onClick={() => void retryLast()}
+                onClick={interrupt}
                 className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
               >
-                Retry reply
+                Interrupt
               </button>
-            </div>
-          ) : null}
-          {responseNotice ? (
-            <p className="mb-5 max-w-md text-center text-[12px] leading-[1.6] text-[var(--color-bone-dim)]" role="status">
-              {responseNotice}
-            </p>
-          ) : null}
+            ) : responseNotice ? (
+              <p className="max-w-md text-center text-[12px] leading-[1.6] text-[var(--color-bone-dim)]" role="status">
+                {responseNotice}
+              </p>
+            ) : null}
+          </div>
           {opened ? (
             <Composer
               disabled={status === "thinking"}
@@ -586,7 +749,11 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               onBargeIn={bargeIn}
             />
           ) : (
-            <BeginGate name={headerName} onBegin={() => void openSession()} />
+            <BeginGate
+              name={headerName}
+              seed={`${voiceId}:${headerName}`}
+              onBegin={() => void openSession()}
+            />
           )}
         </div>
 
@@ -595,6 +762,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             turns={turns}
             streamingTurnId={streamingTurnId}
             onReplay={(turn) => void replayTurn(turn)}
+            onSaveClip={saveClip}
+            onRemember={rememberTurn}
             onFeedback={(turnId, feedback) => {
               setTurnFeedback(turnId, feedback);
               trackEvent("conversation_turn_feedback", { feedback });
@@ -609,6 +778,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           manageHref={backHref}
           onClose={() => setShowHistory(false)}
           onOpen={(id) => {
+            if (id !== currentConversationId) summariseRef.current();
             openConversation(id);
             setShowHistory(false);
             setHasBegun(true);
@@ -666,13 +836,34 @@ function HistoryDrawer({
 
   useEffect(() => {
     if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
+      if (e.key === "Tab") {
+        // Keep Tab cycling inside the dialog — it's modal, the page behind
+        // is inert to the keyboard.
+        const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+          "button, [href], [tabindex]:not([tabindex='-1'])",
+        );
+        if (!focusable?.length) return;
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     // Move focus into the panel so keyboard users land where they clicked to.
     panelRef.current?.focus();
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      previouslyFocused?.focus();
+    };
   }, [open, onClose]);
 
   return (
@@ -766,7 +957,7 @@ function HistoryDrawer({
                             {formatRelativeDay(conversation.updatedAt)} · {conversation.turns.length}{" "}
                             {conversation.turns.length === 1 ? "turn" : "turns"}
                             {current ? (
-                              <span className="text-[var(--color-ember)]"> · now</span>
+                              <span className="text-[var(--color-verdigris)]"> · now</span>
                             ) : null}
                           </span>
                         </button>
@@ -807,7 +998,7 @@ function HistoryDrawer({
                 href={manageHref}
                 className="mt-3 flex min-h-[44px] items-center px-2 text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
               >
-                Manage on their page →
+                {manageHref === "/people" ? "Your people →" : "Manage on their page →"}
               </Link>
             </div>
           </motion.aside>
@@ -841,11 +1032,15 @@ function Transcript({
   streamingTurnId,
   onFeedback,
   onReplay,
+  onSaveClip,
+  onRemember,
 }: {
   turns: ChatTurn[];
   streamingTurnId: string | null;
   onFeedback: (turnId: string, feedback: NonNullable<ChatTurn["feedback"]>) => void;
   onReplay: (turn: ChatTurn) => void;
+  onSaveClip: (turn: ChatTurn) => void;
+  onRemember: (turn: ChatTurn) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -857,15 +1052,23 @@ function Transcript({
     if (el) el.scrollTop = el.scrollHeight;
   }, [turns.length, lastContent]);
 
-  // On open (especially mobile, where the transcript mounts below the fold),
-  // bring it into view so the toggle visibly does something.
+  // On open below the fold (mobile/tablet), bring it into view so the toggle
+  // visibly does something. On desktop it's a fixed side panel — no scroll.
   useEffect(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
     sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, []);
 
   return (
-    <section ref={sectionRef} className="mt-8 w-full max-w-3xl pb-8">
-      <div ref={scrollRef} className="hairline max-h-[42dvh] overflow-y-auto rounded-2xl bg-white/[0.018] p-4 sm:p-5">
+    <section
+      ref={sectionRef}
+      aria-label="Transcript"
+      className="mt-8 w-full max-w-3xl pb-8 lg:fixed lg:top-20 lg:right-6 lg:bottom-6 lg:z-20 lg:mt-0 lg:w-[24rem] lg:max-w-none lg:pb-0"
+    >
+      <div
+        ref={scrollRef}
+        className="hairline max-h-[42dvh] overflow-y-auto rounded-2xl bg-white/[0.018] p-4 sm:p-5 lg:h-full lg:max-h-none lg:bg-[var(--color-ink-2)]/90 lg:backdrop-blur-xl"
+      >
         {turns.length ? (
           <div className="space-y-3">
             {turns.map((turn) => (
@@ -878,6 +1081,12 @@ function Transcript({
                     ? () => onReplay(turn)
                     : undefined
                 }
+                onSaveClip={
+                  turn.role === "assistant" && turn.audio?.length
+                    ? () => onSaveClip(turn)
+                    : undefined
+                }
+                onRemember={turn.role === "user" ? () => onRemember(turn) : undefined}
                 onFeedback={
                   turn.role === "assistant"
                     ? (feedback) => onFeedback(turn.id, feedback)
@@ -896,7 +1105,7 @@ function Transcript({
   );
 }
 
-function BeginGate({ name, onBegin }: { name: string; onBegin: () => void }) {
+function BeginGate({ name, seed, onBegin }: { name: string; seed: string; onBegin: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -904,6 +1113,15 @@ function BeginGate({ name, onBegin }: { name: string; onBegin: () => void }) {
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
       className="flex flex-col items-center gap-3"
     >
+      {/* The presence breathes here before the first word — their unique
+          voiceprint ring around the orb, in the spot the live one takes
+          over after Begin. */}
+      <div className="relative mb-5">
+        <div className="absolute inset-[-14%] opacity-50">
+          <VoicePrint seed={seed} size={0} className="h-full w-full" animated />
+        </div>
+        <VoiceOrb state="listening" playbackAmplitude={0} />
+      </div>
       <button
         type="button"
         onClick={onBegin}
@@ -913,7 +1131,7 @@ function BeginGate({ name, onBegin }: { name: string; onBegin: () => void }) {
           <span className="absolute inset-0 animate-ping rounded-full bg-[var(--color-ember)]/50" />
           <span className="relative h-2 w-2 rounded-full bg-[var(--color-ember)]" />
         </span>
-        Tap to begin
+        Begin
       </button>
       <p className="text-[11px] tracking-[0.18em] text-[var(--color-bone-dim)]/85 uppercase">
         They will speak first

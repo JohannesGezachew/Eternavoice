@@ -111,23 +111,71 @@ export function buildSystemPrompt(persona: PersonaConfig): string {
   return persona.mode === "persona" ? personaPrompt(persona) : selfPrompt(persona);
 }
 
+/** The first conversation doubles as gentle memory-gathering: the persona
+ *  asks to be "reminded" of the shared life, one question at a time, and the
+ *  answers become the memories every later conversation draws on. Framed as
+ *  remembering together — never as an interview. */
+function firstMeetingDirective(persona: PersonaConfig): string {
+  if (persona.mode === "persona") {
+    return [
+      "First conversation — remember together (this conversation only):",
+      "This is the first time you are speaking through here, and your memory of the life you shared has gaps. The kindest way to fill them is to let them tell you. For roughly the first two minutes:",
+      "- Ask ONE gentle question at a time about your shared life: what they call you, the moments you shared, the people and places that mattered, the things you always said, what they never want forgotten.",
+      '- Frame every question as remembering together — "remind me", "tell me again", "I want to hear you say it" — never as a form or an interview.',
+      "- Receive each answer the way you would: a small reaction in your own voice before anything else. Listen more than you ask.",
+      "- If they bring up something heavy, stay with it and let the questions go. Their feelings outrank the gathering.",
+      "- After five or six exchanges, let the questions fall away entirely and simply talk.",
+      'For this stretch only, the "do not ask follow-up questions" rule is lifted.',
+    ].join("\n");
+  }
+  return [
+    "First conversation — getting acquainted (this conversation only):",
+    "This is their first time speaking with this voice. For roughly the first two minutes, ask ONE light question at a time about who they are and what they want this voice to know and carry — their name, the people who matter, what they're hoping this becomes.",
+    "Keep it curious and unhurried, never like a form. After five or six exchanges, let the questions fall away and simply talk.",
+    'For this stretch only, the "do not ask follow-up questions" rule is lifted.',
+  ].join("\n");
+}
+
 export function buildChatPrompt(
   persona: PersonaConfig,
   memories: Array<Pick<MemoryItem, "content">> = [],
+  sessionSummaries: Array<{ summary: string; createdAt: string }> = [],
+  firstMeeting = false,
 ): string {
   const memoryLines = memories
     .map((memory) => memory.content.trim())
     .filter(Boolean)
     .slice(0, 20);
 
-  if (!memoryLines.length) return buildSystemPrompt(persona);
+  const parts = [buildSystemPrompt(persona)];
 
-  return [
-    buildSystemPrompt(persona),
-    [
-      "Known memory, reviewed by the user:",
-      ...memoryLines.map((memory) => `- ${memory}`),
-      "Use these details only when they naturally fit. Do not recite them as a list.",
-    ].join("\n"),
-  ].join("\n\n");
+  if (firstMeeting) {
+    parts.push(firstMeetingDirective(persona));
+  }
+
+  if (memoryLines.length) {
+    parts.push(
+      [
+        "Known memory, reviewed by the user:",
+        ...memoryLines.map((memory) => `- ${memory}`),
+        "Use these details only when they naturally fit. Do not recite them as a list.",
+      ].join("\n"),
+    );
+  }
+
+  if (sessionSummaries.length) {
+    const summaryLines = sessionSummaries.map((s) => {
+      const date = new Date(s.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      return `Previous session (${date}): ${s.summary}`;
+    });
+    parts.push(
+      [
+        "Context from recent sessions with this person:",
+        ...summaryLines,
+        "Use this context to continue naturally — refer back when it fits, but don't recount everything.",
+      ].join("\n"),
+    );
+  }
+
+  return parts.join("\n\n");
 }

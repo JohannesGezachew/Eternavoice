@@ -31,7 +31,7 @@ export function Faq() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 sm:py-20">
+    <section id="faq" className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 sm:py-28">
       <motion.div
         initial={false}
         whileInView="enter"

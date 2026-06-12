@@ -24,7 +24,7 @@ const items = [
 export function Pillars() {
   return (
     <section className="relative">
-      <div className="mx-auto w-full max-w-6xl px-6 pt-14 pb-16 sm:px-8 sm:pt-28 sm:pb-24">
+      <div className="mx-auto w-full max-w-6xl px-6 pt-14 pb-16 sm:px-8 sm:pt-28 sm:pb-28">
         <motion.p
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}

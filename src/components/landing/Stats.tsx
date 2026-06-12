@@ -30,7 +30,7 @@ export function Stats() {
             <span className="font-serif text-[34px] leading-none tracking-[-0.03em] text-[var(--color-bone)] sm:text-[42px]">
               {value}
             </span>
-            <span className="max-w-[180px] text-[12px] leading-[1.5] text-[var(--color-bone-dim)]/80">
+            <span className="max-w-[180px] text-[12px] leading-[1.5] text-[var(--color-text-secondary)]">
               {label}
             </span>
           </motion.div>

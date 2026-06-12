@@ -18,6 +18,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
+    <div className="flex min-h-dvh w-full flex-col bg-[var(--color-ink)] text-[var(--color-bone)]">
     <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-start justify-center gap-6 px-6 py-24 sm:px-8">
       <p className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
         Something interrupted us
@@ -40,6 +41,7 @@ export default function GlobalError({
           Back to start
         </Link>
       </div>
+    </div>
     </div>
   );
 }

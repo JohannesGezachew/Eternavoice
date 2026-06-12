@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mark } from "./Mark";
 import { cn } from "@/lib/utils";
+import { buttonClasses } from "@/components/ui/buttonClasses";
 import { createClient } from "@/lib/supabase/client";
 
 export function Nav() {
@@ -51,8 +52,7 @@ export function Nav() {
   };
 
   const authedMobileLinks = [
-    { label: "Voices", href: "/voices" },
-    { label: "History", href: "/conversations" },
+    { label: "Your people", href: "/people" },
     { label: "Account", href: "/account" },
   ];
 
@@ -80,12 +80,6 @@ export function Nav() {
           <nav className="flex items-center gap-6 text-[13px] text-[var(--color-bone-dim)]">
             {user ? (
               <>
-                <Link href="/voices" className="hidden transition duration-200 hover:text-[var(--color-bone)] sm:inline">
-                  Voices
-                </Link>
-                <Link href="/conversations" className="hidden transition duration-200 hover:text-[var(--color-bone)] sm:inline">
-                  History
-                </Link>
                 <Link href="/account" className="hidden transition duration-200 hover:text-[var(--color-bone)] sm:inline">
                   Account
                 </Link>
@@ -96,17 +90,17 @@ export function Nav() {
                 >
                   {signingOut ? "Signing out…" : "Sign out"}
                 </button>
-                {/* Desktop CTA */}
+                {/* Desktop CTA — the one route into the app */}
                 <Link
-                  href="/voices"
+                  href="/people"
                   className="hidden sm:inline-flex h-9 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-4 text-[12px] tracking-[0.03em] text-[var(--color-bone)]/80 transition duration-300 hover:border-[var(--color-ember)]/50 hover:text-[var(--color-bone)]"
                 >
-                  My voices
+                  Open the app
                 </Link>
                 {/* Mobile hamburger */}
                 <button
                   onClick={() => setMenuOpen(true)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
                   aria-label="Open menu"
                 >
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
@@ -131,7 +125,7 @@ export function Nav() {
                 {/* Mobile hamburger */}
                 <button
                   onClick={() => setMenuOpen(true)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
                   aria-label="Open menu"
                 >
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
@@ -156,8 +150,7 @@ export function Nav() {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
-            className="fixed inset-0 z-[100] flex flex-col"
-            style={{ backgroundColor: "#0a0a0d" }}
+            className="fixed inset-0 z-[100] flex flex-col bg-[var(--color-ink)]"
           >
             {/* Ambient ember glow at the top — depth without translucency */}
             <div
@@ -165,7 +158,7 @@ export function Nav() {
               aria-hidden
               style={{
                 background:
-                  "radial-gradient(ellipse 90% 100% at 50% 0%, rgba(201,153,106,0.12), transparent 70%)",
+                  "radial-gradient(ellipse 90% 100% at 50% 0%, rgba(194,120,74,0.12), transparent 70%)",
               }}
             />
             <motion.div
@@ -182,7 +175,7 @@ export function Nav() {
                 </Link>
                 <button
                   onClick={() => setMenuOpen(false)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
                   aria-label="Close menu"
                 >
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
@@ -219,7 +212,7 @@ export function Nav() {
                   <Link
                     href="/auth/login"
                     onClick={() => setMenuOpen(false)}
-                    className="flex h-12 w-full items-center justify-center rounded-xl bg-[var(--color-ember)] text-[14px] font-medium text-[var(--color-ink)] shadow-[0_8px_24px_-8px_rgba(201,153,106,0.55)] transition hover:opacity-90"
+                    className={buttonClasses({ variant: "primary", size: "lg", className: "w-full" })}
                   >
                     Sign in
                   </Link>

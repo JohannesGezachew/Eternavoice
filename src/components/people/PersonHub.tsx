@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { PersonaForm } from "@/components/persona/PersonaForm";
 import { MemoryList } from "@/components/memory/MemoryList";
 import { ConversationHistory } from "@/components/conversation/ConversationHistory";
+import { VoicePrint } from "./VoicePrint";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { trackEvent } from "@/lib/analytics";
+import { formatRelativeDay } from "@/lib/utils";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { PersonaConfig } from "@/lib/types";
 
@@ -113,29 +116,40 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
   };
 
   if (loading) {
+    // Skeleton of the page shape, not a blocking spinner — the layout is
+    // known before the data is.
     return (
-      <div className="flex flex-1 items-center justify-center py-24">
-        <motion.span
-          className="inline-block h-5 w-5 rounded-full border-2 border-[var(--color-bone-dim)]/20 border-t-[var(--color-bone-dim)]"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-          aria-label="Loading"
-          role="status"
-        />
+      <div
+        className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-6 pb-16 pt-8 sm:px-8"
+        role="status"
+        aria-label="Loading"
+      >
+        <div className="flex items-center gap-5">
+          <div className="h-16 w-16 animate-pulse rounded-full bg-white/[0.04]" />
+          <div className="flex flex-col gap-2">
+            <div className="h-8 w-44 animate-pulse rounded-lg bg-white/[0.04]" />
+            <div className="h-4 w-28 animate-pulse rounded-md bg-white/[0.03]" />
+          </div>
+        </div>
+        <div className="h-24 animate-pulse rounded-2xl bg-white/[0.03]" />
+        <div className="h-12 animate-pulse rounded-xl bg-white/[0.03]" />
+        <div className="h-64 animate-pulse rounded-2xl bg-white/[0.025]" />
       </div>
     );
   }
 
   if (!subject) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-24 text-center">
-        <p className="font-serif text-[22px] text-[var(--color-bone)]/80">Person not found</p>
-        <button
-          onClick={() => router.push("/people")}
-          className="cursor-pointer text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-75"
-        >
-          Back to your people
-        </button>
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-24">
+        <EmptyState
+          title="Person not found"
+          body="They may have been removed, or the link may be old. Everyone you've preserved is on your people page."
+          action={
+            <Button variant="primary" size="md" onClick={() => router.push("/people")}>
+              Back to your people
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -148,16 +162,11 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
         {/* ── Identity ───────────────────────────────────────────── */}
         <motion.header variants={fadeUp} className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-5">
-            <div className="relative h-16 w-16 shrink-0" aria-hidden>
-              <div
-                className="absolute inset-[-25%] rounded-full opacity-60 blur-[18px]"
-                style={{ background: "radial-gradient(closest-side, rgba(201,153,106,0.35), transparent 75%)" }}
-              />
-              <div className="absolute inset-0 rounded-full border border-[var(--color-rule-strong)] bg-[radial-gradient(closest-side,rgba(201,153,106,0.12),transparent_75%)]" />
-              <span className="absolute inset-0 flex items-center justify-center font-serif text-[26px] text-[var(--color-ember)]">
-                {subject.name.trim().charAt(0).toUpperCase()}
-              </span>
-            </div>
+            <VoicePrint
+              seed={`${subject.voice_id ?? subject.id}:${subject.name}`}
+              size={64}
+              initial={subject.name.trim().charAt(0).toUpperCase()}
+            />
             <div className="flex min-w-0 flex-col gap-1">
               <h1 className="font-serif text-[30px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[36px]">
                 {subject.name}
@@ -189,7 +198,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
           <div className="flex flex-col gap-1">
             <p className="text-[15px] text-[var(--color-bone)]">
               {lastConversation
-                ? `Last spoke ${relativeDay(lastConversation.updatedAt)} · ${lastConversation.turns.length} turns`
+                ? `Last spoke ${formatRelativeDay(lastConversation.updatedAt)} · ${lastConversation.turns.length} turns`
                 : "You haven't spoken yet."}
             </p>
             <p className="text-[12px] text-[var(--color-text-tertiary)]">
@@ -228,23 +237,33 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
           </div>
 
           <div className="rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-5 sm:p-7">
-            {tab === "about" ? (
-              <PersonaForm
-                key={subject.id}
-                initialName={subject.name}
-                initialRelationship={subject.relationship ?? ""}
-                initialPersona={persona}
-                onSave={savePersona}
-              />
-            ) : tab === "memories" ? (
-              <MemoryList subjectId={subjectId} personName={subject.name} />
-            ) : (
-              <ConversationHistory
-                subjectId={subjectId}
-                voiceId={subject.voice_id}
-                talkHref={talkHref}
-              />
-            )}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={tab}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {tab === "about" ? (
+                  <PersonaForm
+                    key={subject.id}
+                    initialName={subject.name}
+                    initialRelationship={subject.relationship ?? ""}
+                    initialPersona={persona}
+                    onSave={savePersona}
+                  />
+                ) : tab === "memories" ? (
+                  <MemoryList subjectId={subjectId} personName={subject.name} />
+                ) : (
+                  <ConversationHistory
+                    subjectId={subjectId}
+                    voiceId={subject.voice_id}
+                    talkHref={talkHref}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </motion.div>
 
@@ -276,12 +295,4 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
       />
     </div>
   );
-}
-
-function relativeDay(ts: number): string {
-  const days = Math.floor((Date.now() - ts) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
-  return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }

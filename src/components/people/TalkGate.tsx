@@ -41,7 +41,9 @@ export function TalkGate({ subjectId }: { subjectId: string }) {
 
     if (subjectId === "current") {
       if (live.voiceId) return; // hydration lag — next render opens the gate
-      router.replace("/people/new");
+      // No voice at all: the people page (with its empty state) is the right
+      // landing, not the creation wizard.
+      router.replace("/people");
       return;
     }
 
@@ -75,13 +77,28 @@ export function TalkGate({ subjectId }: { subjectId: string }) {
   }, [ready, subjectId, setActiveVoice, setVoice, setPersona, router]);
 
   if (!ready) {
+    // Loading IS the brand moment here: the orb breathing in the same spot
+    // the live one will occupy, instead of a generic spinner.
     return (
       <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Loading">
-        <motion.span
-          className="inline-block h-5 w-5 rounded-full border-2 border-[var(--color-bone-dim)]/20 border-t-[var(--color-bone-dim)]"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-        />
+        <div className="relative h-44 w-44" aria-hidden>
+          <motion.div
+            className="absolute inset-[-30%] rounded-full blur-[50px]"
+            style={{ background: "radial-gradient(closest-side, var(--orb-glow-lo), transparent 75%)" }}
+            animate={{ scale: [1, 1.06, 1], opacity: [0.6, 0.9, 0.6] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <div className="absolute inset-[10%] rounded-full border border-[var(--color-rule-strong)]" />
+          <motion.div
+            className="absolute inset-[24%] rounded-full"
+            style={{
+              background: "radial-gradient(closest-side, var(--orb-core-mid), var(--orb-core-lo) 50%, transparent 85%)",
+              mixBlendMode: "var(--orb-blend)" as never,
+            }}
+            animate={{ scale: [1, 1.05, 1], opacity: [0.7, 0.95, 0.7] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+          />
+        </div>
       </div>
     );
   }

@@ -1,18 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { VoicePrint } from "./VoicePrint";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { formatRelativeDay } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { PersonaConfig } from "@/lib/types";
+
+// A presence product is allowed warmth that chrome products aren't.
+function greetingForNow(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "Still up";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+const subscribeNoop = () => () => {};
 
 interface PersonItem {
   /** ElevenLabs voice id (used to activate the session voice). */
@@ -36,6 +48,9 @@ export function PeopleLibrary() {
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
+  // Greeting depends on the user's clock — swap in after hydration so the
+  // server render never mismatches.
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -98,7 +113,7 @@ export function PeopleLibrary() {
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 pb-10 pt-8 sm:px-8">
       <div className="flex flex-col gap-10 py-2">
         <PageHeader
-          eyebrow="Your people"
+          eyebrow={mounted ? greetingForNow() : "Your people"}
           title="Who would you like to speak with?"
         />
 
@@ -141,9 +156,17 @@ export function PeopleLibrary() {
                 title="No one here yet"
                 body="Start with any recording of their voice — a voicemail, a video, a voice note — and you'll be talking in a few minutes."
                 action={
-                  <Button variant="primary" size="md" onClick={() => router.push("/people/new")}>
-                    Preserve a voice
-                  </Button>
+                  <div className="flex flex-col items-center gap-3">
+                    <Button variant="primary" size="md" onClick={() => router.push("/people/new")}>
+                      Preserve a voice
+                    </Button>
+                    <Link
+                      href="/demo"
+                      className="text-[13px] text-[var(--color-text-secondary)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+                    >
+                      See how a conversation works first
+                    </Link>
+                  </div>
                 }
               />
             </motion.div>
@@ -165,28 +188,30 @@ function PersonCard({
   lastSpoke: string | null;
   onTalk: () => void;
 }) {
-  const router = useRouter();
   const href = person.subjectId ? `/people/${person.subjectId}` : null;
 
   return (
     <motion.article
       variants={fadeUp}
-      onClick={() => href && router.push(href)}
       className={`group relative flex flex-col gap-6 rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-6 transition-all duration-300 hover:border-[var(--color-rule-strong)] hover:bg-white/[0.03] ${href ? "cursor-pointer" : ""}`}
     >
+      {/* Stretched link: the whole card opens the hub, and it's a real link —
+          focusable, Enter works, middle-click works. Buttons sit above it. */}
+      {href ? (
+        <Link
+          href={href}
+          aria-label={`Open ${person.name}'s page`}
+          className="absolute inset-0 z-0 rounded-2xl"
+        />
+      ) : null}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          {/* Orb avatar with their initial */}
-          <div className="relative h-14 w-14 shrink-0" aria-hidden>
-            <div
-              className="absolute inset-[-25%] rounded-full opacity-60 blur-[16px] transition-opacity duration-500 group-hover:opacity-90"
-              style={{ background: "radial-gradient(closest-side, rgba(201,153,106,0.35), transparent 75%)" }}
-            />
-            <div className="absolute inset-0 rounded-full border border-[var(--color-rule-strong)] bg-[radial-gradient(closest-side,rgba(201,153,106,0.12),transparent_75%)]" />
-            <span className="absolute inset-0 flex items-center justify-center font-serif text-[22px] text-[var(--color-ember)]">
-              {person.name.trim().charAt(0).toUpperCase() || "·"}
-            </span>
-          </div>
+          {/* Their voiceprint — a signature unique to this person */}
+          <VoicePrint
+            seed={`${person.voiceId}:${person.name}`}
+            size={56}
+            initial={person.name.trim().charAt(0).toUpperCase() || "·"}
+          />
           <div className="flex min-w-0 flex-col gap-1">
             <h2 className="truncate font-serif text-[24px] leading-tight text-[var(--color-bone)]">
               {person.name}
@@ -199,22 +224,15 @@ function PersonCard({
           </div>
         </div>
         {active ? (
-          <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--color-ember)]">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-ember)]" aria-hidden />
+          <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--color-verdigris)]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-verdigris)]" aria-hidden />
             Active
           </span>
         ) : null}
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-3">
-        <Button
-          variant="primary"
-          size="md"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTalk();
-          }}
-        >
+      <div className="relative z-10 mt-auto flex items-center justify-between gap-3">
+        <Button variant="primary" size="md" onClick={onTalk}>
           Talk
         </Button>
         <p className="text-[12px] text-[var(--color-text-tertiary)]">

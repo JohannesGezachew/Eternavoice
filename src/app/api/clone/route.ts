@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { elevenlabs } from "@/lib/elevenlabs";
 import { checkRate } from "@/lib/rateLimit";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -89,9 +90,49 @@ export async function POST(request: Request) {
       labels: { source: "eternavoice-demo-v1" },
     });
 
+    // Persist to DB if the request is authenticated
+    let subjectId: string | undefined;
+    try {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Upsert: if a subject with this voice_id already exists (re-clone), update it
+        const { data: existing } = await supabase
+          .from("subjects")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("voice_id", result.voiceId)
+          .maybeSingle();
+
+        if (existing) {
+          subjectId = existing.id as string;
+          await supabase
+            .from("subjects")
+            .update({ name, voice_name: labelledName, updated_at: new Date().toISOString() })
+            .eq("id", subjectId);
+        } else {
+          const { data: inserted } = await supabase
+            .from("subjects")
+            .insert({
+              user_id: user.id,
+              name,
+              voice_id: result.voiceId,
+              voice_name: labelledName,
+              persona: { mode: "persona", name },
+            })
+            .select("id")
+            .single();
+          subjectId = inserted?.id as string | undefined;
+        }
+      }
+    } catch {
+      // Non-fatal — unauthenticated users continue with localStorage only
+    }
+
     return NextResponse.json({
       voiceId: result.voiceId,
       name,
+      subjectId,
       requiresVerification: result.requiresVerification,
     });
   } catch (err) {
