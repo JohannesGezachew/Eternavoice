@@ -16,28 +16,22 @@ const LOOP_PAUSE = 3200;
 
 export function ConversationDemo() {
   const [visible, setVisible] = useState(2);
-  const [typing, setTyping] = useState(false);
+
+  // The "typing" indicator is derived: it shows while the next message to
+  // reveal is the persona's. The effect only schedules the reveal.
+  const next = visible < MESSAGES.length ? MESSAGES[visible] : null;
+  const typing = next?.role === "ai";
 
   useEffect(() => {
     if (visible >= MESSAGES.length) {
       const timer = setTimeout(() => setVisible(1), LOOP_PAUSE);
       return () => clearTimeout(timer);
     }
-
-    const next = MESSAGES[visible];
-    if (!next) return;
-
-    if (next.role === "ai") {
-      setTyping(true);
-      const t = setTimeout(() => {
-        setTyping(false);
-        setVisible((v) => v + 1);
-      }, TYPING_DURATION);
-      return () => clearTimeout(t);
-    } else {
-      const t = setTimeout(() => setVisible((v) => v + 1), REVEAL_INTERVAL);
-      return () => clearTimeout(t);
-    }
+    const upcoming = MESSAGES[visible];
+    if (!upcoming) return;
+    const delay = upcoming.role === "ai" ? TYPING_DURATION : REVEAL_INTERVAL;
+    const t = setTimeout(() => setVisible((v) => v + 1), delay);
+    return () => clearTimeout(t);
   }, [visible]);
 
   const shownMessages = MESSAGES.slice(0, visible);
@@ -48,7 +42,7 @@ export function ConversationDemo() {
       className="w-full overflow-hidden rounded-2xl border border-[var(--color-rule-strong)]"
       style={{
         background: "linear-gradient(160deg, rgba(255,255,255,0.022) 0%, rgba(255,255,255,0.008) 100%)",
-        boxShadow: "0 0 0 1px rgba(201,153,106,0.07) inset, 0 24px 48px rgba(0,0,0,0.4)",
+        boxShadow: "0 0 0 1px rgba(194,120,74,0.07) inset, 0 24px 48px rgba(0,0,0,0.4)",
       }}
     >
       {/* Header bar */}
@@ -56,16 +50,16 @@ export function ConversationDemo() {
         <div className="flex items-center gap-2.5">
           <div
             className="h-6 w-6 rounded-full"
-            style={{ background: "radial-gradient(closest-side, rgba(201,153,106,0.8), rgba(201,153,106,0.2))" }}
+            style={{ background: "radial-gradient(closest-side, rgba(194,120,74,0.8), rgba(194,120,74,0.2))" }}
             aria-hidden
           />
           <span className="text-[12px] tracking-[0.06em] text-[var(--color-bone-dim)]">
             Dad <span className="opacity-40">·</span> Voice clone
           </span>
         </div>
-        <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-rule-strong)] bg-white/[0.025] px-2.5 py-0.5 text-[10px] tracking-[0.14em] text-[var(--color-bone-dim)]/70 uppercase">
+        <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-rule-strong)] bg-white/[0.025] px-2.5 py-0.5 text-[10px] tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">
           <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-ember)]" aria-hidden />
-          Live
+          Example
         </span>
       </div>
 
@@ -131,10 +125,10 @@ export function ConversationDemo() {
             />
           ))}
         </div>
-        <span className="text-[11px] tracking-[0.06em] text-[var(--color-bone-dim)]/40">
+        <span className="text-[11px] tracking-[0.06em] text-[var(--color-bone-dim)]/80">
           {lastIsAi ? "Speaking…" : "Listening"}
         </span>
-        <div className="ml-auto text-[10px] tracking-[0.06em] text-[var(--color-bone-dim)]/25">
+        <div className="ml-auto text-[10px] tracking-[0.06em] text-[var(--color-bone-dim)]/80">
           End-to-end encrypted
         </div>
       </div>

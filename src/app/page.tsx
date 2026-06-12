@@ -39,7 +39,7 @@ const TRUST_SIGNALS = [
 
 export default function HomePage() {
   return (
-    <>
+    <div className="relative flex min-h-dvh flex-col bg-[var(--color-ink)] text-[var(--color-bone)]">
       <div className="grain-overlay" aria-hidden />
       <Nav />
       <main className="relative flex flex-1 flex-col">
@@ -48,7 +48,7 @@ export default function HomePage() {
         <Pillars />
 
         {/* How it works */}
-        <section id="how-it-works" className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 sm:py-32">
+        <section id="how-it-works" className="mx-auto w-full max-w-6xl px-6 py-16 sm:px-8 sm:py-28">
           <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr] lg:items-start lg:gap-16">
             {/* Left label */}
             <div className="lg:pt-1">
@@ -94,7 +94,7 @@ export default function HomePage() {
         </section>
 
         {/* Manifesto — what this is, in our own words */}
-        <section className="mx-auto w-full max-w-3xl px-6 py-16 text-center sm:px-8 sm:py-24">
+        <section className="mx-auto w-full max-w-3xl px-6 py-16 text-center sm:px-8 sm:py-28">
           <div className="mx-auto mb-10 h-px w-10 bg-[var(--color-ember)]/50" />
           <p
             className="font-serif text-[22px] leading-[1.65] text-balance text-[var(--color-bone)]/85 sm:text-[38px]"
@@ -118,13 +118,14 @@ export default function HomePage() {
               {/* Brand */}
               <div className="flex flex-col gap-3">
                 <p className="font-serif text-[15px] text-[var(--color-bone)]">EternaVoice</p>
-                <p className="max-w-[240px] text-[12px] leading-[1.7] text-[var(--color-bone-dim)]/70">
+                <p className="max-w-[240px] text-[12px] leading-[1.7] text-[var(--color-text-secondary)]">
                   Voice conversations with someone you&rsquo;ve lost, built from their own recordings.
                 </p>
               </div>
 
               {/* Links */}
-              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 text-[12px] text-[var(--color-bone-dim)]/80">
+              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 text-[12px] text-[var(--color-text-secondary)]">
+                <Link href="/about" className="transition hover:text-[var(--color-bone-dim)]">Why we built this</Link>
                 <Link href="/auth/login" className="transition hover:text-[var(--color-bone-dim)]">Sign in</Link>
                 <Link href="/terms" className="transition hover:text-[var(--color-bone-dim)]">Terms</Link>
                 <Link href="/privacy" className="transition hover:text-[var(--color-bone-dim)]">Privacy</Link>
@@ -136,7 +137,7 @@ export default function HomePage() {
             {/* Trust bar */}
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2">
               {TRUST_SIGNALS.map((s) => (
-                <span key={s} className="flex items-center gap-1.5 text-[11px] text-[var(--color-bone-dim)]/70">
+                <span key={s} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-tertiary)]">
                   <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
                     <circle cx="8" cy="8" r="7.5" stroke="currentColor" strokeOpacity="0.5" />
                     <path d="M5 8.5l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -146,12 +147,12 @@ export default function HomePage() {
               ))}
             </div>
 
-            <p className="mt-6 text-[11px] text-[var(--color-bone-dim)]/80">
+            <p className="mt-6 text-[11px] text-[var(--color-text-tertiary)]">
               © {new Date().getFullYear()} EternaVoice. All rights reserved.
             </p>
           </div>
         </footer>
       </main>
-    </>
+    </div>
   );
 }

@@ -8,14 +8,14 @@ import { fadeUp, stagger } from "@/lib/motion";
 export function CtaBanner() {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 pb-20 sm:px-8">
-      <div className="relative overflow-hidden rounded-2xl border border-[rgba(201,153,106,0.18)] bg-[var(--color-ink-3)] px-8 py-16 text-center sm:px-12 sm:py-20">
+      <div className="relative overflow-hidden rounded-2xl border border-[rgba(194,120,74,0.18)] bg-[var(--color-ink-3)] px-8 py-16 text-center sm:px-12 sm:py-20">
         {/* Bottom glow */}
         <div
           className="pointer-events-none absolute inset-0"
           aria-hidden
           style={{
             background:
-              "radial-gradient(ellipse 100% 80% at 50% 115%, rgba(201,153,106,0.26), transparent 70%)",
+              "radial-gradient(ellipse 100% 80% at 50% 115%, rgba(194,120,74,0.26), transparent 70%)",
           }}
         />
         {/* Top subtle line */}
@@ -24,7 +24,7 @@ export function CtaBanner() {
           aria-hidden
           style={{
             background:
-              "linear-gradient(to right, transparent 0%, rgba(201,153,106,0.3) 50%, transparent 100%)",
+              "linear-gradient(to right, transparent 0%, rgba(194,120,74,0.3) 50%, transparent 100%)",
           }}
         />
 
@@ -71,7 +71,7 @@ export function CtaBanner() {
             >
               Get started free
             </Link>
-            <p className="text-[12px] text-[var(--color-bone-dim)]/80">
+            <p className="text-[12px] text-[var(--color-text-secondary)]">
               Private by design · End-to-end encrypted · No voice is ever shared
             </p>
           </motion.div>

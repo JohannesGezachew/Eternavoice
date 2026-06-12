@@ -28,4 +28,17 @@ export const env = {
     "ELEVENLABS_FALLBACK_TTS_MODEL",
     "eleven_flash_v2_5",
   ),
+  get SUPABASE_SERVICE_ROLE_KEY() {
+    return required("SUPABASE_SERVICE_ROLE_KEY");
+  },
+  get MASTER_ENCRYPTION_KEY() {
+    return required("MASTER_ENCRYPTION_KEY");
+  },
+  get STRIPE_SECRET_KEY() {
+    return required("STRIPE_SECRET_KEY");
+  },
+  get STRIPE_WEBHOOK_SECRET() {
+    return required("STRIPE_WEBHOOK_SECRET");
+  },
+  STRIPE_PRICE_ID: optional("STRIPE_PRICE_ID", ""),
 };

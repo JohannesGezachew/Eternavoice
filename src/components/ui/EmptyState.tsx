@@ -16,10 +16,13 @@ export function EmptyState({ title, body, action, compact = false }: EmptyStateP
       <div className="relative h-14 w-14" aria-hidden>
         <div
           className="absolute inset-[-45%] rounded-full opacity-80 blur-[22px]"
-          style={{ background: "radial-gradient(closest-side, rgba(201,153,106,0.5), transparent 75%)" }}
+          style={{ background: "radial-gradient(closest-side, var(--orb-glow-mid), transparent 75%)" }}
         />
-        <div className="absolute inset-0 rounded-full border border-[var(--color-ember)]/25 bg-[radial-gradient(closest-side,rgba(201,153,106,0.16),transparent_75%)]" />
-        <div className="absolute inset-[26%] rounded-full bg-[radial-gradient(closest-side,rgba(245,239,230,0.5),rgba(201,153,106,0.2)_60%,transparent_85%)] mix-blend-screen" />
+        <div className="absolute inset-0 rounded-full border border-[var(--color-ember)]/25 bg-[radial-gradient(closest-side,var(--orb-core-lo),transparent_75%)]" />
+        <div
+          className="absolute inset-[26%] rounded-full bg-[radial-gradient(closest-side,var(--orb-core-mid),var(--orb-core-lo)_60%,transparent_85%)]"
+          style={{ mixBlendMode: "var(--orb-blend)" as never }}
+        />
       </div>
       <div className="flex flex-col gap-2">
         <p className="font-serif text-[20px] text-[var(--color-bone)]">{title}</p>

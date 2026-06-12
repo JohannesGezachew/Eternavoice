@@ -1,9 +1,7 @@
-import { VoiceLibrary } from "@/components/voices/VoiceLibrary";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Voices · EternaVoice",
-};
-
+// Voices became People — one place per person for voice, persona,
+// memories, and conversations.
 export default function VoicesPage() {
-  return <VoiceLibrary />;
+  redirect("/people");
 }

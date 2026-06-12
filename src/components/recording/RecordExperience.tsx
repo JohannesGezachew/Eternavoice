@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { Waveform } from "./Waveform";
@@ -9,7 +8,6 @@ import { Script } from "./Script";
 import { QualityHint } from "./QualityHint";
 import { RecordControl } from "./RecordControl";
 import { Button } from "@/components/ui/Button";
-import { Input, Label } from "@/components/ui/Field";
 import { startRecording, type ActiveRecorder } from "@/lib/audio/recorder";
 import { clipAudio, sliceWavBytes } from "@/lib/audio/clipAudio";
 import { needsConversion } from "@/lib/audio/convertAudio";
@@ -29,13 +27,25 @@ import {
   SCRIPT_MIN_SECONDS,
   SCRIPT_TARGET_SECONDS,
 } from "@/lib/clone/script";
-import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { cn, formatSeconds } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
 
 type Phase = "intro" | "recording" | "review" | "converting" | "uploading" | "ready";
 type Mode = "upload" | "record";
+
+export interface CloneResult {
+  voiceId: string;
+  name: string;
+  subjectId?: string;
+}
+
+interface RecordExperienceProps {
+  /** The person's name, collected before this step. */
+  subjectName: string;
+  /** Called once the clone is created. The caller owns navigation. */
+  onCloned: (result: CloneResult) => void;
+}
 
 const CLONE_UPLOAD_LIMIT = 4 * 1024 * 1024; // Vercel's request body cap is 4.5 MB.
 const CLONE_MAX_SECONDS = 60;
@@ -47,14 +57,9 @@ interface Take {
   url: string;
 }
 
-export function RecordExperience() {
-  const router = useRouter();
-  const setVoice = useSession((s) => s.setVoice);
-  const existingVoice = useSession((s) => s.voiceId);
-
+export function RecordExperience({ subjectName, onCloned }: RecordExperienceProps) {
   const [mode, setMode] = useState<Mode>("upload");
   const [phase, setPhase] = useState<Phase>("intro");
-  const [name, setName] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [cloneStartedAt, setCloneStartedAt] = useState<number | null>(null);
   const [cloneElapsed, setCloneElapsed] = useState(0);
@@ -74,6 +79,7 @@ export function RecordExperience() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadDuration, setUploadDuration] = useState(0);
   const [conversionProgress, setConversionProgress] = useState(0);
+  const [clipCoach, setClipCoach] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<{ start: number; end: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,11 +111,50 @@ export function RecordExperience() {
       setSelectedRegion(null);
       setUploadDuration(0);
       setConversionProgress(0);
+      setClipCoach(null);
     },
     [mode],
   );
 
   // ── Upload handlers ────────────────────────────────────────────────────────
+
+  // Reflect the clip back in one sentence — the user is anxious at this
+  // step, and "we looked at it, it's fine" converts anxiety into confidence.
+  const analyzeClip = useCallback(async (file: File) => {
+    setClipCoach(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const ctx = new AudioContext();
+      const audio = await ctx.decodeAudioData(buf);
+      void ctx.close();
+      const data = audio.getChannelData(0);
+      const frame = Math.floor(audio.sampleRate * 0.05);
+      const rms: number[] = [];
+      for (let i = 0; i + frame <= data.length; i += frame) {
+        let sum = 0;
+        for (let j = i; j < i + frame; j++) sum += data[j]! * data[j]!;
+        rms.push(Math.sqrt(sum / frame));
+      }
+      rms.sort((a, b) => a - b);
+      const noiseFloor = rms[Math.floor(rms.length * 0.15)] ?? 0;
+      const loud = rms[Math.floor(rms.length * 0.9)] ?? 0;
+      const dur = audio.duration;
+
+      const length =
+        dur < 30
+          ? "On the short side — it will work, but ninety seconds gives a truer voice."
+          : dur < 75
+            ? "Decent length — ninety seconds is the sweet spot if you have more."
+            : "Good length.";
+      const noise =
+        noiseFloor > 0.03 || (loud > 0 && noiseFloor / loud > 0.35)
+          ? " There's some background noise — it should still work."
+          : " The recording sounds clean.";
+      setClipCoach(length + noise);
+    } catch {
+      // Analysis is a nicety, never a blocker.
+    }
+  }, []);
 
   const acceptFile = useCallback(
     async (file: File) => {
@@ -125,6 +170,7 @@ export function RecordExperience() {
           setUploadFile(converted);
           setUploadPreviewUrl(URL.createObjectURL(converted));
           setPhase("review");
+          void analyzeClip(converted);
         } catch (err) {
           console.error("[EternaVoice] FFmpeg conversion failed:", err);
           const detail = err instanceof Error ? ` (${err.message})` : "";
@@ -138,8 +184,9 @@ export function RecordExperience() {
       setUploadFile(file);
       setUploadPreviewUrl(URL.createObjectURL(file));
       setPhase("review");
+      void analyzeClip(file);
     },
-    [uploadPreviewUrl],
+    [uploadPreviewUrl, analyzeClip],
   );
 
   const handleDrop = useCallback(
@@ -169,17 +216,13 @@ export function RecordExperience() {
     setSelectedRegion(null);
     setUploadDuration(0);
     setConversionProgress(0);
+    setClipCoach(null);
     setPhase("intro");
   }, [uploadPreviewUrl]);
 
   const submitUpload = useCallback(async () => {
     if (!uploadFile) return;
     setUploadError(null);
-    const subjectName = name.trim();
-    if (!subjectName) {
-      setUploadError("Add a name before making the clone.");
-      return;
-    }
     setCloneStartedAt(Date.now());
     setCloneElapsed(0);
     setPhase("uploading");
@@ -228,11 +271,10 @@ export function RecordExperience() {
       if (!res.ok) {
         throw new Error(await readCloneError(res));
       }
-      const json = (await res.json()) as { voiceId: string; name: string };
+      const json = (await res.json()) as CloneResult;
       trackEvent("clone_completed", { mode: "upload" });
-      setVoice(json.voiceId, json.name);
       setPhase("ready");
-      setTimeout(() => router.push("/voice-preview"), 700);
+      onCloned(json);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong.";
       trackEvent("clone_failed", { mode: "upload", message });
@@ -241,7 +283,7 @@ export function RecordExperience() {
     } finally {
       setCloneStartedAt(null);
     }
-  }, [uploadFile, selectedRegion, uploadDuration, name, router, setVoice]);
+  }, [uploadFile, selectedRegion, uploadDuration, subjectName, onCloned]);
 
   // ── Record handlers ────────────────────────────────────────────────────────
 
@@ -309,11 +351,6 @@ export function RecordExperience() {
   const submit = useCallback(async () => {
     if (!take) return;
     setUploadError(null);
-    const subjectName = name.trim();
-    if (!subjectName) {
-      setUploadError("Add a name before making the clone.");
-      return;
-    }
     setCloneStartedAt(Date.now());
     setCloneElapsed(0);
     setPhase("uploading");
@@ -334,11 +371,10 @@ export function RecordExperience() {
       if (!res.ok) {
         throw new Error(await readCloneError(res));
       }
-      const json = (await res.json()) as { voiceId: string; name: string };
+      const json = (await res.json()) as CloneResult;
       trackEvent("clone_completed", { mode: "record" });
-      setVoice(json.voiceId, json.name);
       setPhase("ready");
-      setTimeout(() => router.push("/voice-preview"), 700);
+      onCloned(json);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Something went wrong on our side.";
@@ -348,87 +384,67 @@ export function RecordExperience() {
     } finally {
       setCloneStartedAt(null);
     }
-  }, [take, name, router, setVoice]);
+  }, [take, subjectName, onCloned]);
 
   const elapsedSeconds = elapsedMs / 1000;
   const overshoot = elapsedSeconds > SCRIPT_MAX_SECONDS;
   const undershoot = elapsedSeconds > 0 && elapsedSeconds < SCRIPT_MIN_SECONDS;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-x-hidden px-6 pt-4 pb-16 sm:px-8">
-      <motion.header
+    <div className="flex w-full flex-1 flex-col overflow-x-hidden">
+      <motion.div
         initial={false}
         animate="enter"
         variants={stagger(0.05)}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
         <motion.p
           variants={fadeUp}
-          className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase"
-        >
-          Step one · Voice
-        </motion.p>
-        <motion.h1
-          variants={fadeUp}
-          className="font-serif text-[34px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]"
-        >
-          {mode === "upload" ? (
-            <>
-              Bring their voice.
-              <br />
-              <span className="italic text-[var(--color-bone)]/80">
-                Drop what you have.
-              </span>
-            </>
-          ) : (
-            <>
-              Read this slowly.
-              <br />
-              <span className="italic text-[var(--color-bone)]/80">
-                The way you would tell it.
-              </span>
-            </>
-          )}
-        </motion.h1>
-        <motion.p
-          variants={fadeUp}
-          className="max-w-xl text-[15px] leading-[1.7] text-[var(--color-bone)]/65"
+          className="max-w-xl text-[15px] leading-[1.7] text-[var(--color-text-secondary)] break-words"
         >
           {mode === "upload"
-            ? "A voicemail, voice note, or video clip. A few minutes is enough — the more natural the speech, the richer it becomes."
+            ? "A voicemail, voice note, or video clip — thirty seconds of clear, natural speech is enough."
             : "Around seventy-five seconds is enough. Don't perform — just read. The recording stays on this device until you choose to make the clone."}
         </motion.p>
 
-        <motion.div variants={fadeUp} className="mt-1 flex items-center gap-3">
+        <motion.div
+          variants={fadeUp}
+          className="flex w-fit gap-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.015] p-1"
+          role="tablist"
+          aria-label="How to provide the voice"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === "upload"}
             onClick={() => switchMode("upload")}
             className={cn(
-              "text-[13px] transition-colors",
+              "cursor-pointer rounded-lg px-4 py-2 text-[13px] transition-colors duration-200",
               mode === "upload"
-                ? "text-[var(--color-bone)]"
-                : "text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]/70",
+                ? "bg-white/[0.06] text-[var(--color-bone)]"
+                : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]",
             )}
           >
-            Upload a file
+            Upload a recording
           </button>
-          <span className="text-[var(--color-bone-dim)]/30">·</span>
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === "record"}
             onClick={() => switchMode("record")}
             className={cn(
-              "text-[13px] transition-colors",
+              "cursor-pointer rounded-lg px-4 py-2 text-[13px] transition-colors duration-200",
               mode === "record"
-                ? "text-[var(--color-bone)]"
-                : "text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]/70",
+                ? "bg-white/[0.06] text-[var(--color-bone)]"
+                : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]",
             )}
           >
-            Record instead
+            Record now
           </button>
         </motion.div>
-      </motion.header>
+      </motion.div>
 
-      <div className="mt-10 grid flex-1 gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
+      <div className="mt-8 grid flex-1 gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12">
         {/* Always-mounted hidden file input — kept outside AnimatePresence so the ref is never null */}
         {mode === "upload" ? (
           <input
@@ -440,8 +456,8 @@ export function RecordExperience() {
           />
         ) : null}
 
-        {/* Left panel */}
-        <section className="relative">
+        {/* Left panel — shown second on mobile so the name input appears first */}
+        <section className="relative order-2 lg:order-1">
           {mode === "upload" ? (
             <AnimatePresence>
               {/* Dropzone — only in intro phase */}
@@ -454,6 +470,15 @@ export function RecordExperience() {
                   transition={{ duration: 0.25 }}
                 >
                   <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Drop a voice file here, or press Enter to browse"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }
+                    }}
                     onDragOver={(e) => {
                       e.preventDefault();
                       setIsDragging(true);
@@ -462,7 +487,7 @@ export function RecordExperience() {
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                     className={cn(
-                      "flex min-h-[300px] cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-200",
+                      "flex min-h-[200px] cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 sm:min-h-[300px] sm:p-10",
                       isDragging
                         ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.04]"
                         : "border-[var(--color-rule-strong)] hover:border-[var(--color-ember)]/25 hover:bg-white/[0.015]",
@@ -474,7 +499,7 @@ export function RecordExperience() {
                     <p className="max-w-[260px] text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
                       Voicemails, voice notes, videos — any recording with their voice
                     </p>
-                    <p className="max-w-[260px] text-[11px] leading-[1.7] tracking-[0.14em] break-words text-[var(--color-bone-dim)]/50 uppercase">
+                    <p className="max-w-[260px] text-[11px] leading-[1.7] tracking-[0.14em] break-words text-[var(--color-bone-dim)]/80 uppercase">
                       mp3 · mp4 · m4a · wav · mov · ogg · and more
                     </p>
                     <button
@@ -500,7 +525,7 @@ export function RecordExperience() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <div className="flex min-h-[300px] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed border-[var(--color-rule-strong)] p-10 text-center">
+                  <div className="flex min-h-[200px] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed border-[var(--color-rule-strong)] p-8 text-center sm:min-h-[300px] sm:p-10">
                     <span className="relative inline-flex h-2.5 w-2.5">
                       <span className="absolute inset-[-6px] animate-ping rounded-full bg-[var(--color-ember)]/30" />
                       <span className="relative h-2.5 w-2.5 rounded-full bg-[var(--color-ember)]" />
@@ -521,7 +546,7 @@ export function RecordExperience() {
                             style={{ width: `${conversionProgress}%` }}
                           />
                         </div>
-                        <p className="text-[11px] text-[var(--color-bone-dim)]/50">
+                        <p className="text-[11px] text-[var(--color-bone-dim)]/80">
                           {conversionProgress}%
                         </p>
                       </div>
@@ -546,14 +571,20 @@ export function RecordExperience() {
                     onDurationReady={(d) => setUploadDuration(d)}
                     onRegionChange={(r) => setSelectedRegion(r)}
                   />
+                  {clipCoach ? (
+                    <p className="flex items-start gap-2 px-1 text-[13px] leading-[1.6] text-[var(--color-text-secondary)]" role="status">
+                      <span className="mt-[5px] inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-verdigris)]" aria-hidden />
+                      {clipCoach}
+                    </p>
+                  ) : null}
                   <div className="flex items-center justify-between px-1">
-                    <p className="text-[12px] text-[var(--color-bone-dim)]/60 truncate max-w-[180px]">
+                    <p className="text-[12px] text-[var(--color-bone-dim)]/80 truncate max-w-[180px]">
                       {uploadFile?.name}
                     </p>
                     <button
                       type="button"
                       onClick={retakeUpload}
-                      className="text-[12px] text-[var(--color-bone-dim)]/50 transition-colors hover:text-[var(--color-bone-dim)] shrink-0"
+                      className="text-[12px] text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)] shrink-0"
                     >
                       Choose different
                     </button>
@@ -568,8 +599,8 @@ export function RecordExperience() {
           )}
         </section>
 
-        {/* Right panel */}
-        <aside className="flex flex-col gap-6">
+        {/* Right panel — shown first on mobile */}
+        <aside className="flex flex-col gap-6 order-1 lg:order-2">
           {mode === "record" ? (
             <div className="hairline relative overflow-hidden rounded-2xl bg-white/[0.02] p-7 sm:p-9">
               <Waveform
@@ -606,24 +637,10 @@ export function RecordExperience() {
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="upload-name-c">
-                      Whose voice is this
-                    </Label>
-                    <Input
-                      id="upload-name-c"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Their name"
-                      autoComplete="off"
-                      maxLength={60}
-                    />
-                  </div>
-                  <p className="text-[13px] text-[var(--color-bone-dim)]">
-                    Hold on — converting your file to audio.
-                  </p>
-                </div>
+                <p className="text-[13px] text-[var(--color-text-secondary)]">
+                  Hold on — converting your file to audio. Nothing leaves this
+                  device until you choose to make the clone.
+                </p>
               </motion.div>
             ) : null}
 
@@ -638,38 +655,29 @@ export function RecordExperience() {
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
-                  <div>
-                    <Label htmlFor="upload-name">
-                      Whose voice is this
-                    </Label>
-                    <Input
-                      id="upload-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Their name"
-                      autoComplete="off"
-                      maxLength={60}
-                    />
-                  </div>
+                  <p className="text-[12px] tracking-[0.14em] text-[var(--color-text-tertiary)] uppercase">
+                    What works best
+                  </p>
                   {uploadError ? (
-                    <p className="text-[13px] text-[var(--color-ember-soft)]">
+                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
                       {uploadError}
                     </p>
                   ) : (
-                    <div className="space-y-3 text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
-                      <p>Drop a file on the left to continue.</p>
-                      <ul className="space-y-1.5">
-                        <li>Use 30–90 seconds of clear, natural speech.</li>
-                        <li>Pick one speaker with little music or background noise.</li>
-                        <li>Voicemails and voice notes usually work better than crowded videos.</li>
-                      </ul>
-                    </div>
+                    <ul className="space-y-2.5 text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+                      <li className="flex gap-2.5">
+                        <HintDot />
+                        30–90 seconds of clear, natural speech.
+                      </li>
+                      <li className="flex gap-2.5">
+                        <HintDot />
+                        One speaker, little music or background noise.
+                      </li>
+                      <li className="flex gap-2.5">
+                        <HintDot />
+                        Voicemails and voice notes usually beat crowded videos.
+                      </li>
+                    </ul>
                   )}
-                  {existingVoice ? (
-                    <p className="text-[12px] text-[var(--color-bone-dim)]">
-                      A voice from this session already exists. Uploading again will replace it.
-                    </p>
-                  ) : null}
                 </div>
               </motion.div>
             ) : null}
@@ -685,29 +693,19 @@ export function RecordExperience() {
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
-                  <div>
-                    <Label htmlFor="upload-name-r">
-                      Whose voice is this
-                    </Label>
-                    <Input
-                      id="upload-name-r"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Their name"
-                      autoComplete="off"
-                      maxLength={60}
-                    />
-                  </div>
+                  <p className="text-[14px] leading-[1.65] text-[var(--color-bone)]/90">
+                    Listen once if you like, then make {subjectName}&rsquo;s voice.
+                  </p>
                   {selectedRegion ? (
-                    <p className="text-[12px] text-[var(--color-bone-dim)]">
-                      Clip: {fmt(selectedRegion.start)} – {fmt(selectedRegion.end)}
+                    <p className="text-[12px] text-[var(--color-text-secondary)]">
+                      Selected clip: {fmt(selectedRegion.start)} – {fmt(selectedRegion.end)}
                     </p>
                   ) : null}
-                  <Button variant="primary" size="md" onClick={submitUpload}>
-                    {selectedRegion ? "Clone this clip" : "Make the clone"}
+                  <Button variant="primary" size="lg" onClick={submitUpload} className="w-full sm:w-auto">
+                    {selectedRegion ? "Clone this clip" : "Create the voice"}
                   </Button>
                   {uploadError ? (
-                    <p className="text-[13px] text-[var(--color-ember-soft)]">
+                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
                       {uploadError}
                     </p>
                   ) : null}
@@ -726,34 +724,16 @@ export function RecordExperience() {
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
-                  <div>
-                    <Label htmlFor="subject-name">
-                      Whose voice is this
-                    </Label>
-                    <Input
-                      id="subject-name"
-                      placeholder="A name, or just yours"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      autoComplete="off"
-                      maxLength={60}
-                    />
-                  </div>
                   <div className="flex items-center justify-between gap-6">
                     <RecordControl state="idle" onClick={start} label="Tap to begin" />
-                    <div className="max-w-[220px] text-right text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+                    <div className="max-w-[220px] text-right text-[12px] leading-[1.6] text-[var(--color-text-secondary)]">
                       <p>We&apos;ll ask the browser for the microphone, then you can read.</p>
                       <p className="mt-2">Stay close to the mic and keep the room quiet.</p>
                     </div>
                   </div>
                   {permissionError ? (
-                    <p className="text-[13px] text-[var(--color-ember-soft)]">
+                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
                       {permissionError}
-                    </p>
-                  ) : null}
-                  {existingVoice ? (
-                    <p className="text-[12px] text-[var(--color-bone-dim)]">
-                      A voice from this session already exists. Recording again will replace it.
                     </p>
                   ) : null}
                 </div>
@@ -809,14 +789,14 @@ export function RecordExperience() {
                   />
                   <div className="flex flex-wrap items-center gap-3">
                     <Button variant="primary" size="md" onClick={submit}>
-                      Make the clone
+                      Create the voice
                     </Button>
                     <Button variant="outline" size="md" onClick={retake}>
                       Record again
                     </Button>
                   </div>
                   {uploadError ? (
-                    <p className="text-[13px] text-[var(--color-ember-soft)]">
+                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
                       {uploadError}
                     </p>
                   ) : null}
@@ -867,7 +847,7 @@ export function RecordExperience() {
                           className={cn(
                             "text-[12px]",
                             step.state === "pending"
-                              ? "text-[var(--color-bone-dim)]/45"
+                              ? "text-[var(--color-bone-dim)]/80"
                               : "text-[var(--color-bone)]/78",
                           )}
                         >
@@ -892,8 +872,8 @@ export function RecordExperience() {
               >
                 <div className="flex items-center gap-4">
                   <span className="inline-flex h-2 w-2 rounded-full bg-[var(--color-ember)]" />
-                  <p className="text-[14px] text-[var(--color-bone)]/85">
-                    The voice is ready. Taking you in.
+                  <p className="text-[14px] text-[var(--color-bone)]/90">
+                    {subjectName}&rsquo;s voice is ready.
                   </p>
                 </div>
               </motion.div>
@@ -902,6 +882,15 @@ export function RecordExperience() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function HintDot() {
+  return (
+    <span
+      className="mt-[7px] inline-block h-1 w-1 shrink-0 rounded-full bg-[var(--color-ember)]/60"
+      aria-hidden
+    />
   );
 }
 

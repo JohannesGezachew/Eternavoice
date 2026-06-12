@@ -45,6 +45,7 @@ export interface ConversationRecord {
   id: string;
   voiceId: string;
   voiceName: string;
+  subjectId?: string | null;
   title: string;
   persona: PersonaConfig;
   turns: ChatTurn[];
@@ -58,6 +59,7 @@ export interface VoiceLibraryItem {
   id: string;
   name: string;
   createdAt: number;
+  subjectId?: string;
 }
 
 export interface MemoryItem {
@@ -65,6 +67,9 @@ export interface MemoryItem {
   content: string;
   createdAt: number;
   updatedAt: number;
+  /** Person this memory belongs to. Null/undefined = legacy unscoped memory,
+   *  shared with every persona for backwards compatibility. */
+  subjectId?: string | null;
 }
 
 export interface ChatRequestPayload {
@@ -72,4 +77,8 @@ export interface ChatRequestPayload {
   persona: PersonaConfig;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   memories?: Array<{ content: string }>;
+  subjectId?: string;
+  /** First-ever conversation with this person — the persona gathers memory
+   *  by asking to be reminded of the shared life. */
+  firstMeeting?: boolean;
 }

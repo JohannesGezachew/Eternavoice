@@ -30,7 +30,7 @@ export function Hero() {
         className="pointer-events-none absolute inset-0"
         aria-hidden
         style={{
-          backgroundImage: "radial-gradient(rgba(245,239,230,0.055) 0.8px, transparent 0.8px)",
+          backgroundImage: "radial-gradient(var(--dot-grid) 0.8px, transparent 0.8px)",
           backgroundSize: "22px 22px",
           WebkitMaskImage: "radial-gradient(ellipse 110% 70% at 50% 0%, rgba(0,0,0,1) 0%, transparent 85%)",
           maskImage: "radial-gradient(ellipse 110% 70% at 50% 0%, rgba(0,0,0,1) 0%, transparent 85%)",
@@ -41,7 +41,7 @@ export function Hero() {
       <div
         className="pointer-events-none absolute right-[3%] top-[10%] hidden h-[560px] w-[560px] rounded-full opacity-[0.18] blur-[110px] lg:block"
         aria-hidden
-        style={{ background: "radial-gradient(closest-side, rgba(201,153,106,0.6), transparent 72%)" }}
+        style={{ background: "radial-gradient(closest-side, rgba(194,120,74,0.6), transparent 72%)" }}
       />
 
       {/* Two-column hero grid */}
@@ -60,38 +60,29 @@ export function Hero() {
               For the people you still talk to
             </motion.p>
 
-            {/* Headline — word-by-word blur entrance */}
+            {/* Headline — word-by-word blur entrance, pure CSS so the LCP
+                text never waits for JS hydration. */}
             <h1
               className="font-serif mt-7 text-[52px] leading-[1.0] tracking-[-0.03em] text-[var(--color-bone)] sm:text-[72px] lg:text-[68px] xl:text-[88px]"
               style={{ fontVariationSettings: "'SOFT' 50, 'opsz' 144" }}
             >
               <span className="block">
                 {HEADLINE.map((word, i) => (
-                  <motion.span
+                  <span
                     key={word}
-                    initial={{ opacity: 0, filter: "blur(14px)", y: 12 }}
-                    animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-                    transition={{
-                      duration: 0.6,
-                      delay: 0.1 + i * 0.08,
-                      ease: [0.16, 1, 0.3, 1],
-                    }}
-                    className="inline-block"
-                    style={{ marginRight: "0.22em" }}
+                    className="hero-word"
+                    style={{ marginRight: "0.22em", animationDelay: `${0.1 + i * 0.08}s` }}
                   >
                     {word}
-                  </motion.span>
+                  </span>
                 ))}
               </span>
-              <motion.span
-                initial={{ opacity: 0, filter: "blur(14px)", y: 12 }}
-                animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-                transition={{ duration: 0.6, delay: 0.34, ease: [0.16, 1, 0.3, 1] }}
-                className="inline-block italic text-[var(--color-bone)]/80"
-                style={{ fontVariationSettings: "'SOFT' 100, 'opsz' 144" }}
+              <span
+                className="hero-word italic text-[var(--color-bone)]/80"
+                style={{ fontVariationSettings: "'SOFT' 100, 'opsz' 144", animationDelay: "0.34s" }}
               >
                 again.
-              </motion.span>
+              </span>
             </h1>
 
             {/* Sub-headline */}
@@ -124,14 +115,14 @@ export function Hero() {
               <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
                 <div className="group/btn relative">
                   <div
-                    className="pointer-events-none absolute inset-[-6px] rounded-full bg-[rgba(201,153,106,0.08)] blur-[20px] transition-all duration-500 group-hover/btn:bg-[rgba(201,153,106,0.18)] group-hover/btn:blur-[28px]"
+                    className="pointer-events-none absolute inset-[-6px] rounded-full bg-[rgba(194,120,74,0.08)] blur-[20px] transition-all duration-500 group-hover/btn:bg-[rgba(194,120,74,0.18)] group-hover/btn:blur-[28px]"
                     aria-hidden
                   />
                   <Link
                     href={hasVoice ? "/people/current/talk" : "/auth/login"}
                     className={buttonClasses({ variant: "primary", size: "lg" })}
                   >
-                    {hasVoice ? "Continue" : "Preserve their voice"}
+                    {hasVoice ? "Continue" : "Start with a voicemail"}
                   </Link>
                 </div>
                 <p className="text-[13px] leading-[1.6] text-[var(--color-bone-dim)]">
@@ -140,7 +131,7 @@ export function Hero() {
                     : "Free for seven days. No card to begin."}
                 </p>
               </div>
-              <p className="text-[12px] tracking-[0.02em] text-[var(--color-bone-dim)]/80">
+              <p className="text-[12px] tracking-[0.02em] text-[var(--color-text-secondary)]">
                 Their voice never leaves your account, and is never shared.
               </p>
             </motion.div>
@@ -223,6 +214,21 @@ function VoiceWave() {
     const ro = new ResizeObserver(setSize);
     ro.observe(canvas);
 
+    // Stop drawing while scrolled out of view — the wave sits at the fold
+    // and would otherwise animate under the whole page.
+    let visible = true;
+    const io = new IntersectionObserver(([entry]) => {
+      const nowVisible = Boolean(entry?.isIntersecting);
+      if (nowVisible && !visible) {
+        visible = true;
+        raf = requestAnimationFrame(frame);
+      } else if (!nowVisible) {
+        visible = false;
+        cancelAnimationFrame(raf);
+      }
+    });
+    io.observe(canvas);
+
     function harmonics(x: number, speed: number, phase: number) {
       return (
         Math.sin(x * 0.0070 + speed + phase) * 0.45 +
@@ -244,11 +250,11 @@ function VoiceWave() {
       }
 
       const g = ctx!.createLinearGradient(0, 0, logW, 0);
-      g.addColorStop(0,    "rgba(201,153,106,0)");
-      g.addColorStop(0.12, `rgba(201,153,106,${opacity * 0.5})`);
-      g.addColorStop(0.5,  `rgba(201,153,106,${opacity})`);
-      g.addColorStop(0.88, `rgba(201,153,106,${opacity * 0.5})`);
-      g.addColorStop(1,    "rgba(201,153,106,0)");
+      g.addColorStop(0,    "rgba(194,120,74,0)");
+      g.addColorStop(0.12, `rgba(194,120,74,${opacity * 0.5})`);
+      g.addColorStop(0.5,  `rgba(194,120,74,${opacity})`);
+      g.addColorStop(0.88, `rgba(194,120,74,${opacity * 0.5})`);
+      g.addColorStop(1,    "rgba(194,120,74,0)");
 
       ctx!.strokeStyle = g;
       ctx!.lineWidth = 1.5;
@@ -256,7 +262,7 @@ function VoiceWave() {
       ctx!.lineJoin = "round";
 
       if (glow > 0) {
-        ctx!.shadowColor = "rgba(201,153,106,0.45)";
+        ctx!.shadowColor = "rgba(194,120,74,0.45)";
         ctx!.shadowBlur = glow;
       }
       ctx!.stroke();
@@ -278,6 +284,7 @@ function VoiceWave() {
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      io.disconnect();
     };
   }, []);
 
