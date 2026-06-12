@@ -16,6 +16,11 @@ interface Profile {
   trial_ends_at: string | null;
 }
 
+function formatTrialEnd(isoDate: string): string {
+  const d = new Date(isoDate);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
 const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
   active: {
     label: "Active",
@@ -70,9 +75,9 @@ function Section({ children }: { children: React.ReactNode }) {
 }
 
 const SPEEDS = [
-  { value: 0.85, label: "Slower" },
-  { value: 1, label: "Natural" },
-  { value: 1.15, label: "Faster" },
+  { value: 0.85, label: "Slower", hint: "0.85×" },
+  { value: 1, label: "Natural", hint: "1×" },
+  { value: 1.15, label: "Faster", hint: "1.15×" },
 ];
 
 type Appearance = "light" | "system" | "dark";
@@ -95,6 +100,9 @@ export default function AccountPage() {
   const router = useRouter();
   const prefs = useSession((s) => s.prefs);
   const setPrefs = useSession((s) => s.setPrefs);
+  const voices = useSession((s) => s.voices);
+  const conversations = useSession((s) => s.conversations);
+  const memories = useSession((s) => s.memories);
   const [appearance, setAppearance] = useState<Appearance>("system");
 
   const applyAppearance = (mode: Appearance) => {
@@ -170,6 +178,38 @@ export default function AccountPage() {
     router.push("/");
   };
 
+  const signOutAll = async () => {
+    setSigningOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut({ scope: "global" });
+    router.push("/");
+  };
+
+  const exportData = () => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      email,
+      conversations: useSession.getState().conversations.map((c) => ({
+        title: c.title,
+        createdAt: new Date(c.updatedAt).toISOString(),
+        turns: c.turns.map((t) => ({ role: t.role, content: t.content })),
+      })),
+      memories: useSession.getState().memories.map((m) => ({
+        content: m.content,
+        createdAt: new Date(m.createdAt).toISOString(),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `eternavoice-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
   const deleteAccount = async () => {
     setDeleteLoading(true);
     setDeleteError(null);
@@ -240,8 +280,8 @@ export default function AccountPage() {
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
                 {trialDaysLeft !== null
                   ? trialDaysLeft === 0
-                    ? "Free trial · last day"
-                    : `Free trial · ${trialDaysLeft} ${trialDaysLeft === 1 ? "day" : "days"} left`
+                    ? "Trial ends today"
+                    : `${trialDaysLeft} ${trialDaysLeft === 1 ? "day" : "days"} left`
                   : statusCfg.label}
               </span>
             </div>
@@ -249,7 +289,14 @@ export default function AccountPage() {
             <div className="flex items-center justify-between">
               <div className="flex flex-col gap-0.5">
                 <p className="text-[14px] text-[var(--color-bone)]">EternaVoice</p>
-                <p className="text-[12px] text-[var(--color-bone-dim)]/80">£30/month · cancel anytime</p>
+                <p className="text-[12px] text-[var(--color-bone-dim)]/80">
+                  £30/month · cancel anytime
+                  {profile?.trial_ends_at && trialDaysLeft !== null && trialDaysLeft > 0 && (
+                    <span className="block text-[var(--color-ember)]">
+                      Ends {formatTrialEnd(profile.trial_ends_at)}
+                    </span>
+                  )}
+                </p>
               </div>
               {profile?.stripe_customer_id ? (
                 <button
@@ -271,26 +318,43 @@ export default function AccountPage() {
           </div>
         </Section>
 
-        {/* Quick links */}
+        {/* Usage stats */}
         <Section>
           <h2 className="mb-4 text-[11px] uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
-            Your data
+            Your library
           </h2>
-          <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Your people — voices, memories, conversations", href: "/people" },
-            ].map(({ label, href }) => (
-              <Link
-                key={href}
-                href={href}
-                className="flex items-center justify-between rounded-lg px-1 py-2.5 text-[13px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-              >
-                {label}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="opacity-40" aria-hidden>
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </Link>
+              { label: "Voices", value: voices.length },
+              { label: "Conversations", value: conversations.length },
+              { label: "Memories", value: memories.length },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex flex-col items-center gap-1 rounded-xl bg-white/[0.025] py-3">
+                <span className="font-serif text-[22px] leading-none text-[var(--color-bone)]">{value}</span>
+                <span className="text-[11px] text-[var(--color-text-tertiary)]">{label}</span>
+              </div>
             ))}
+          </div>
+          <div className="mt-1 flex flex-col">
+            <Link
+              href="/people"
+              className="flex items-center justify-between rounded-lg px-1 py-2.5 text-[13px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              View your people
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="opacity-40" aria-hidden>
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </Link>
+            <button
+              type="button"
+              onClick={exportData}
+              className="flex items-center justify-between rounded-lg px-1 py-2.5 text-[13px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              Download my data
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="opacity-40" aria-hidden>
+                <path d="M12 5v14M5 12l7 7 7-7" />
+              </svg>
+            </button>
           </div>
         </Section>
 
@@ -328,20 +392,21 @@ export default function AccountPage() {
             <div className="flex flex-col gap-2.5">
               <p className="text-[14px] text-[var(--color-bone)]">Voice speed</p>
               <div className="flex w-full gap-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.015] p-1" role="radiogroup" aria-label="Voice speed">
-                {SPEEDS.map(({ value, label }) => (
+                {SPEEDS.map(({ value, label, hint }) => (
                   <button
                     key={value}
                     type="button"
                     role="radio"
                     aria-checked={prefs.playbackRate === value}
                     onClick={() => setPrefs({ playbackRate: value })}
-                    className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-[13px] transition-colors duration-200 ${
+                    className={`flex-1 cursor-pointer rounded-lg px-2 py-2 text-center transition-colors duration-200 ${
                       prefs.playbackRate === value
                         ? "bg-white/[0.06] text-[var(--color-bone)]"
                         : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]"
                     }`}
                   >
-                    {label}
+                    <span className="block text-[13px]">{label}</span>
+                    <span className="block text-[10px] opacity-60">{hint}</span>
                   </button>
                 ))}
               </div>
@@ -364,13 +429,20 @@ export default function AccountPage() {
         </Section>
 
         {/* Session */}
-        <motion.div variants={fadeUp}>
+        <motion.div variants={fadeUp} className="flex flex-col gap-2">
           <button
             onClick={() => void signOut()}
             disabled={signingOut}
             className={buttonClasses({ variant: "outline", size: "md", className: "w-full" })}
           >
             {signingOut ? "Signing out…" : "Sign out"}
+          </button>
+          <button
+            onClick={() => void signOutAll()}
+            disabled={signingOut}
+            className="cursor-pointer text-center text-[12px] text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone-dim)]"
+          >
+            Sign out of all devices
           </button>
         </motion.div>
 

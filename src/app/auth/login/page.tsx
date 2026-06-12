@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useSyncExternalStore, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useSyncExternalStore,
+  Suspense,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -9,7 +16,10 @@ import { Input } from "@/components/ui/Field";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { fadeUp, stagger } from "@/lib/motion";
 
-/* ── Product promises for left-panel rotation — each literally true ──────── */
+type View = "auth" | "confirm" | "magic-sent" | "forgot" | "forgot-sent";
+type AuthMode = "sign-in" | "sign-up";
+
+/* ── Product promises ────────────────────────────────────────────────────── */
 const PROMISES = [
   {
     quote: "Their voice never leaves your account. It is never shared, never used to train anything, never heard by anyone but you.",
@@ -28,6 +38,14 @@ const PROMISES = [
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 function friendlyError(msg: string): string {
   const m = msg.toLowerCase();
+  if (m.includes("invalid login credentials") || m.includes("invalid password") || m.includes("wrong password"))
+    return "Incorrect email or password.";
+  if (m.includes("email not confirmed"))
+    return "Please confirm your email first — check your inbox.";
+  if (m.includes("user already registered"))
+    return "An account with this email already exists. Try signing in instead.";
+  if (m.includes("password should be at least"))
+    return "Password must be at least 8 characters.";
   if (m.includes("invalid or has expired") || m.includes("expired"))
     return "That link has expired — try signing in again.";
   if (m.includes("can only request this after") || m.includes("rate"))
@@ -36,6 +54,23 @@ function friendlyError(msg: string): string {
     return "That doesn't look like a valid email address.";
   return msg;
 }
+
+function passwordStrength(pw: string): { score: 0 | 1 | 2 | 3; label: string } {
+  if (pw.length < 8) return { score: 0, label: "Too short" };
+  let s = 1;
+  if (pw.length >= 12) s++;
+  if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  const score = Math.min(3, s) as 0 | 1 | 2 | 3;
+  return { score, label: ["Weak", "Fair", "Good", "Strong"][score]! };
+}
+
+const STRENGTH_COLORS = [
+  "bg-[var(--color-danger)]",
+  "bg-amber-400",
+  "bg-yellow-300",
+  "bg-emerald-400",
+];
 
 const subscribeNoop = () => () => {};
 
@@ -56,11 +91,80 @@ function storedVoiceName(): string | null {
 function getEmailProvider(email: string): { label: string; url: string } | null {
   const domain = email.split("@")[1]?.toLowerCase();
   if (!domain) return null;
-  if (domain === "gmail.com") return { label: "Open Gmail →", url: "https://mail.google.com" };
+  if (domain === "gmail.com") return { label: "Open Gmail", url: "https://mail.google.com" };
   if (["outlook.com", "hotmail.com", "live.com"].includes(domain))
-    return { label: "Open Outlook →", url: "https://outlook.live.com" };
-  if (domain === "yahoo.com") return { label: "Open Yahoo →", url: "https://mail.yahoo.com" };
+    return { label: "Open Outlook", url: "https://outlook.live.com" };
+  if (domain === "yahoo.com") return { label: "Open Yahoo Mail", url: "https://mail.yahoo.com" };
   return null;
+}
+
+/* ── Split 6-digit OTP input ─────────────────────────────────────────────── */
+function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const refs = useRef<Array<HTMLInputElement | null>>([null, null, null, null, null, null]);
+  const digits = value.padEnd(6, "").slice(0, 6).split("");
+
+  const focus = (i: number) => refs.current[i]?.focus();
+
+  const handleChange = useCallback(
+    (i: number, char: string) => {
+      const d = char.replace(/\D/g, "").slice(-1);
+      const next = digits.map((v, idx) => (idx === i ? d : v)).join("").trimEnd();
+      onChange(next.padEnd(Math.min(next.length, 6), "").slice(0, 6));
+      if (d && i < 5) setTimeout(() => focus(i + 1), 0);
+    },
+    [digits, onChange],
+  );
+
+  const handleKeyDown = useCallback(
+    (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Backspace") {
+        if (digits[i]) {
+          const next = digits.map((v, idx) => (idx === i ? "" : v)).join("").replace(/\s/g, "");
+          onChange(next);
+        } else if (i > 0) {
+          focus(i - 1);
+        }
+      } else if (e.key === "ArrowLeft" && i > 0) {
+        focus(i - 1);
+      } else if (e.key === "ArrowRight" && i < 5) {
+        focus(i + 1);
+      }
+    },
+    [digits, onChange],
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      e.preventDefault();
+      const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+      onChange(pasted);
+      const nextFocus = Math.min(pasted.length, 5);
+      setTimeout(() => focus(nextFocus), 0);
+    },
+    [onChange],
+  );
+
+  return (
+    <div className="flex gap-2" role="group" aria-label="6-digit code">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <input
+          key={i}
+          ref={(el) => { refs.current[i] = el; }}
+          type="text"
+          inputMode="numeric"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          maxLength={1}
+          value={digits[i] ?? ""}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          onFocus={(e) => e.target.select()}
+          aria-label={`Digit ${i + 1}`}
+          className="h-12 w-10 flex-1 rounded-xl bg-white/[0.025] text-center text-[18px] tracking-tight text-[var(--color-bone)] transition-[border-color,background] duration-200 hairline focus:bg-white/[0.04] focus:border-[var(--color-ember)]/40 focus:outline-none sm:w-12 sm:h-14"
+        />
+      ))}
+    </div>
+  );
 }
 
 /* ── Auth form ───────────────────────────────────────────────────────────── */
@@ -68,45 +172,94 @@ function AuthForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/people";
   const errorParam = searchParams.get("error");
-
   const router = useRouter();
+
+  const [view, setView] = useState<View>("auth");
+  const [mode, setMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [code, setCode] = useState("");
+
+  const [loading, setLoading] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [loadingApple, setLoadingApple] = useState(false);
-  const [code, setCode] = useState("");
   const [verifyingCode, setVerifyingCode] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [error, setError] = useState<string | null>(
     errorParam === "auth_failed" ? "Sign-in link expired or already used. Try again." : null,
   );
-  // Hydration-safe localStorage read: server snapshot is null, the client
-  // snapshot reflects whether a voice already exists on this device (and
-  // whose it is) so the page can greet by name.
+
   const returningName = useSyncExternalStore(subscribeNoop, storedVoiceName, () => null);
   const isReturning = returningName !== null;
+
   const [resendCooldown, setResendCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const strength = mode === "sign-up" && password ? passwordStrength(password) : null;
+  const provider = (view === "magic-sent" || view === "confirm" || view === "forgot-sent")
+    ? getEmailProvider(email)
+    : null;
+
   useEffect(() => {
-    return () => {
-      if (cooldownRef.current) clearInterval(cooldownRef.current);
-    };
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
   }, []);
 
   const startCooldown = () => {
     setResendCooldown(60);
     cooldownRef.current = setInterval(() => {
       setResendCooldown((c) => {
-        if (c <= 1) {
-          clearInterval(cooldownRef.current!);
-          return 0;
-        }
+        if (c <= 1) { clearInterval(cooldownRef.current!); return 0; }
         return c - 1;
       });
     }, 1000);
   };
 
+  /* ── Password auth ───────────────────────────────────────────────────── */
+  const submitAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedEmail = email.trim().toLowerCase();
+    setError(null);
+    setLoading(true);
+    const supabase = createClient();
+
+    if (mode === "sign-up") {
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters.");
+        setLoading(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords don't match.");
+        setLoading(false);
+        return;
+      }
+      const { data, error: err } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${next}` },
+      });
+      setLoading(false);
+      if (err) { setError(friendlyError(err.message)); return; }
+      // If email confirmation is disabled in Supabase, session is granted immediately
+      if (data.session) { router.push(next); return; }
+      setView("confirm");
+      startCooldown();
+    } else {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      });
+      setLoading(false);
+      if (err) setError(friendlyError(err.message));
+      else router.push(next);
+    }
+  };
+
+  /* ── Magic link ──────────────────────────────────────────────────────── */
   const sendMagicLink = async (emailAddr: string) => {
     const supabase = createClient();
     const { error: err } = await supabase.auth.signInWithOtp({
@@ -116,22 +269,18 @@ function AuthForm() {
     return err;
   };
 
-  const submitEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitMagicLink = async () => {
     const trimmed = email.trim().toLowerCase();
-    if (!trimmed) return;
-    setLoadingEmail(true);
+    if (!trimmed) { setError("Enter your email address first."); return; }
+    setLoading(true);
     setError(null);
     const err = await sendMagicLink(trimmed);
-    setLoadingEmail(false);
+    setLoading(false);
     if (err) setError(friendlyError(err.message));
-    else {
-      setSent(true);
-      startCooldown();
-    }
+    else { setView("magic-sent"); startCooldown(); }
   };
 
-  const resend = async () => {
+  const resendMagicLink = async () => {
     if (resendCooldown > 0) return;
     setError(null);
     const err = await sendMagicLink(email.trim().toLowerCase());
@@ -139,36 +288,19 @@ function AuthForm() {
     else startCooldown();
   };
 
-  const signInWithGoogle = async () => {
-    setLoadingGoogle(true);
+  const resendConfirmation = async () => {
+    if (resendCooldown > 0) return;
     setError(null);
     const supabase = createClient();
-    const { error: err } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=${next}` },
+    const { error: err } = await supabase.auth.resend({
+      type: "signup",
+      email: email.trim().toLowerCase(),
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${next}` },
     });
-    if (err) {
-      setError(friendlyError(err.message));
-      setLoadingGoogle(false);
-    }
+    if (err) setError(friendlyError(err.message));
+    else startCooldown();
   };
 
-  const signInWithApple = async () => {
-    setLoadingApple(true);
-    setError(null);
-    const supabase = createClient();
-    const { error: err } = await supabase.auth.signInWithOAuth({
-      provider: "apple",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=${next}` },
-    });
-    if (err) {
-      setError(friendlyError(err.message));
-      setLoadingApple(false);
-    }
-  };
-
-  // The code path: no app-switch round trip, no in-app-browser session loss.
-  // (Requires the Supabase email template to include {{ .Token }}.)
   const verifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = code.trim();
@@ -186,7 +318,82 @@ function AuthForm() {
     else router.push(next);
   };
 
-  const provider = sent ? getEmailProvider(email) : null;
+  /* ── OAuth ───────────────────────────────────────────────────────────── */
+  const signInWithGoogle = async () => {
+    setLoadingGoogle(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${next}` },
+    });
+    if (err) { setError(friendlyError(err.message)); setLoadingGoogle(false); }
+  };
+
+  const signInWithApple = async () => {
+    setLoadingApple(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${next}` },
+    });
+    if (err) { setError(friendlyError(err.message)); setLoadingApple(false); }
+  };
+
+  /* ── Forgot password ─────────────────────────────────────────────────── */
+  const submitForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) { setError("Enter your email address."); return; }
+    setLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    });
+    setLoading(false);
+    if (err) setError(friendlyError(err.message));
+    else { setView("forgot-sent"); startCooldown(); }
+  };
+
+  const resendForgot = async () => {
+    if (resendCooldown > 0) return;
+    setError(null);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      { redirectTo: `${window.location.origin}/auth/callback?type=recovery` },
+    );
+    if (err) setError(friendlyError(err.message));
+    else startCooldown();
+  };
+
+  /* ── Headings & subtext ──────────────────────────────────────────────── */
+  const heading: Record<View, string> = {
+    auth: mode === "sign-up"
+      ? "Create your account"
+      : isReturning && returningName
+        ? `${returningName} is waiting`
+        : isReturning
+          ? "Your voices are waiting"
+          : "Welcome back",
+    confirm: "Check your inbox",
+    "magic-sent": "Check your inbox",
+    forgot: "Reset your password",
+    "forgot-sent": "Check your inbox",
+  };
+  const subtext: Record<View, string> = {
+    auth: mode === "sign-up"
+      ? "Free for 7 days — no card taken now."
+      : isReturning
+        ? "Sign in to pick up where you left off."
+        : "Sign in to your account.",
+    confirm: `We sent a confirmation link to ${email}`,
+    "magic-sent": `We sent a code and a sign-in link to ${email}`,
+    forgot: "We'll send a link to reset it.",
+    "forgot-sent": `We sent a reset link to ${email}`,
+  };
 
   return (
     <motion.div
@@ -195,175 +402,89 @@ function AuthForm() {
       variants={stagger(0.06)}
       className="flex w-full flex-col gap-6"
     >
-      {/* Header — carries the landing promise through, greets returning
-          users by the name that matters. */}
+      {/* Header */}
       <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[32px]">
-          {sent
-            ? "Check your inbox"
-            : isReturning
-              ? returningName
-                ? `${returningName} is waiting`
-                : "Your voices are waiting"
-              : "Welcome"}
-        </h1>
-        <p className="text-[14px] leading-relaxed text-[var(--color-bone-dim)]">
-          {sent
-            ? `We sent a code and a sign-in link to ${email}`
-            : isReturning
-              ? "Sign in to pick up where you left off."
-              : "First, an account to keep their voice safe. No password — just your email."}
-        </p>
+        <AnimatePresence mode="wait">
+          <motion.h1
+            key={`${view}-${mode}-heading`}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.25 }}
+            className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[32px]"
+          >
+            {heading[view]}
+          </motion.h1>
+        </AnimatePresence>
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={`${view}-${mode}-subtext`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-[14px] leading-relaxed text-[var(--color-bone-dim)]"
+          >
+            {subtext[view]}
+          </motion.p>
+        </AnimatePresence>
       </motion.div>
 
       <AnimatePresence mode="wait">
-        {sent ? (
+        {/* ── Auth: main form ─────────────────────────────────────────── */}
+        {view === "auth" && (
           <motion.div
-            key="sent"
-            initial={{ opacity: 0, y: 8 }}
+            key="auth"
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col gap-5"
-          >
-            {/* Code entry first — no app-switch, no in-app browser, works
-                even when the link opens in the wrong place. */}
-            <form onSubmit={(e) => void verifyCode(e)} className="flex flex-col gap-2">
-              <label htmlFor="otp" className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)] uppercase">
-                Enter the 6-digit code
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  id="otp"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="000000"
-                  autoFocus
-                  className="h-12 max-w-[180px] text-center tracking-[0.35em]"
-                  aria-label="Sign-in code from the email"
-                />
-                <button
-                  type="submit"
-                  disabled={verifyingCode || code.length < 6}
-                  className={buttonClasses({ variant: "primary", size: "md", className: "h-12 flex-1" })}
-                >
-                  {verifyingCode ? <Spinner dark /> : "Sign in"}
-                </button>
-              </div>
-            </form>
-
-            <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
-              Or tap the link in the email — either works. Check spam if
-              nothing arrives within a minute. The email expires in 1 hour.
-            </p>
-
-            {/* Email provider shortcut */}
-            {provider && (
-              <a
-                href={provider.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonClasses({ variant: "outline", size: "md", className: "w-full text-[13px]" })}
-              >
-                {provider.label}
-              </a>
-            )}
-
-            {error && <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>}
-
-            {/* The wait is part of the journey — use it to prepare the
-                next step instead of leaving a dead end. */}
-            <div className="mt-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.02] px-4 py-3.5">
-              <p className="text-[11px] tracking-[0.14em] text-[var(--color-ember)] uppercase">
-                While you wait
-              </p>
-              <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
-                Find a recording of their voice — a voicemail, a video, a
-                voice note. Ninety seconds of them speaking clearly is enough
-                to begin.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-5">
-              <button
-                onClick={() => void resend()}
-                disabled={resendCooldown > 0}
-                className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
-              >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend email"}
-              </button>
-              <button
-                onClick={() => { setSent(false); setEmail(""); setCode(""); setError(null); }}
-                className="text-[13px] text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
-              >
-                Different email
-              </button>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-col gap-4"
           >
             {/* Google */}
-            <motion.button
-              variants={fadeUp}
+            <button
               type="button"
               onClick={() => void signInWithGoogle()}
-              disabled={loadingGoogle || loadingEmail}
+              disabled={loadingGoogle || loading}
               className={buttonClasses({ variant: "outline", size: "md", className: "h-12 w-full" })}
             >
               {loadingGoogle ? (
-                <>
-                  <Spinner />
-                  <span className="text-[13px] text-[var(--color-bone-dim)]">Redirecting to Google…</span>
-                </>
+                <><Spinner /><span className="text-[13px] text-[var(--color-bone-dim)]">Redirecting…</span></>
               ) : (
-                <>
-                  <GoogleIcon />
-                  Continue with Google
-                </>
+                <><GoogleIcon />Continue with Google</>
               )}
-            </motion.button>
+            </button>
 
-            {/* Apple — enabled once the provider is configured in Supabase */}
-            {process.env.NEXT_PUBLIC_ENABLE_APPLE_AUTH === "true" ? (
-              <motion.button
-                variants={fadeUp}
+            {/* Apple */}
+            {process.env.NEXT_PUBLIC_ENABLE_APPLE_AUTH === "true" && (
+              <button
                 type="button"
                 onClick={() => void signInWithApple()}
-                disabled={loadingApple || loadingGoogle || loadingEmail}
+                disabled={loadingApple || loading}
                 className={buttonClasses({ variant: "outline", size: "md", className: "h-12 w-full" })}
               >
-                {loadingApple ? (
-                  <Spinner />
-                ) : (
-                  <>
-                    <AppleIcon />
-                    Continue with Apple
-                  </>
-                )}
-              </motion.button>
-            ) : null}
+                {loadingApple
+                  ? <Spinner />
+                  : <><AppleIcon />Continue with Apple</>}
+              </button>
+            )}
 
             {/* Divider */}
-            <motion.div variants={fadeUp} className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-[var(--color-rule-strong)]" />
               <span className="text-[11px] tracking-[0.12em] text-[var(--color-bone-dim)]/80 uppercase">or</span>
               <div className="h-px flex-1 bg-[var(--color-rule-strong)]" />
-            </motion.div>
+            </div>
 
-            {/* Email form */}
-            <motion.form variants={fadeUp} onSubmit={(e) => void submitEmail(e)} className="flex flex-col gap-3">
+            {/* Email + password form */}
+            <form onSubmit={(e) => void submitAuth(e)} className="flex flex-col gap-3">
+              {/* Email */}
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="email" className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase">
-                  Email address
+                <label
+                  htmlFor="email"
+                  className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                >
+                  Email
                 </label>
                 <Input
                   id="email"
@@ -372,38 +493,502 @@ function AuthForm() {
                   autoFocus
                   required
                   value={email}
+                  onChange={(e) => { setEmail(e.target.value); if (emailTouched) setError(null); }}
+                  onBlur={() => {
+                    setEmailTouched(true);
+                    const trimmed = email.trim();
+                    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                      setError("That doesn't look like a valid email address.");
+                    }
+                  }}
+                  placeholder="you@example.com"
+                  disabled={loading}
+                  className="h-12 disabled:opacity-50"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="password"
+                    className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                  >
+                    Password
+                  </label>
+                  {mode === "sign-in" && (
+                    <button
+                      type="button"
+                      onClick={() => { setError(null); setView("forgot"); }}
+                      className="text-[11px] text-[var(--color-ember)]/80 transition hover:text-[var(--color-ember)]"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
+                    placeholder="••••••••"
+                    disabled={loading}
+                    className="h-12 pr-11 disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-bone-dim)]/40 transition hover:text-[var(--color-bone-dim)]"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+
+                {/* Focus hint for sign-up before the user starts typing */}
+                <AnimatePresence>
+                  {mode === "sign-up" && passwordFocused && !password && (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden text-[11px] text-[var(--color-text-tertiary)]"
+                    >
+                      At least 8 characters. A mix of letters, numbers, and symbols makes it stronger.
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+
+                {/* Strength indicator */}
+                <AnimatePresence>
+                  {mode === "sign-up" && password && strength && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex flex-col gap-1 overflow-hidden"
+                    >
+                      <div className="flex gap-1 pt-1">
+                        {[0, 1, 2, 3].map((i) => (
+                          <div
+                            key={i}
+                            className={`h-[3px] flex-1 rounded-full transition-colors duration-300 ${
+                              i <= strength.score
+                                ? STRENGTH_COLORS[strength.score]
+                                : "bg-[var(--color-rule-strong)]"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-[var(--color-bone-dim)]/60">
+                        {strength.label}
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Confirm password — sign-up only */}
+              <AnimatePresence>
+                {mode === "sign-up" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex flex-col gap-1.5 overflow-hidden"
+                  >
+                    <label
+                      htmlFor="confirm-password"
+                      className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                    >
+                      Confirm password
+                    </label>
+                    <div className="relative">
+                      <Input
+                        id="confirm-password"
+                        type={showConfirmPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={loading}
+                        className="h-12 pr-11 disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        tabIndex={-1}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-bone-dim)]/40 transition hover:text-[var(--color-bone-dim)]"
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {error && (
+                <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !email.trim() || !password}
+                className={buttonClasses({
+                  variant: "primary",
+                  size: "md",
+                  className: "mt-1 h-12 w-full",
+                })}
+              >
+                {loading
+                  ? <Spinner dark />
+                  : mode === "sign-up"
+                    ? "Create account"
+                    : "Sign in"}
+              </button>
+            </form>
+
+            {/* Magic link alternative */}
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => void submitMagicLink()}
+                disabled={loading || !email.trim()}
+                className="text-[12px] text-[var(--color-bone-dim)]/55 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)] disabled:opacity-40"
+              >
+                Use a sign-in link instead
+              </button>
+            </div>
+
+            {/* Mode toggle */}
+            <p className="text-center text-[13px] text-[var(--color-text-secondary)]">
+              {mode === "sign-in" ? (
+                <>
+                  Don&apos;t have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("sign-up");
+                      setError(null);
+                      setPassword("");
+                      setConfirmPassword("");
+                    }}
+                    className="text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-80"
+                  >
+                    Create one
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("sign-in");
+                      setError(null);
+                      setPassword("");
+                      setConfirmPassword("");
+                    }}
+                    className="text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-80"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </p>
+
+            {/* Terms */}
+            <p className="text-center text-[11px] leading-relaxed text-[var(--color-text-tertiary)]">
+              By continuing you agree to our{" "}
+              <a
+                href="/terms"
+                className="underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]/90"
+              >
+                Terms
+              </a>{" "}
+              and{" "}
+              <a
+                href="/privacy"
+                className="underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]/90"
+              >
+                Privacy Policy
+              </a>
+              .
+            </p>
+          </motion.div>
+        )}
+
+        {/* ── Confirm: email confirmation after sign-up ─────────────── */}
+        {view === "confirm" && (
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col gap-5"
+          >
+            <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
+              Click the link in the email to activate your account. It expires in 1 hour.
+              Check spam if nothing arrives within a minute.
+            </p>
+
+            {provider && (
+              <a
+                href={provider.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClasses({
+                  variant: "outline",
+                  size: "md",
+                  className: "w-full text-[13px]",
+                })}
+              >
+                {provider.label} →
+              </a>
+            )}
+
+            {error && (
+              <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+            )}
+
+            <div className="mt-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.02] px-4 py-3.5">
+              <p className="text-[11px] tracking-[0.14em] text-[var(--color-ember)] uppercase">
+                While you wait
+              </p>
+              <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+                Find a recording of their voice — a voicemail, a video, a voice note.
+                Ninety seconds of them speaking clearly is enough to begin.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-5">
+              <button
+                onClick={() => void resendConfirmation()}
+                disabled={resendCooldown > 0}
+                className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend email"}
+              </button>
+              <button
+                onClick={() => {
+                  setView("auth");
+                  setEmail("");
+                  setPassword("");
+                  setConfirmPassword("");
+                  setError(null);
+                }}
+                className="text-[13px] text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+              >
+                Different email
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Magic-sent: OTP code entry ────────────────────────────── */}
+        {view === "magic-sent" && (
+          <motion.div
+            key="magic-sent"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col gap-5"
+          >
+            <form onSubmit={(e) => void verifyCode(e)} className="flex flex-col gap-3">
+              <label className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)] uppercase">
+                Enter the 6-digit code
+              </label>
+              <OtpInput value={code} onChange={setCode} />
+              <button
+                type="submit"
+                disabled={verifyingCode || code.length < 6}
+                className={buttonClasses({
+                  variant: "primary",
+                  size: "md",
+                  className: "h-12 w-full",
+                })}
+              >
+                {verifyingCode ? <Spinner dark /> : "Sign in"}
+              </button>
+            </form>
+
+            <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
+              Or tap the link in the email — either works. Check spam if nothing arrives
+              within a minute. The code expires in 1 hour.
+            </p>
+
+            {provider && (
+              <a
+                href={provider.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClasses({
+                  variant: "outline",
+                  size: "md",
+                  className: "w-full text-[13px]",
+                })}
+              >
+                {provider.label} →
+              </a>
+            )}
+
+            {error && (
+              <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+            )}
+
+            <div className="mt-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.02] px-4 py-3.5">
+              <p className="text-[11px] tracking-[0.14em] text-[var(--color-ember)] uppercase">
+                While you wait
+              </p>
+              <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+                Find a recording of their voice — a voicemail, a video, a voice note.
+                Ninety seconds of them speaking clearly is enough to begin.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-5">
+              <button
+                onClick={() => void resendMagicLink()}
+                disabled={resendCooldown > 0}
+                className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend email"}
+              </button>
+              <button
+                onClick={() => { setView("auth"); setEmail(""); setCode(""); setError(null); }}
+                className="text-[13px] text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+              >
+                Different email
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Forgot password: request reset ────────────────────────── */}
+        {view === "forgot" && (
+          <motion.div
+            key="forgot"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col gap-4"
+          >
+            <form onSubmit={(e) => void submitForgot(e)} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="forgot-email"
+                  className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                >
+                  Email address
+                </label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  required
+                  value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  disabled={loadingEmail}
+                  disabled={loading}
                   className="h-12 disabled:opacity-50"
                 />
               </div>
 
               {error && (
-                <p className="text-[13px] text-[var(--color-danger)]">{error}</p>
+                <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
               )}
 
               <button
                 type="submit"
-                disabled={loadingEmail || !email.trim()}
-                className={buttonClasses({ variant: "primary", size: "md", className: "h-12 w-full" })}
+                disabled={loading || !email.trim()}
+                className={buttonClasses({
+                  variant: "primary",
+                  size: "md",
+                  className: "h-12 w-full",
+                })}
               >
-                {loadingEmail ? <Spinner dark /> : "Send sign-in link"}
+                {loading ? <Spinner dark /> : "Send reset link"}
               </button>
-            </motion.form>
+            </form>
 
-            {/* The whole deal, in one line, before commitment */}
-            <motion.p variants={fadeUp} className="text-center text-[12px] leading-[1.6] text-[var(--color-text-secondary)]">
-              Free for 7 days — no card taken now. Then £30/month, cancel anytime.
-            </motion.p>
+            <button
+              type="button"
+              onClick={() => { setView("auth"); setError(null); }}
+              className="text-[13px] text-[var(--color-bone-dim)]/70 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+            >
+              ← Back to sign in
+            </button>
+          </motion.div>
+        )}
 
-            {/* Terms */}
-            <motion.p variants={fadeUp} className="text-center text-[11px] leading-relaxed text-[var(--color-text-tertiary)]">
-              By continuing you agree to our{" "}
-              <a href="/terms" className="underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]/90">Terms</a>{" "}
-              and{" "}
-              <a href="/privacy" className="underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]/90">Privacy Policy</a>.
-            </motion.p>
+        {/* ── Forgot-sent: reset email sent ─────────────────────────── */}
+        {view === "forgot-sent" && (
+          <motion.div
+            key="forgot-sent"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col gap-5"
+          >
+            <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
+              Click the link in the email to set a new password. The link expires in 1 hour.
+              Check spam if nothing arrives within a minute.
+            </p>
+
+            {provider && (
+              <a
+                href={provider.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClasses({
+                  variant: "outline",
+                  size: "md",
+                  className: "w-full text-[13px]",
+                })}
+              >
+                {provider.label} →
+              </a>
+            )}
+
+            {error && (
+              <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+            )}
+
+            <div className="flex items-center gap-5">
+              <button
+                onClick={() => void resendForgot()}
+                disabled={resendCooldown > 0}
+                className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
+              >
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}
+              </button>
+              <button
+                onClick={() => { setView("auth"); setError(null); }}
+                className="text-[13px] text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+              >
+                Back to sign in
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -416,10 +1001,7 @@ function RotatingTestimonial() {
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
-    // Slow enough to read as policy, not marketing carousel.
-    const id = setInterval(() => {
-      setIdx((i) => (i + 1) % PROMISES.length);
-    }, 9000);
+    const id = setInterval(() => setIdx((i) => (i + 1) % PROMISES.length), 9000);
     return () => clearInterval(id);
   }, []);
 
@@ -445,14 +1027,15 @@ function RotatingTestimonial() {
         </motion.div>
       </AnimatePresence>
 
-      {/* Dot indicators */}
       <div className="flex gap-1.5 pt-1">
         {PROMISES.map((_, i) => (
           <button
             key={i}
             onClick={() => setIdx(i)}
             aria-label={`Promise ${i + 1}`}
-            className={`h-1 cursor-pointer rounded-full transition-all duration-300 ${i === idx ? "w-4 bg-[var(--color-ember)]/60" : "w-1 bg-[var(--color-ember)]/20"}`}
+            className={`h-1 cursor-pointer rounded-full transition-all duration-300 ${
+              i === idx ? "w-4 bg-[var(--color-ember)]/60" : "w-1 bg-[var(--color-ember)]/20"
+            }`}
           />
         ))}
       </div>
@@ -464,57 +1047,67 @@ function RotatingTestimonial() {
 export default function LoginPage() {
   return (
     <div className="flex min-h-dvh w-full bg-[var(--color-ink)] text-[var(--color-bone)]">
-      {/* ── Left panel — brand ────────────────────────────────────────── */}
+      {/* Left panel — brand */}
       <div className="relative hidden flex-1 flex-col justify-between overflow-hidden border-r border-[var(--color-rule)] p-12 lg:flex xl:p-16">
-        {/* Atmospheric background */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-[-20%] left-[-10%] h-[70%] w-[70%] rounded-full opacity-60 blur-[120px]"
-            style={{ background: "radial-gradient(closest-side, rgba(194,120,74,0.18), transparent 75%)" }} />
-          <div className="absolute bottom-[-20%] right-[-10%] h-[60%] w-[60%] rounded-full opacity-40 blur-[140px]"
-            style={{ background: "radial-gradient(closest-side, rgba(158,116,92,0.14), transparent 75%)" }} />
-          <div className="absolute inset-0 opacity-[0.04]"
-            style={{ backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")", backgroundSize: "200px 200px" }} />
+          <div
+            className="absolute top-[-20%] left-[-10%] h-[70%] w-[70%] rounded-full opacity-60 blur-[120px]"
+            style={{ background: "radial-gradient(closest-side, rgba(194,120,74,0.18), transparent 75%)" }}
+          />
+          <div
+            className="absolute bottom-[-20%] right-[-10%] h-[60%] w-[60%] rounded-full opacity-40 blur-[140px]"
+            style={{ background: "radial-gradient(closest-side, rgba(158,116,92,0.14), transparent 75%)" }}
+          />
+          <div
+            className="absolute inset-0 opacity-[0.04]"
+            style={{
+              backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
+              backgroundSize: "200px 200px",
+            }}
+          />
         </div>
 
-        {/* Top: logo */}
         <div className="relative z-10">
           <Mark />
         </div>
 
-        {/* Centre: orb + headline */}
         <div className="relative z-10 flex flex-col gap-10">
           <BrandOrb />
-          <div className="flex flex-col gap-4 max-w-sm">
-            <h2 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] text-[var(--color-bone)] xl:text-[52px]"
-              style={{ fontVariationSettings: "'SOFT' 60, 'opsz' 144" }}>
+          <div className="flex max-w-sm flex-col gap-4">
+            <h2
+              className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] text-[var(--color-bone)] xl:text-[52px]"
+              style={{ fontVariationSettings: "'SOFT' 60, 'opsz' 144" }}
+            >
               Speak with them<br />
-              <span className="italic text-[var(--color-bone)]/75"
-                style={{ fontVariationSettings: "'SOFT' 100, 'opsz' 144" }}>
+              <span
+                className="italic text-[var(--color-bone)]/75"
+                style={{ fontVariationSettings: "'SOFT' 100, 'opsz' 144" }}
+              >
                 again.
               </span>
             </h2>
             <p className="text-[15px] leading-[1.7] text-[var(--color-bone-dim)]">
-              Voice conversations with someone you&apos;ve lost, built from their own recordings. Private, careful, and entirely yours.
+              Voice conversations with someone you&apos;ve lost, built from their own recordings.
+              Private, careful, and entirely yours.
             </p>
           </div>
         </div>
 
-        {/* Bottom: rotating testimonial */}
         <div className="relative z-10">
           <div className="mb-4 h-px w-10 bg-[var(--color-ember)]/30" />
           <RotatingTestimonial />
         </div>
       </div>
 
-      {/* ── Right panel — auth form ───────────────────────────────────── */}
+      {/* Right panel — form */}
       <div className="flex w-full flex-col items-center justify-center px-6 py-16 lg:w-[480px] lg:shrink-0 xl:w-[520px]">
-        {/* Mobile: brand context pill */}
         <div className="mb-6 flex items-center gap-2 rounded-full border border-[var(--color-rule-strong)] bg-[var(--color-ember)]/[0.06] px-3.5 py-1.5 lg:hidden">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-ember)]" aria-hidden />
-          <span className="text-[11px] tracking-[0.1em] text-[var(--color-ember)] uppercase">Speak with them again</span>
+          <span className="text-[11px] tracking-[0.1em] text-[var(--color-ember)] uppercase">
+            Speak with them again
+          </span>
         </div>
 
-        {/* Mobile: logo */}
         <div className="mb-10 lg:hidden">
           <Mark />
         </div>
@@ -558,10 +1151,53 @@ function BrandOrb() {
 function Spinner({ dark }: { dark?: boolean }) {
   return (
     <motion.span
-      className={`inline-block h-4 w-4 rounded-full border-2 ${dark ? "border-[var(--color-ink)]/30 border-t-[var(--color-ink)]" : "border-[var(--color-bone)]/20 border-t-[var(--color-bone)]"}`}
+      className={`inline-block h-4 w-4 rounded-full border-2 ${
+        dark
+          ? "border-[var(--color-ink)]/30 border-t-[var(--color-ink)]"
+          : "border-[var(--color-bone)]/20 border-t-[var(--color-bone)]"
+      }`}
       animate={{ rotate: 360 }}
       transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
     />
+  );
+}
+
+/* ── Eye icons ───────────────────────────────────────────────────────────── */
+function EyeIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
   );
 }
 

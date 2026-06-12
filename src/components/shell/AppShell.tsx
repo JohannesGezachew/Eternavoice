@@ -9,6 +9,7 @@ interface AppShellProps {
   children: React.ReactNode;
   title?: string;
   backHref?: string;
+  backLabel?: string;
   /** When the back arrow should act in-page (e.g. wizard step-back) instead
    *  of navigating. Takes precedence over backHref. */
   onBack?: () => void;
@@ -32,8 +33,17 @@ const TABS = [
       </svg>
     ),
   },
-  // No "Talk" tab: talking is an action on a person, not a place. The
-  // people page is the way in, which keeps the tab bar honest.
+  {
+    href: "/memories",
+    label: "Memories",
+    match: (p: string) => p === "/memories",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
+      </svg>
+    ),
+  },
   {
     href: "/account",
     label: "Account",
@@ -52,20 +62,31 @@ export function AppShell({
   children,
   title,
   backHref,
+  backLabel,
   onBack,
   rightAction,
   showTabs = true,
 }: AppShellProps) {
   const pathname = usePathname();
 
-  const backIcon = (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M19 12H5M11 6l-6 6 6 6" />
-    </svg>
+  const resolvedBackLabel = backLabel ?? (
+    backHref === "/people" ? "People" :
+    backHref ? backHref.split("/").filter(Boolean).at(-1)?.replace(/-/g, " ") ?? "Back" :
+    "Back"
   );
+
+  const backContent = (
+    <span className="flex items-center gap-1.5">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M19 12H5M11 6l-6 6 6 6" />
+      </svg>
+      <span className="text-[13px]">{resolvedBackLabel}</span>
+    </span>
+  );
+
   const backClasses =
-    "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]";
+    "flex h-11 shrink-0 items-center justify-center rounded-lg px-2 text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]";
 
   return (
     <div className="relative flex min-h-dvh flex-col bg-[var(--color-ink-2)] text-[var(--color-bone)]">
@@ -75,11 +96,11 @@ export function AppShell({
         <div className="flex flex-1 items-center gap-3 px-4 sm:px-6">
           {onBack ? (
             <button type="button" onClick={onBack} className={backClasses} aria-label="Go back">
-              {backIcon}
+              {backContent}
             </button>
           ) : backHref ? (
-            <Link href={backHref} className={backClasses} aria-label="Go back">
-              {backIcon}
+            <Link href={backHref} className={backClasses} aria-label={`Back to ${resolvedBackLabel}`}>
+              {backContent}
             </Link>
           ) : (
             <Link href="/people" aria-label="Home">

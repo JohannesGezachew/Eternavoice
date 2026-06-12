@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
+import { formatRelativeDay } from "@/lib/utils";
 import { addMemoryDb, updateMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
 
 /**
@@ -91,9 +92,14 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                       aria-label="Edit memory"
                     />
                   ) : (
-                    <p className="text-[14px] leading-[1.6] text-[var(--color-bone)]/90">
-                      {memory.content}
-                    </p>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-[14px] leading-[1.6] text-[var(--color-bone)]/90">
+                        {memory.content}
+                      </p>
+                      <p className="text-[11px] text-[var(--color-text-tertiary)]">
+                        {formatRelativeDay(memory.createdAt)}
+                      </p>
+                    </div>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-1">

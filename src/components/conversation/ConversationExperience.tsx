@@ -85,10 +85,25 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
   const [responseNotice, setResponseNotice] = useState<string | null>(null);
-  const [showTranscript, setShowTranscript] = useState(() => useSession.getState().prefs.transcriptDefault);
+  const [showTranscript, setShowTranscript] = useState(() => {
+    const s = useSession.getState();
+    const convCount = s.conversations.filter(
+      (c) => c.subjectId === s.activeSubjectId || c.voiceId === s.voiceId,
+    ).length;
+    // Default to open for the first 3 conversations so users discover it.
+    return convCount < 3 || s.prefs.transcriptDefault;
+  });
   const [showHistory, setShowHistory] = useState(false);
   const [hasBegun, setHasBegun] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  // Conversation starter: a suggested opener the user taps before speaking.
+  const [pendingStarter, setPendingStarter] = useState<string | null>(null);
+  // Silence nudge: shown after 60s of idle in an active session.
+  const [silenceMessage, setSilenceMessage] = useState<string | null>(null);
+  // Post-session reflection prompt: shown before restarting.
+  const [showReflection, setShowReflection] = useState(false);
+  const [reflectionText, setReflectionText] = useState("");
+  const restartActionRef = useRef<(() => void) | null>(null);
   const opened = hasBegun || turns.length > 0;
   const queueRef = useRef<PlaybackQueue | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -112,6 +127,52 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     const name = persona.name?.trim();
     if (name) document.title = `${name} · EternaVoice`;
   }, [persona.name]);
+
+  // Auto-send a conversation starter after the persona's opening greeting.
+  // The starter fires when status first returns to idle in a new session.
+  const starterSentRef = useRef(false);
+  useEffect(() => {
+    if (!pendingStarter || starterSentRef.current) return;
+    if (status === "idle" && hasBegun && turns.some((t) => t.role === "assistant")) {
+      starterSentRef.current = true;
+      const text = pendingStarter;
+      setPendingStarter(null);
+      // Small delay so it doesn't feel robotic.
+      const t = window.setTimeout(() => void send(text), 600);
+      return () => window.clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, hasBegun, turns, pendingStarter]);
+
+  // Silence nudge: after 60s of idle in an active session, offer a gentle prompt.
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    setSilenceMessage(null);
+    if (status === "idle" && hasBegun && !responseError) {
+      silenceTimerRef.current = setTimeout(() => {
+        setSilenceMessage("I'm still here. Take as long as you need.");
+      }, 60_000);
+    }
+    return () => { if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current); };
+  }, [status, hasBegun, responseError]);
+
+  // Space-bar barge-in on desktop (not in text fields).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      if (!hasBegun || !opened) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (status === "speaking" || status === "thinking") {
+        e.preventDefault();
+        bargeIn();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasBegun, opened, status]);
 
   // One-time hint: barge-in exists but is invisible until someone tells you.
   // Surface it during the first long reply, then never again.
@@ -445,16 +506,28 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     [setStatus],
   );
 
-  const restart = useCallback(() => {
+  const doRestart = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
-    // Capture the outgoing conversation before the thread resets.
     summariseRef.current();
     setResponseError(null);
     setResponseNotice(null);
+    setSilenceMessage(null);
+    starterSentRef.current = false;
     resetConversation();
     trackEvent("conversation_new_chat");
   }, [resetConversation]);
+
+  const restart = useCallback(() => {
+    // Only prompt for reflection if the session had real turns.
+    if (turns.length >= 2) {
+      restartActionRef.current = doRestart;
+      setReflectionText("");
+      setShowReflection(true);
+    } else {
+      doRestart();
+    }
+  }, [turns.length, doRestart]);
 
   const retryLast = useCallback(async () => {
     const lastUser = [...turns].reverse().find((turn) => turn.role === "user");
@@ -571,16 +644,33 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         }`}
       >
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-8 sm:py-4">
-          {/* Back to the person — the conversation belongs to them */}
-          <Link
-            href={backHref}
-            aria-label="Back"
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M19 12H5M11 6l-6 6 6 6" />
-            </svg>
-          </Link>
+          {/* Back — intercept when there's a session worth reflecting on */}
+          {turns.length >= 2 ? (
+            <button
+              type="button"
+              onClick={() => {
+                restartActionRef.current = () => router.push(backHref);
+                setReflectionText("");
+                setShowReflection(true);
+              }}
+              aria-label="Back"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M11 6l-6 6 6 6" />
+              </svg>
+            </button>
+          ) : (
+            <Link
+              href={backHref}
+              aria-label="Back"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M11 6l-6 6 6 6" />
+              </svg>
+            </Link>
+          )}
 
           <div className="hidden flex-col items-center text-center sm:flex">
             <span className="font-serif text-[15px] tracking-[-0.005em] text-[var(--color-bone)]">
@@ -735,8 +825,28 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               <p className="max-w-md text-center text-[12px] leading-[1.6] text-[var(--color-bone-dim)]" role="status">
                 {responseNotice}
               </p>
+            ) : silenceMessage ? (
+              <AnimatePresence>
+                <motion.p
+                  key="silence"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6 }}
+                  className="max-w-xs text-center text-[12px] italic leading-[1.6] text-[var(--color-bone-dim)]/60"
+                >
+                  {silenceMessage}
+                </motion.p>
+              </AnimatePresence>
             ) : null}
           </div>
+          {/* Desktop Space-bar barge-in hint — shown once during first long reply */}
+          {(status === "speaking" || status === "thinking") && hasBegun && (
+            <p className="mb-1 hidden text-center text-[11px] text-[var(--color-bone-dim)]/40 sm:block">
+              Press <kbd className="rounded border border-[var(--color-rule-strong)] px-1.5 py-0.5 font-sans text-[10px]">Space</kbd> to interrupt
+            </p>
+          )}
+
           {opened ? (
             <Composer
               disabled={status === "thinking"}
@@ -753,6 +863,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               name={headerName}
               seed={`${voiceId}:${headerName}`}
               onBegin={() => void openSession()}
+              onBeginWithStarter={(text) => setPendingStarter(text)}
             />
           )}
         </div>
@@ -806,6 +917,77 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           }}
           onCancel={() => setPendingDelete(null)}
         />
+
+        {/* Reflection modal — shown before ending a meaningful session */}
+        <AnimatePresence>
+          {showReflection && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setShowReflection(false)}
+                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[3px]"
+                aria-hidden
+              />
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-label="End of conversation"
+                initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                className="hairline fixed inset-x-4 bottom-8 z-50 mx-auto max-w-md rounded-2xl bg-[var(--color-ink-2)]/97 p-6 shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2"
+              >
+                <h2 className="font-serif text-[20px] leading-snug text-[var(--color-bone)]">
+                  Before you go…
+                </h2>
+                <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                  Was there a moment from this conversation worth holding onto?
+                </p>
+
+                <textarea
+                  value={reflectionText}
+                  onChange={(e) => setReflectionText(e.target.value)}
+                  placeholder="A thought, a feeling, something they said…"
+                  rows={3}
+                  className="mt-4 w-full resize-none rounded-xl bg-white/[0.035] px-4 py-3 text-[14px] leading-[1.6] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/50 focus:outline-none focus:ring-1 focus:ring-[var(--color-ember)]/40"
+                />
+
+                <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReflection(false);
+                      restartActionRef.current?.();
+                      restartActionRef.current = null;
+                    }}
+                    className="order-2 flex h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-6 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)] sm:order-1"
+                  >
+                    Skip &amp; start new
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (reflectionText.trim()) {
+                        addMemory(reflectionText.trim(), activeSubjectId ?? null);
+                        void addMemoryDb(reflectionText.trim(), activeSubjectId ?? undefined).catch(console.error);
+                      }
+                      setShowReflection(false);
+                      restartActionRef.current?.();
+                      restartActionRef.current = null;
+                    }}
+                    className="order-1 flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-[13px] text-white transition hover:opacity-90 sm:order-2"
+                  >
+                    {reflectionText.trim() ? "Save & start new" : "Start new conversation"}
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
@@ -1105,7 +1287,23 @@ function Transcript({
   );
 }
 
-function BeginGate({ name, seed, onBegin }: { name: string; seed: string; onBegin: () => void }) {
+const CONVERSATION_STARTERS = [
+  "I just needed to hear your voice.",
+  "Tell me something I might have forgotten.",
+  "What would you want me to know today?",
+];
+
+function BeginGate({
+  name,
+  seed,
+  onBegin,
+  onBeginWithStarter,
+}: {
+  name: string;
+  seed: string;
+  onBegin: () => void;
+  onBeginWithStarter: (text: string) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -1136,8 +1334,31 @@ function BeginGate({ name, seed, onBegin }: { name: string; seed: string; onBegi
       <p className="text-[11px] tracking-[0.18em] text-[var(--color-bone-dim)]/85 uppercase">
         They will speak first
       </p>
+
+      {/* Conversation starters — tap to begin and queue your first message */}
+      <div className="mt-3 flex flex-col items-center gap-2.5">
+        <p className="text-[10px] tracking-[0.14em] text-[var(--color-bone-dim)]/50 uppercase">
+          Or start with…
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {CONVERSATION_STARTERS.map((starter) => (
+            <button
+              key={starter}
+              type="button"
+              onClick={() => {
+                onBegin();
+                onBeginWithStarter(starter);
+              }}
+              className="hairline cursor-pointer rounded-full px-4 py-2 text-[12px] leading-snug text-[var(--color-bone-dim)] transition-[border-color,color] duration-200 hover:border-[var(--color-ember)]/40 hover:text-[var(--color-bone)]"
+            >
+              {starter}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Honest framing — never pretend this is anything other than what it is */}
-      <p className="max-w-[260px] text-center text-[11px] leading-[1.6] text-[var(--color-text-tertiary)]">
+      <p className="mt-2 max-w-[260px] text-center text-[11px] leading-[1.6] text-[var(--color-text-tertiary)]">
         An AI voice built from recordings of {name}.
       </p>
     </motion.div>
