@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PersonaForm } from "@/components/persona/PersonaForm";
 import { MemoryList } from "@/components/memory/MemoryList";
@@ -41,7 +40,9 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
   const [subject, setSubject] = useState<SubjectRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<HubTab>("about");
+  const [editingPersona, setEditingPersona] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteNameInput, setDeleteNameInput] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -246,13 +247,25 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                 transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
               >
                 {tab === "about" ? (
-                  <PersonaForm
-                    key={subject.id}
-                    initialName={subject.name}
-                    initialRelationship={subject.relationship ?? ""}
-                    initialPersona={persona}
-                    onSave={savePersona}
-                  />
+                  editingPersona ? (
+                    <PersonaForm
+                      key={subject.id}
+                      initialName={subject.name}
+                      initialRelationship={subject.relationship ?? ""}
+                      initialPersona={persona}
+                      onSave={async (next) => {
+                        await savePersona(next);
+                        setEditingPersona(false);
+                      }}
+                      onCancel={() => setEditingPersona(false)}
+                    />
+                  ) : (
+                    <PersonaReadView
+                      subject={subject}
+                      persona={persona}
+                      onEdit={() => setEditingPersona(true)}
+                    />
+                  )
                 ) : tab === "memories" ? (
                   <MemoryList subjectId={subjectId} personName={subject.name} />
                 ) : (
@@ -269,30 +282,122 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
 
         {/* ── Remove ─────────────────────────────────────────────── */}
         <motion.div variants={fadeUp} className="flex flex-col items-start gap-2 border-t border-[var(--color-rule)] pt-6">
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            className="cursor-pointer text-[13px] text-[var(--color-text-tertiary)] underline underline-offset-4 transition-colors hover:text-[var(--color-danger)]"
-          >
-            Remove {subject.name} from EternaVoice
-          </button>
-          {deleteError ? (
-            <p className="text-[13px] text-[var(--color-danger)]" role="alert">
-              {deleteError}
-            </p>
-          ) : null}
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => { setConfirmDelete(true); setDeleteNameInput(""); setDeleteError(null); }}
+              className="cursor-pointer text-[13px] text-[var(--color-text-tertiary)] underline underline-offset-4 transition-colors hover:text-[var(--color-danger)]"
+            >
+              Remove {subject.name} from EternaVoice
+            </button>
+          ) : (
+            <div className="w-full max-w-md rounded-2xl border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/[0.04] p-5">
+              <p className="text-[14px] font-medium text-[var(--color-danger)]">
+                This permanently deletes their voice, memories, and all conversations.
+              </p>
+              <p className="mt-2 text-[13px] leading-[1.6] text-[var(--color-text-secondary)]">
+                Type <strong className="text-[var(--color-bone)]">{subject.name}</strong> to confirm.
+              </p>
+              <input
+                type="text"
+                value={deleteNameInput}
+                onChange={(e) => setDeleteNameInput(e.target.value)}
+                placeholder={subject.name}
+                autoFocus
+                className="mt-3 w-full rounded-xl bg-white/[0.025] px-4 py-3 text-[14px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/40 focus:outline-none focus:ring-1 focus:ring-[var(--color-danger)]/40 hairline"
+              />
+              {deleteError && (
+                <p className="mt-2 text-[12px] text-[var(--color-danger)]" role="alert">{deleteError}</p>
+              )}
+              <div className="mt-4 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => void deletePerson()}
+                  disabled={deleting || deleteNameInput.trim() !== subject.name.trim()}
+                  className="flex h-10 cursor-pointer items-center rounded-full bg-[var(--color-danger)] px-5 text-[13px] text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {deleting ? "Removing…" : "Remove permanently"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmDelete(false); setDeleteNameInput(""); }}
+                  className="flex h-10 cursor-pointer items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </motion.div>
+    </div>
+  );
+}
 
-      <ConfirmDialog
-        open={confirmDelete}
-        title={`Remove ${subject.name}?`}
-        body="Their voice, persona, memories, and conversations will be permanently deleted. This cannot be undone."
-        confirmLabel="Remove permanently"
-        loading={deleting}
-        onConfirm={() => void deletePerson()}
-        onCancel={() => setConfirmDelete(false)}
-      />
+function PersonaReadView({
+  subject,
+  persona,
+  onEdit,
+}: {
+  subject: SubjectRow;
+  persona: PersonaConfig;
+  onEdit: () => void;
+}) {
+  const hasDescription = Boolean(persona.description?.trim());
+  const hasCatchphrases = Boolean(persona.catchphrases?.trim());
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Name + relationship */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Name</span>
+          <span className="text-[15px] text-[var(--color-bone)]">{subject.name}</span>
+        </div>
+        {subject.relationship && (
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Relationship</span>
+            <span className="text-[15px] text-[var(--color-bone)]">{subject.relationship}</span>
+          </div>
+        )}
+      </div>
+
+      {hasDescription && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Who they were</span>
+          <p className="text-[14px] leading-[1.7] text-[var(--color-bone)]/85 whitespace-pre-wrap">
+            {persona.description}
+          </p>
+        </div>
+      )}
+
+      {hasCatchphrases && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Things they said</span>
+          <p className="text-[14px] leading-[1.7] text-[var(--color-bone)]/85 whitespace-pre-wrap">
+            {persona.catchphrases}
+          </p>
+        </div>
+      )}
+
+      {!hasDescription && !hasCatchphrases && (
+        <p className="text-[14px] leading-[1.7] text-[var(--color-text-secondary)]">
+          No details added yet. Edit to help shape how they speak.
+        </p>
+      )}
+
+      <div className="border-t border-[var(--color-rule)] pt-4">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex h-10 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+          </svg>
+          Edit persona
+        </button>
+      </div>
     </div>
   );
 }

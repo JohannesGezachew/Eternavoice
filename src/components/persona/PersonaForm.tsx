@@ -10,8 +10,8 @@ interface PersonaFormProps {
   initialName: string;
   initialRelationship: string;
   initialPersona: PersonaConfig;
-  /** Persist the merged result. Throwing shows an inline error. */
   onSave: (next: { name: string; relationship: string; persona: PersonaConfig }) => Promise<void>;
+  onCancel?: () => void;
 }
 
 const DEFAULT_STYLE = {
@@ -32,6 +32,7 @@ export function PersonaForm({
   initialRelationship,
   initialPersona,
   onSave,
+  onCancel,
 }: PersonaFormProps) {
   const [name, setName] = useState(initialName);
   const [relationship, setRelationship] = useState(initialRelationship);
@@ -193,6 +194,16 @@ export function PersonaForm({
         <Button variant="primary" size="md" onClick={() => void save()} loading={saving} disabled={saving}>
           Save changes
         </Button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="cursor-pointer text-[13px] text-[var(--color-text-secondary)] transition hover:text-[var(--color-bone)]"
+          >
+            Cancel
+          </button>
+        )}
         <AnimatePresence>
           {saved ? (
             <motion.span

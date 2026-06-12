@@ -125,15 +125,34 @@ export function Hero() {
                     {hasVoice ? "Continue" : "Start with a voicemail"}
                   </Link>
                 </div>
-                <p className="text-[13px] leading-[1.6] text-[var(--color-bone-dim)]">
-                  {hasVoice && voiceName
-                    ? `Pick up with ${voiceName}.`
-                    : "Free for seven days. No card to begin."}
+                {!hasVoice && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="flex items-center gap-1.5 text-[14px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                  >
+                    See how it works
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M12 5v14M5 12l7 7 7-7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                {!hasVoice && (
+                  <p className="flex items-center gap-2 text-[12px] text-[var(--color-text-tertiary)]">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    7 days free · No card required
+                  </p>
+                )}
+                <p className="text-[12px] tracking-[0.02em] text-[var(--color-text-secondary)]">
+                  Their voice never leaves your account, and is never shared.
                 </p>
               </div>
-              <p className="text-[12px] tracking-[0.02em] text-[var(--color-text-secondary)]">
-                Their voice never leaves your account, and is never shared.
-              </p>
             </motion.div>
           </div>
 

@@ -15,7 +15,6 @@ import { createClient } from "@/lib/supabase/client";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { PersonaConfig } from "@/lib/types";
 
-// A presence product is allowed warmth that chrome products aren't.
 function greetingForNow(): string {
   const h = new Date().getHours();
   if (h < 5) return "Still up";
@@ -26,10 +25,10 @@ function greetingForNow(): string {
 
 const subscribeNoop = () => () => {};
 
+type SortKey = "recent" | "alpha" | "added";
+
 interface PersonItem {
-  /** ElevenLabs voice id (used to activate the session voice). */
   voiceId: string;
-  /** DB subject id, when this person is persisted server-side. */
   subjectId: string | null;
   name: string;
   relationship: string | null;
@@ -44,12 +43,12 @@ export function PeopleLibrary() {
   const setActiveVoice = useSession((s) => s.setActiveVoice);
   const setPersona = useSession((s) => s.setPersona);
   const conversations = useSession((s) => s.conversations);
+  const memories = useSession((s) => s.memories);
 
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
-  // Greeting depends on the user's clock — swap in after hydration so the
-  // server render never mismatches.
+  const [sort, setSort] = useState<SortKey>("recent");
   const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   useEffect(() => {
@@ -70,11 +69,8 @@ export function PeopleLibrary() {
     });
   }, []);
 
-  // DB subjects are authoritative when present; otherwise fall back to
-  // voices kept in local session state (legacy clones made before subjects
-  // existed) so an authed user with a working voice never sees "no one here".
   const dbPeople = subjects.filter((s) => s.voice_id);
-  const people: PersonItem[] = isAuthed && dbPeople.length
+  const basePeople: PersonItem[] = isAuthed && dbPeople.length
     ? dbPeople.map((s) => ({
         voiceId: s.voice_id!,
         subjectId: s.id,
@@ -92,19 +88,54 @@ export function PeopleLibrary() {
         createdAt: v.createdAt,
       }));
 
-  const lastSpoke = (person: PersonItem): string | null => {
+  const lastConvAt = (person: PersonItem): number | null => {
     const conv = conversations.find(
       (c) =>
         (person.subjectId && c.subjectId === person.subjectId) ||
         c.voiceId === person.voiceId,
     );
-    if (!conv) return null;
-    return formatRelativeDay(conv.updatedAt);
+    return conv ? conv.updatedAt : null;
+  };
+
+  const people = [...basePeople].sort((a, b) => {
+    if (sort === "alpha") return a.name.localeCompare(b.name);
+    if (sort === "added") return b.createdAt - a.createdAt;
+    // "recent": most recently spoken first; never-spoken go to bottom by createdAt
+    const aAt = lastConvAt(a) ?? 0;
+    const bAt = lastConvAt(b) ?? 0;
+    return bAt - aAt;
+  });
+
+  const convCount = (person: PersonItem): number =>
+    conversations.filter(
+      (c) =>
+        (person.subjectId && c.subjectId === person.subjectId) ||
+        c.voiceId === person.voiceId,
+    ).length;
+
+  const memCount = (person: PersonItem): number =>
+    memories.filter(
+      (m) => person.subjectId && m.subjectId === person.subjectId,
+    ).length;
+
+  const lastSpokeLabel = (person: PersonItem): string | null => {
+    const at = lastConvAt(person);
+    return at ? formatRelativeDay(at) : null;
+  };
+
+  const lastConvTitle = (person: PersonItem): string | null => {
+    const conv = conversations
+      .filter(
+        (c) =>
+          (person.subjectId && c.subjectId === person.subjectId) ||
+          c.voiceId === person.voiceId,
+      )
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    return conv?.title ?? null;
   };
 
   const talk = (person: PersonItem) => {
     setActiveVoice(person.voiceId, person.subjectId ?? undefined);
-    // Load this person's persona so a previous person's never carries over.
     if (person.persona?.name) setPersona(person.persona);
     router.push(person.subjectId ? `/people/${person.subjectId}/talk` : "/people/current/talk");
   };
@@ -116,6 +147,32 @@ export function PeopleLibrary() {
           eyebrow={mounted ? greetingForNow() : "Your people"}
           title="Who would you like to speak with?"
         />
+
+        {/* Sort controls — only shown once there's more than one person */}
+        {people.length > 1 && (
+          <div className="flex items-center gap-1 -mt-6">
+            {(
+              [
+                { key: "recent" as SortKey, label: "Recently spoken" },
+                { key: "alpha" as SortKey, label: "A–Z" },
+                { key: "added" as SortKey, label: "Recently added" },
+              ] as const
+            ).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSort(key)}
+                className={`cursor-pointer rounded-full px-3.5 py-1.5 text-[12px] transition-colors duration-150 ${
+                  sort === key
+                    ? "bg-white/[0.07] text-[var(--color-bone)]"
+                    : "text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <motion.div initial={false} animate="enter" variants={stagger(0.07)} className="grid gap-4 sm:grid-cols-2">
           {loading && !people.length ? (
@@ -129,11 +186,13 @@ export function PeopleLibrary() {
                   key={person.voiceId}
                   person={person}
                   active={person.voiceId === activeVoiceId}
-                  lastSpoke={lastSpoke(person)}
+                  lastSpoke={lastSpokeLabel(person)}
+                  lastConversationTitle={lastConvTitle(person)}
+                  conversationCount={convCount(person)}
+                  memoryCount={memCount(person)}
                   onTalk={() => talk(person)}
                 />
               ))}
-              {/* Add another — quiet, after the people */}
               <motion.div variants={fadeUp}>
                 <Link
                   href="/people/new"
@@ -158,7 +217,7 @@ export function PeopleLibrary() {
                 action={
                   <div className="flex flex-col items-center gap-3">
                     <Button variant="primary" size="md" onClick={() => router.push("/people/new")}>
-                      Preserve a voice
+                      Begin with someone
                     </Button>
                     <Link
                       href="/demo"
@@ -181,11 +240,17 @@ function PersonCard({
   person,
   active,
   lastSpoke,
+  lastConversationTitle,
+  conversationCount,
+  memoryCount,
   onTalk,
 }: {
   person: PersonItem;
   active: boolean;
   lastSpoke: string | null;
+  lastConversationTitle: string | null;
+  conversationCount: number;
+  memoryCount: number;
   onTalk: () => void;
 }) {
   const href = person.subjectId ? `/people/${person.subjectId}` : null;
@@ -193,10 +258,8 @@ function PersonCard({
   return (
     <motion.article
       variants={fadeUp}
-      className={`group relative flex flex-col gap-6 rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-6 transition-all duration-300 hover:border-[var(--color-rule-strong)] hover:bg-white/[0.03] ${href ? "cursor-pointer" : ""}`}
+      className={`group relative flex flex-col gap-6 rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--color-rule-strong)] hover:bg-white/[0.03] hover:shadow-lg ${href ? "cursor-pointer" : ""}`}
     >
-      {/* Stretched link: the whole card opens the hub, and it's a real link —
-          focusable, Enter works, middle-click works. Buttons sit above it. */}
       {href ? (
         <Link
           href={href}
@@ -206,7 +269,6 @@ function PersonCard({
       ) : null}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          {/* Their voiceprint — a signature unique to this person */}
           <VoicePrint
             seed={`${person.voiceId}:${person.name}`}
             size={56}
@@ -216,11 +278,29 @@ function PersonCard({
             <h2 className="truncate font-serif text-[24px] leading-tight text-[var(--color-bone)]">
               {person.name}
             </h2>
-            {person.relationship ? (
-              <span className="inline-flex w-fit items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-secondary)]">
-                {person.relationship}
-              </span>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {person.relationship ? (
+                <span className="inline-flex items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-secondary)]">
+                  {person.relationship}
+                </span>
+              ) : null}
+              {conversationCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-tertiary)]">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  {conversationCount}
+                </span>
+              )}
+              {memoryCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-tertiary)]">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  {memoryCount}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         {active ? (
@@ -231,12 +311,20 @@ function PersonCard({
         ) : null}
       </div>
 
+      {lastConversationTitle && (
+        <p className="line-clamp-1 text-[12px] italic text-[var(--color-text-tertiary)]">
+          &ldquo;{lastConversationTitle}&rdquo;
+        </p>
+      )}
+
       <div className="relative z-10 mt-auto flex items-center justify-between gap-3">
         <Button variant="primary" size="md" onClick={onTalk}>
           Talk
         </Button>
         <p className="text-[12px] text-[var(--color-text-tertiary)]">
-          {lastSpoke ? `Last spoke ${lastSpoke}` : `Added ${new Date(person.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
+          {lastSpoke
+            ? `Last spoke ${lastSpoke}`
+            : `Added ${new Date(person.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
         </p>
       </div>
     </motion.article>
