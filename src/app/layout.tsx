@@ -1,8 +1,23 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Fraunces } from "next/font/google";
 import "./globals.css";
 import { BackgroundCanvas } from "@/components/shell/BackgroundCanvas";
+import { MotionProvider } from "@/components/shell/MotionProvider";
 
-export const dynamic = "force-dynamic";
+// Self-hosted via next/font: no render-blocking Google Fonts stylesheet,
+// no layout shift, fonts served from our own origin.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-fraunces",
+  axes: ["SOFT", "opsz"],
+});
 
 export const metadata: Metadata = {
   title: {
@@ -31,7 +46,7 @@ export const metadata: Metadata = {
       {
         rel: "mask-icon",
         url: "/safari-pinned-tab.svg",
-        color: "#c7a27c",
+        color: "#c9996a",
       },
     ],
   },
@@ -68,13 +83,13 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   other: {
-    "msapplication-TileColor": "#0b0b0e",
+    "msapplication-TileColor": "#0d0b09",
     "msapplication-config": "/browserconfig.xml",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0b0e",
+  themeColor: "#0d0b09",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -82,19 +97,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:opsz,wght,SOFT@9..144,400;500;600;700,30..100&display=swap"
-        />
-      </head>
+    <html lang="en" className={`${inter.variable} ${fraunces.variable}`}>
       <body className="relative isolate">
-        <BackgroundCanvas />
-        <div className="relative z-10 flex min-h-dvh flex-col">{children}</div>
+        <MotionProvider>
+          <BackgroundCanvas />
+          <div className="relative z-10 flex min-h-dvh flex-col">{children}</div>
+        </MotionProvider>
       </body>
     </html>
   );

@@ -2,14 +2,16 @@
 
 @theme {
   --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+    var(--font-inter), "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   --font-serif:
-    "Fraunces", "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
+    var(--font-fraunces), "Fraunces", "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
 
-  --color-ink: #0b0b0e;
-  --color-ink-2: #121217;
-  --color-ink-3: #1a1a22;
+  /* Warm ink scale — the darks carry the same undertone as bone/ember so
+     surfaces feel like one material instead of warm text on a cool screen. */
+  --color-ink: #0d0b09;
+  --color-ink-2: #15110d;
+  --color-ink-3: #1e1812;
   --color-bone: #f5efe6;
   --color-bone-2: #e8e1d4;
   --color-bone-dim: #c9c2b5;
@@ -17,6 +19,18 @@
   --color-ember-soft: #d9ad82;
   --color-rule: rgba(245, 239, 230, 0.08);
   --color-rule-strong: rgba(245, 239, 230, 0.16);
+
+  /* Semantic status colors — tuned to the warm palette, never stock neon.
+     sage = healthy/active, warning = needs attention, danger = destructive. */
+  --color-sage: #9aa882;
+  --color-warning: #cda64e;
+  --color-danger: #d98873;
+
+  /* Text hierarchy with guaranteed contrast on ink. Use these instead of
+     opacity-suffixed bone/bone-dim for anything that must be read:
+     secondary ≥ 7:1, tertiary ≥ 4.6:1 against --color-ink. */
+  --color-text-secondary: #b8b1a4;
+  --color-text-tertiary: #948e83;
 
   --ease-calm: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
@@ -122,6 +136,28 @@
     border: 1px solid var(--color-rule-strong);
   }
 
+  /* Unified card surface — one background tint, border, and radius for every
+     card across the app so panels stop drifting between /[0.015]–/[0.03]. */
+  .surface {
+    border: 1px solid var(--color-rule);
+    background-color: rgba(245, 239, 230, 0.02);
+    border-radius: 1rem;
+  }
+
+  .surface-interactive {
+    border: 1px solid var(--color-rule);
+    background-color: rgba(245, 239, 230, 0.02);
+    border-radius: 1rem;
+    transition:
+      background-color 0.3s var(--ease-calm),
+      border-color 0.3s var(--ease-calm);
+  }
+
+  .surface-interactive:hover {
+    background-color: rgba(245, 239, 230, 0.035);
+    border-color: var(--color-rule-strong);
+  }
+
   /* Fine film grain laid over the whole page — adds tactile, analog depth
      that separates a crafted site from a flat template. Invisible to read,
      felt as texture. */
@@ -201,3 +237,70 @@
     }
   }
 }
+
+/* Accessible range slider: real native input with a visible thumb and a
+   focus ring, instead of an invisible opacity-0 overlay. Lives outside
+   @layer utilities because Tailwind v4 drops pseudo-element selectors
+   from utility layers. */
+.range-ember {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 20px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .range-ember::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: rgba(245, 239, 230, 0.1);
+  }
+
+  .range-ember::-moz-range-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: rgba(245, 239, 230, 0.1);
+  }
+
+  .range-ember::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -6.5px;
+    height: 16px;
+    width: 16px;
+    border-radius: 9999px;
+    background: var(--color-ember);
+    border: 2px solid var(--color-ink);
+    box-shadow: 0 0 0 1px rgba(201, 153, 106, 0.4);
+    transition: transform 0.15s ease;
+  }
+
+  .range-ember::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 9999px;
+    background: var(--color-ember);
+    border: 2px solid var(--color-ink);
+    box-shadow: 0 0 0 1px rgba(201, 153, 106, 0.4);
+  }
+
+  .range-ember:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+  }
+
+  .range-ember:focus-visible {
+    outline: none;
+  }
+
+  .range-ember:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      0 0 0 1px rgba(201, 153, 106, 0.4),
+      0 0 0 4px rgba(201, 153, 106, 0.35);
+  }
+
+  .range-ember:focus-visible::-moz-range-thumb {
+    box-shadow:
+      0 0 0 1px rgba(201, 153, 106, 0.4),
+      0 0 0 4px rgba(201, 153, 106, 0.35);
+  }

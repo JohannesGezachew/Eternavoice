@@ -71,7 +71,7 @@ export function CtaBanner() {
             >
               Get started free
             </Link>
-            <p className="text-[12px] text-[var(--color-bone-dim)]/55">
+            <p className="text-[12px] text-[var(--color-bone-dim)]/80">
               Private by design · End-to-end encrypted · No voice is ever shared
             </p>
           </motion.div>
