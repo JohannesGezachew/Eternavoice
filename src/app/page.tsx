@@ -3,7 +3,6 @@ import { Nav } from "@/components/shell/Nav";
 import { Hero } from "@/components/landing/Hero";
 import { Stats } from "@/components/landing/Stats";
 import { Pillars } from "@/components/landing/Pillars";
-import { Testimonials } from "@/components/landing/Testimonials";
 import { Pricing } from "@/components/landing/Pricing";
 import { Faq } from "@/components/landing/Faq";
 import { CtaBanner } from "@/components/landing/CtaBanner";
@@ -11,23 +10,23 @@ import { CtaBanner } from "@/components/landing/CtaBanner";
 const HOW_IT_WORKS = [
   {
     step: "1",
-    title: "Name the voice",
-    body: "Give the clone a name before anything is created. It can be their first name, a nickname — whatever feels right.",
+    title: "Say who they are",
+    body: "A name and, if you like, who they were to you. That's all it takes to begin.",
   },
   {
     step: "2",
-    title: "Upload or record",
-    body: "Use any recording you have: a voicemail, a video, a voice note. One speaker, clear speech, a quiet room.",
+    title: "Bring their voice",
+    body: "Any recording you have: a voicemail, a video, a voice note. One speaker, clear speech, ninety seconds.",
   },
   {
     step: "3",
-    title: "Preview the clone",
-    body: "Listen to a generated sample and decide if it sounds right before continuing.",
+    title: "Hear them",
+    body: "Listen to a first sentence in their voice and decide if it sounds right before continuing.",
   },
   {
     step: "4",
-    title: "Start the conversation",
-    body: "Speak or type. The persona responds as them — memory carries forward across every session.",
+    title: "Start talking",
+    body: "They speak first. Speak or type back — memories carry forward across every conversation.",
   },
 ];
 
@@ -94,9 +93,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <Testimonials />
-
-        {/* Pull-quote */}
+        {/* Manifesto — what this is, in our own words */}
         <section className="mx-auto w-full max-w-3xl px-6 py-16 text-center sm:px-8 sm:py-24">
           <div className="mx-auto mb-10 h-px w-10 bg-[var(--color-ember)]/50" />
           <p
@@ -107,9 +104,6 @@ export default function HomePage() {
             someone whose voice you don&rsquo;t want to forget.
           </p>
           <div className="mx-auto mt-10 h-px w-10 bg-[var(--color-ember)]/50" />
-          <p className="mt-6 text-[13px] tracking-[0.06em] text-[var(--color-bone-dim)]/65">
-            — Sarah O., remembering her father
-          </p>
         </section>
 
         <Pricing />
@@ -130,7 +124,7 @@ export default function HomePage() {
               </div>
 
               {/* Links */}
-              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 text-[12px] text-[var(--color-bone-dim)]/60">
+              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 text-[12px] text-[var(--color-bone-dim)]/80">
                 <Link href="/auth/login" className="transition hover:text-[var(--color-bone-dim)]">Sign in</Link>
                 <Link href="/terms" className="transition hover:text-[var(--color-bone-dim)]">Terms</Link>
                 <Link href="/privacy" className="transition hover:text-[var(--color-bone-dim)]">Privacy</Link>
@@ -152,7 +146,7 @@ export default function HomePage() {
               ))}
             </div>
 
-            <p className="mt-6 text-[11px] text-[var(--color-bone-dim)]/65">
+            <p className="mt-6 text-[11px] text-[var(--color-bone-dim)]/80">
               © {new Date().getFullYear()} EternaVoice. All rights reserved.
             </p>
           </div>

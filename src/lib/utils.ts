@@ -16,3 +16,11 @@ export function formatSeconds(seconds: number): string {
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export function formatRelativeDay(ts: number): string {
+  const days = Math.floor((Date.now() - ts) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}

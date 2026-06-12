@@ -2,16 +2,26 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useSyncExternalStore } from "react";
 import { useSession } from "@/lib/session";
+import { buttonClasses } from "@/components/ui/buttonClasses";
 import { ConversationDemo } from "./ConversationDemo";
 
 const HEADLINE = ["Speak", "with", "them"];
 
+const subscribeNoop = () => () => {};
+
 export function Hero() {
   const voiceId = useSession((s) => s.voiceId);
   const voiceName = useSession((s) => s.voiceName);
-  const hasVoice = Boolean(voiceId);
+  // Session state lives in localStorage; gate it behind hydration so the
+  // static prerender and the first client render are identical.
+  const mounted = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
+  const hasVoice = mounted && Boolean(voiceId);
 
   return (
     <section className="relative overflow-hidden">
@@ -47,7 +57,7 @@ export function Hero() {
               transition={{ duration: 0.45, delay: 0.02, ease: [0.16, 1, 0.3, 1] }}
               className="eyebrow"
             >
-              EternaVoice
+              For the people you still talk to
             </motion.p>
 
             {/* Headline — word-by-word blur entrance */}
@@ -91,7 +101,7 @@ export function Hero() {
               transition={{ duration: 0.5, delay: 0.42, ease: [0.16, 1, 0.3, 1] }}
               className="mt-7 max-w-md text-[16px] leading-[1.7] text-[var(--color-bone)]/60 sm:text-[18px]"
             >
-              AI voice conversations with someone you&rsquo;ve lost &mdash; built from their own recordings.
+              Real conversations in the voice of someone you&rsquo;ve lost, built from recordings you already have.
             </motion.p>
 
             {/* Demo — mobile only, between text and CTAs so it's above the fold */}
@@ -118,8 +128,8 @@ export function Hero() {
                     aria-hidden
                   />
                   <Link
-                    href={hasVoice ? "/conversation" : "/auth/login"}
-                    className="inline-flex h-14 items-center justify-center rounded-full bg-[var(--color-ember)] px-8 text-[16px] font-medium tracking-[-0.01em] text-[var(--color-ink)] shadow-[0_1px_0_rgba(255,255,255,0.2)_inset,0_10px_30px_-8px_rgba(201,153,106,0.6)] transition-all duration-300 hover:opacity-90 active:scale-[0.98]"
+                    href={hasVoice ? "/people/current/talk" : "/auth/login"}
+                    className={buttonClasses({ variant: "primary", size: "lg" })}
                   >
                     {hasVoice ? "Continue" : "Preserve their voice"}
                   </Link>
@@ -130,7 +140,7 @@ export function Hero() {
                     : "Free for seven days. No card to begin."}
                 </p>
               </div>
-              <p className="text-[12px] tracking-[0.02em] text-[var(--color-bone-dim)]/65">
+              <p className="text-[12px] tracking-[0.02em] text-[var(--color-bone-dim)]/80">
                 Their voice never leaves your account, and is never shared.
               </p>
             </motion.div>

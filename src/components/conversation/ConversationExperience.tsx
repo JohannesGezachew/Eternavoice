@@ -7,19 +7,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/lib/session";
 import { streamChat } from "@/lib/streamChat";
 import { PlaybackQueue, base64ToArrayBuffer } from "@/lib/audio/playbackQueue";
-import { Mark } from "@/components/shell/Mark";
 import { Composer } from "./Composer";
 import { Message } from "./Message";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
+import { saveConversation, deleteConversationDb } from "@/lib/db/conversations";
+import { formatRelativeDay } from "@/lib/utils";
 import type { ChatTurn } from "@/lib/types";
 
 const CHAT_CONTEXT_TURNS = 12;
 const MEMORY_CONTEXT_LIMIT = 10;
 
-export function ConversationExperience() {
+interface ConversationExperienceProps {
+  /** Where "back" leads — the person's hub page. */
+  backHref?: string;
+}
+
+export function ConversationExperience({ backHref = "/people" }: ConversationExperienceProps) {
   const router = useRouter();
   const voiceId = useSession((s) => s.voiceId);
+  const activeSubjectId = useSession((s) => s.activeSubjectId);
   const persona = useSession((s) => s.persona);
   const turns = useSession((s) => s.turns);
   const conversations = useSession((s) => s.conversations);
@@ -35,7 +43,6 @@ export function ConversationExperience() {
   const deleteConversation = useSession((s) => s.deleteConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
   const resetConversation = useSession((s) => s.resetConversation);
-  const resetAll = useSession((s) => s.resetAll);
 
   const [amplitude, setAmplitude] = useState(0);
   const [hasUnlocked, setHasUnlocked] = useState(false);
@@ -45,6 +52,7 @@ export function ConversationExperience() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [hasBegun, setHasBegun] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const opened = hasBegun || turns.length > 0;
   const queueRef = useRef<PlaybackQueue | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -52,8 +60,48 @@ export function ConversationExperience() {
   const lastAmpRef = useRef(0);
 
   useEffect(() => {
-    if (!voiceId) router.replace("/record");
+    if (!voiceId) router.replace("/people/new");
   }, [voiceId, router]);
+
+  // Fire-and-forget: summarise + persist turns when user navigates away.
+  useEffect(() => {
+    const summarise = () => {
+      if (!currentConversationId || turns.length < 2) return;
+      const payload = JSON.stringify({
+        turns: turns.slice(-20).map((t) => ({ role: t.role, content: t.content.slice(0, 800) })),
+        subjectId: activeSubjectId ?? undefined,
+      });
+      navigator.sendBeacon(
+        `/api/conversations/${currentConversationId}/summarise`,
+        new Blob([payload], { type: "application/json" }),
+      );
+    };
+    window.addEventListener("beforeunload", summarise);
+    return () => {
+      summarise();
+      window.removeEventListener("beforeunload", summarise);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentConversationId]);
+
+  // Persist turns to DB after each assistant reply completes (debounced).
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!currentConversationId || !voiceId || turns.length === 0) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const conv = conversations.find((c) => c.id === currentConversationId);
+      if (!conv) return;
+      void saveConversation({
+        ...conv,
+        subjectId: conv.subjectId ?? activeSubjectId ?? null,
+      }).catch(console.error);
+    }, 2000);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turns.length, currentConversationId]);
 
   useEffect(() => {
     const queue = new PlaybackQueue({
@@ -122,10 +170,14 @@ export function ConversationExperience() {
             voiceId,
             persona,
             messages: messages.slice(-CHAT_CONTEXT_TURNS),
-            memories: [...memories]
+            // Only this person's memories (plus legacy unscoped ones) — a
+            // note about Dad must never surface in Grandma's voice.
+            memories: memories
+              .filter((m) => m.subjectId == null || m.subjectId === activeSubjectId)
               .sort((a, b) => b.updatedAt - a.updatedAt)
               .slice(0, MEMORY_CONTEXT_LIMIT)
               .map((memory) => ({ content: memory.content })),
+            subjectId: activeSubjectId ?? undefined,
           },
           controller.signal,
         )) {
@@ -198,7 +250,7 @@ export function ConversationExperience() {
         if (streamError) setStatus("idle");
       }
     },
-    [voiceId, persona, memories, appendAssistantToken, appendAssistantAudio, setStatus],
+    [voiceId, persona, memories, activeSubjectId, appendAssistantToken, appendAssistantAudio, setStatus],
   );
 
   const ensureUnlocked = useCallback(async () => {
@@ -314,13 +366,6 @@ export function ConversationExperience() {
     );
   }, [turns, runChatStream]);
 
-  const startOver = useCallback(() => {
-    abortRef.current?.abort();
-    queueRef.current?.stop();
-    resetAll();
-    router.push("/");
-  }, [resetAll, router]);
-
   const interrupt = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
@@ -328,6 +373,16 @@ export function ConversationExperience() {
     setStatus("idle");
     setResponseNotice("Stopped. You can speak or type again.");
     trackEvent("conversation_interrupted", { status });
+  }, [setStatus, status]);
+
+  const bargeIn = useCallback(() => {
+    abortRef.current?.abort();
+    queueRef.current?.stop();
+    setStreamingTurnId(null);
+    setStatus("idle");
+    setResponseError(null);
+    setResponseNotice("Stopped. I'm listening.");
+    trackEvent("conversation_barge_in", { status });
   }, [setStatus, status]);
 
   const replayTurn = useCallback(
@@ -362,61 +417,72 @@ export function ConversationExperience() {
       style={{ minHeight: "100dvh" }}
     >
       <header className="relative z-20">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-5 sm:px-8 sm:py-6">
-          <Link href="/" aria-label="Home" className="-mx-1 px-1">
-            <Mark />
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4 sm:px-8 sm:py-6">
+          {/* Back to the person — the conversation belongs to them */}
+          <Link
+            href={backHref}
+            aria-label="Back"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M19 12H5M11 6l-6 6 6 6" />
+            </svg>
           </Link>
+
           <div className="hidden flex-col items-center text-center sm:flex">
             <span className="font-serif text-[15px] tracking-[-0.005em] text-[var(--color-bone)]">
               {headerName}
             </span>
-            <span className="text-[11px] tracking-[0.04em] text-[var(--color-bone-dim)]">
+            <span className="text-[11px] tracking-[0.04em] text-[var(--color-text-secondary)]">
               {headerSubtitle}
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[12px]">
+
+          <div className="flex items-center justify-end gap-x-1 text-[12px]">
+            {/* Mobile: two icon buttons with 44px touch targets */}
             <button
               type="button"
               onClick={restart}
-              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
+              aria-label="New conversation"
             >
-              New chat
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
             </button>
-            <Link
-              href="/memories"
-              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-            >
-              Memory
-            </Link>
             <button
               type="button"
               onClick={() => setShowHistory((open) => !open)}
-              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              aria-expanded={showHistory}
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
+              aria-label="Past conversations"
             >
-              History
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/persona")}
-              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-            >
-              Change persona
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
             </button>
             <button
               type="button"
               onClick={() => setShowTranscript((open) => !open)}
-              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              aria-expanded={showTranscript}
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
+              aria-label="Transcript"
             >
-              Transcript
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M4 6h16M4 10h16M4 14h10" />
+              </svg>
             </button>
-            <span className="hidden h-3 w-px bg-[var(--color-rule-strong)] sm:block" />
-            <button
-              type="button"
-              onClick={startOver}
-              className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-            >
-              New voice
-            </button>
+
+            {/* Desktop: text links — management lives on the person's page */}
+            <div className="hidden items-center gap-x-4 sm:flex">
+              <button type="button" onClick={restart} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">New conversation</button>
+              <button type="button" onClick={() => setShowTranscript((open) => !open)} aria-expanded={showTranscript} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">Transcript</button>
+              <button type="button" onClick={() => setShowHistory((open) => !open)} aria-expanded={showHistory} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">History</button>
+              <Link href={backHref} className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">
+                Persona &amp; memories
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -436,7 +502,10 @@ export function ConversationExperience() {
         </div>
 
         {/* Spotlight: ONE message at a time, fading from one to the next. */}
-        <div className="flex min-h-[6.5rem] w-full max-w-2xl items-end justify-center sm:min-h-[7.5rem]">
+        <div
+          className="flex min-h-[6.5rem] w-full max-w-2xl items-end justify-center sm:min-h-[7.5rem]"
+          aria-live="polite"
+        >
           <AnimatePresence mode="wait">
             {opened && latestTurn ? (
               <motion.p
@@ -481,27 +550,27 @@ export function ConversationExperience() {
             <button
               type="button"
               onClick={interrupt}
-              className="mb-4 rounded-full border border-[var(--color-rule-strong)] px-4 py-2 text-[12px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+              className="mb-4 flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
             >
               Interrupt
             </button>
           ) : null}
           {responseError ? (
-            <div className="mb-5 flex flex-col items-center gap-3 text-center">
-              <p className="text-[13px] text-[var(--color-ember-soft)]">
+            <div className="mb-5 flex flex-col items-center gap-3 text-center" role="alert">
+              <p className="text-[13px] text-[var(--color-danger)]">
                 {responseError}
               </p>
               <button
                 type="button"
                 onClick={() => void retryLast()}
-                className="rounded-full border border-[var(--color-rule-strong)] px-4 py-2 text-[12px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+                className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
               >
                 Retry reply
               </button>
             </div>
           ) : null}
           {responseNotice ? (
-            <p className="mb-5 max-w-md text-center text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+            <p className="mb-5 max-w-md text-center text-[12px] leading-[1.6] text-[var(--color-bone-dim)]" role="status">
               {responseNotice}
             </p>
           ) : null}
@@ -514,9 +583,10 @@ export function ConversationExperience() {
               onTranscribe={transcribe}
               onSpeechStateChange={handleSpeechState}
               onActivate={ensureUnlocked}
+              onBargeIn={bargeIn}
             />
           ) : (
-            <BeginGate onBegin={() => void openSession()} />
+            <BeginGate name={headerName} onBegin={() => void openSession()} />
           )}
         </div>
 
@@ -536,6 +606,7 @@ export function ConversationExperience() {
           open={showHistory}
           conversations={conversations}
           currentConversationId={currentConversationId}
+          manageHref={backHref}
           onClose={() => setShowHistory(false)}
           onOpen={(id) => {
             openConversation(id);
@@ -548,7 +619,22 @@ export function ConversationExperience() {
             setHasBegun(false);
           }}
           onPin={toggleConversationPin}
-          onDelete={deleteConversation}
+          onDelete={(id, title) => setPendingDelete({ id, title })}
+        />
+
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          title="Delete this conversation?"
+          body={`"${pendingDelete?.title ?? ""}" and its transcript will be permanently removed.`}
+          confirmLabel="Delete conversation"
+          onConfirm={() => {
+            if (pendingDelete) {
+              deleteConversation(pendingDelete.id);
+              void deleteConversationDb(pendingDelete.id).catch(console.error);
+            }
+            setPendingDelete(null);
+          }}
+          onCancel={() => setPendingDelete(null)}
         />
       </main>
     </div>
@@ -559,6 +645,7 @@ function HistoryDrawer({
   open,
   conversations,
   currentConversationId,
+  manageHref,
   onClose,
   onOpen,
   onNew,
@@ -568,98 +655,184 @@ function HistoryDrawer({
   open: boolean;
   conversations: ReturnType<typeof useSession.getState>["conversations"];
   currentConversationId: string | null;
+  manageHref: string;
   onClose: () => void;
   onOpen: (id: string) => void;
   onNew: () => void;
   onPin: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, title: string) => void;
 }) {
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    // Move focus into the panel so keyboard users land where they clicked to.
+    panelRef.current?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   return (
     <AnimatePresence>
       {open ? (
-        <motion.aside
-          initial={{ opacity: 0, x: 18 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 18 }}
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="hairline fixed right-4 bottom-4 z-40 max-h-[72dvh] w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-[var(--color-ink)]/95 shadow-2xl backdrop-blur-xl"
-        >
-          <div className="flex items-center justify-between border-b border-[var(--color-rule)] px-4 py-3">
-            <p className="text-[12px] tracking-[0.18em] text-[var(--color-bone-dim)] uppercase">
-              History
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-            >
-              Close
-            </button>
-          </div>
-          <div className="max-h-[calc(72dvh-4rem)] overflow-y-auto p-3">
-            <button
-              type="button"
-              onClick={onNew}
-              className="mb-3 w-full rounded-xl border border-[var(--color-rule-strong)] px-3 py-2 text-left text-[13px] text-[var(--color-bone)]/82 transition hover:border-[var(--color-ember)]/35"
-            >
-              Start new chat
-            </button>
-            {conversations.length ? (
-              <div className="space-y-2">
-                {conversations.map((conversation) => (
-                  <section
-                    key={conversation.id}
-                    className="rounded-xl bg-white/[0.025] p-3"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onOpen(conversation.id)}
-                      className="block w-full text-left"
-                    >
-                      <span className="block truncate font-serif text-[18px] text-[var(--color-bone)]">
-                        {conversation.pinned ? "Pinned · " : ""}
-                        {conversation.title}
-                      </span>
-                      <span className="mt-1 block text-[11px] text-[var(--color-bone-dim)]">
-                        {conversation.turns.length} turns ·{" "}
-                        {new Date(conversation.updatedAt).toLocaleDateString()}
-                        {conversation.id === currentConversationId ? " · Current" : ""}
-                      </span>
-                    </button>
-                    <div className="mt-3 flex gap-3 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => onPin(conversation.id)}
-                        className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-                      >
-                        {conversation.pinned ? "Unpin" : "Pin"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(conversation.id)}
-                        className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <p className="px-1 py-3 text-[13px] text-[var(--color-bone-dim)]">
-                No saved conversations on this device yet.
+        <>
+          {/* Scrim — tap anywhere outside to dismiss */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]"
+            aria-hidden
+          />
+          {/* Mobile: bottom sheet. Desktop: floating panel under the History button. */}
+          <motion.aside
+            ref={panelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Past conversations"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+            className="hairline-strong fixed inset-x-0 bottom-0 z-50 flex max-h-[78dvh] flex-col overflow-hidden rounded-t-3xl bg-[var(--color-ink-2)]/97 shadow-2xl outline-none backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-24 sm:max-h-[min(620px,calc(100dvh-7.5rem))] sm:w-[380px] sm:rounded-2xl"
+          >
+            {/* Grab notch — mobile affordance for "this is a sheet" */}
+            <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
+              <span className="h-1 w-9 rounded-full bg-[var(--color-rule-strong)]" />
+            </div>
+
+            <div className="flex items-center justify-between py-1 pl-5 pr-2 sm:border-b sm:border-[var(--color-rule)] sm:py-2">
+              <p className="text-[12px] tracking-[0.18em] text-[var(--color-text-secondary)] uppercase">
+                Conversations
               </p>
-            )}
-            <Link
-              href="/conversations"
-              className="mt-4 block text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close history"
+                className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+
+            <div
+              className="flex-1 overflow-y-auto px-3 pb-3"
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
             >
-              Open full history
-            </Link>
-          </div>
-        </motion.aside>
+              <button
+                type="button"
+                onClick={onNew}
+                className="mb-2 flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-[var(--color-rule-strong)] px-3.5 text-left text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/35 hover:bg-white/[0.02]"
+              >
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
+                  <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                New conversation
+              </button>
+
+              {conversations.length ? (
+                <div className="space-y-0.5">
+                  {conversations.map((conversation) => {
+                    const current = conversation.id === currentConversationId;
+                    return (
+                      <div
+                        key={conversation.id}
+                        className={`group flex items-center rounded-xl pr-1 transition-colors ${
+                          current ? "bg-white/[0.045]" : "hover:bg-white/[0.025]"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onOpen(conversation.id)}
+                          className="flex min-h-[56px] min-w-0 flex-1 cursor-pointer flex-col justify-center gap-1 py-2.5 pl-3.5 pr-1 text-left"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {conversation.pinned ? (
+                              <PinGlyph className="shrink-0 text-[var(--color-ember)]" filled />
+                            ) : null}
+                            <span className="truncate font-serif text-[16px] leading-snug text-[var(--color-bone)]">
+                              {conversation.title}
+                            </span>
+                          </span>
+                          <span className="text-[11px] text-[var(--color-text-tertiary)]">
+                            {formatRelativeDay(conversation.updatedAt)} · {conversation.turns.length}{" "}
+                            {conversation.turns.length === 1 ? "turn" : "turns"}
+                            {current ? (
+                              <span className="text-[var(--color-ember)]"> · now</span>
+                            ) : null}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onPin(conversation.id)}
+                          aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"}
+                          aria-pressed={Boolean(conversation.pinned)}
+                          className={`flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg transition ${
+                            conversation.pinned
+                              ? "text-[var(--color-ember)] hover:text-[var(--color-ember-soft)]"
+                              : "text-[var(--color-bone-dim)]/70 hover:text-[var(--color-bone)]"
+                          }`}
+                        >
+                          <PinGlyph filled={Boolean(conversation.pinned)} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(conversation.id, conversation.title)}
+                          aria-label="Delete conversation"
+                          className="flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-danger)]"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-.8 14.2a1 1 0 0 1-1 .8H6.8a1 1 0 0 1-1-.8L5 6" />
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="px-2 py-4 text-[13px] leading-[1.6] text-[var(--color-text-secondary)]">
+                  Nothing saved yet. Conversations are kept here automatically once you start talking.
+                </p>
+              )}
+
+              <Link
+                href={manageHref}
+                className="mt-3 flex min-h-[44px] items-center px-2 text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              >
+                Manage on their page →
+              </Link>
+            </div>
+          </motion.aside>
+        </>
       ) : null}
     </AnimatePresence>
+  );
+}
+
+function PinGlyph({ filled, className }: { filled?: boolean; className?: string }) {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M12 17v5M9 4h6l1 7 2.5 2.5H5.5L8 11l1-7z" />
+    </svg>
   );
 }
 
@@ -674,9 +847,25 @@ function Transcript({
   onFeedback: (turnId: string, feedback: NonNullable<ChatTurn["feedback"]>) => void;
   onReplay: (turn: ChatTurn) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const lastContent = turns.at(-1)?.content;
+
+  // Newest turn stays visible: pin the log to the bottom as replies stream in.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns.length, lastContent]);
+
+  // On open (especially mobile, where the transcript mounts below the fold),
+  // bring it into view so the toggle visibly does something.
+  useEffect(() => {
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
+
   return (
-    <section className="mt-8 w-full max-w-3xl pb-8">
-      <div className="hairline max-h-[42dvh] overflow-y-auto rounded-2xl bg-white/[0.018] p-4 sm:p-5">
+    <section ref={sectionRef} className="mt-8 w-full max-w-3xl pb-8">
+      <div ref={scrollRef} className="hairline max-h-[42dvh] overflow-y-auto rounded-2xl bg-white/[0.018] p-4 sm:p-5">
         {turns.length ? (
           <div className="space-y-3">
             {turns.map((turn) => (
@@ -707,7 +896,7 @@ function Transcript({
   );
 }
 
-function BeginGate({ onBegin }: { onBegin: () => void }) {
+function BeginGate({ name, onBegin }: { name: string; onBegin: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -718,7 +907,7 @@ function BeginGate({ onBegin }: { onBegin: () => void }) {
       <button
         type="button"
         onClick={onBegin}
-        className="hairline-strong group inline-flex items-center gap-3 rounded-full bg-[var(--color-ink-2)]/85 px-7 py-4 text-[15px] text-[var(--color-bone)] backdrop-blur-xl transition-[transform,background] duration-300 hover:bg-[var(--color-ink-2)] active:scale-[0.99]"
+        className="hairline-strong group inline-flex cursor-pointer items-center gap-3 rounded-full bg-[var(--color-ink-2)]/85 px-7 py-4 text-[15px] text-[var(--color-bone)] backdrop-blur-xl transition-[transform,background] duration-300 hover:bg-[var(--color-ink-2)] active:scale-[0.99]"
       >
         <span className="relative grid h-2.5 w-2.5 place-items-center">
           <span className="absolute inset-0 animate-ping rounded-full bg-[var(--color-ember)]/50" />
@@ -726,8 +915,12 @@ function BeginGate({ onBegin }: { onBegin: () => void }) {
         </span>
         Tap to begin
       </button>
-      <p className="text-[11px] tracking-[0.18em] text-[var(--color-bone-dim)]/70 uppercase">
+      <p className="text-[11px] tracking-[0.18em] text-[var(--color-bone-dim)]/85 uppercase">
         They will speak first
+      </p>
+      {/* Honest framing — never pretend this is anything other than what it is */}
+      <p className="max-w-[260px] text-center text-[11px] leading-[1.6] text-[var(--color-text-tertiary)]">
+        An AI voice built from recordings of {name}.
       </p>
     </motion.div>
   );

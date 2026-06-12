@@ -6,8 +6,8 @@ import { stagger, fadeUp } from "@/lib/motion";
 // Honest product facts, not fabricated social proof. Each is literally true
 // of how EternaVoice works — which reads more confident than invented counts.
 const FACTS = [
-  { value: "90 sec", label: "of audio is all it takes to begin" },
-  { value: "AES-256", label: "encryption on every word you speak" },
+  { value: "90 seconds", label: "of any recording is enough to begin" },
+  { value: "Yours alone", label: "every word encrypted, no voice ever shared" },
   { value: "No limit", label: "on conversations, memory, or time" },
 ];
 
@@ -30,7 +30,7 @@ export function Stats() {
             <span className="font-serif text-[34px] leading-none tracking-[-0.03em] text-[var(--color-bone)] sm:text-[42px]">
               {value}
             </span>
-            <span className="max-w-[180px] text-[12px] leading-[1.5] text-[var(--color-bone-dim)]/65">
+            <span className="max-w-[180px] text-[12px] leading-[1.5] text-[var(--color-bone-dim)]/80">
               {label}
             </span>
           </motion.div>
