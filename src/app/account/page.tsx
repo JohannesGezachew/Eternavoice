@@ -290,7 +290,7 @@ export default function AccountPage() {
               <div className="flex flex-col gap-0.5">
                 <p className="text-[14px] text-[var(--color-bone)]">EternaVoice</p>
                 <p className="text-[12px] text-[var(--color-bone-dim)]/80">
-                  £30/month · cancel anytime
+                  $30/month · cancel anytime
                   {profile?.trial_ends_at && trialDaysLeft !== null && trialDaysLeft > 0 && (
                     <span className="block text-[var(--color-ember)]">
                       Ends {formatTrialEnd(profile.trial_ends_at)}

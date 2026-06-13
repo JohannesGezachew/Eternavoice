@@ -390,7 +390,7 @@ function AuthForm() {
         ? "Sign in to pick up where you left off."
         : "Sign in to your account.",
     confirm: `We sent a confirmation link to ${email}`,
-    "magic-sent": `We sent a code and a sign-in link to ${email}`,
+    "magic-sent": `We sent a 6-digit code to ${email}`,
     forgot: "We'll send a link to reset it.",
     "forgot-sent": `We sent a reset link to ${email}`,
   };
@@ -671,7 +671,7 @@ function AuthForm() {
                 disabled={loading || !email.trim()}
                 className="text-[12px] text-[var(--color-bone-dim)]/55 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)] disabled:opacity-40"
               >
-                Use a sign-in link instead
+                Sign in with an email code
               </button>
             </div>
 
@@ -830,8 +830,7 @@ function AuthForm() {
             </form>
 
             <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
-              Or tap the link in the email — either works. Check spam if nothing arrives
-              within a minute. The code expires in 1 hour.
+              Check spam if nothing arrives within a minute. The code expires in 1 hour.
             </p>
 
             {provider && (

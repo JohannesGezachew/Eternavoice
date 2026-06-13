@@ -600,8 +600,14 @@ export function VoiceOrb({ state, playbackAmplitude, size = "lg" }: VoiceOrbProp
         targetHaloScale = 1 + Math.sin(t / 380) * 0.1;
         targetHaloOpacity = 0.7;
       } else if (isProcessing) {
-        targetScale = breath;
-        targetHaloOpacity = 0.5 + Math.sin(t / 700) * 0.12;
+        // Inhale the instant speech ends — gather and brighten, continuous
+        // with the thinking-gap inhale, so there's no flat "spinner" beat
+        // between hearing the user and beginning to reply.
+        targetScale = breath * 1.04 + Math.sin(t / 900) * 0.01;
+        targetHaloScale = 1.06 + Math.sin(t / 1300) * 0.04;
+        targetHaloOpacity = 0.58 + Math.sin(t / 1100) * 0.08;
+        targetCoreOpacity = 0.9;
+        targetSpecular = 0.72;
       }
 
       scale.set(scale.get() * 0.85 + targetScale * 0.15);

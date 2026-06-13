@@ -81,4 +81,7 @@ export interface ChatRequestPayload {
   /** First-ever conversation with this person — the persona gathers memory
    *  by asking to be reminded of the shared life. */
   firstMeeting?: boolean;
+  /** The user just interrupted (barged in) mid-reply — the persona should
+   *  acknowledge the cut-off naturally rather than barrelling on. */
+  recentlyInterrupted?: boolean;
 }

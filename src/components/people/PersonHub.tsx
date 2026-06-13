@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FadeSwap } from "@/components/ui/FadeSwap";
 import { PersonaForm } from "@/components/persona/PersonaForm";
 import { MemoryList } from "@/components/memory/MemoryList";
 import { ConversationHistory } from "@/components/conversation/ConversationHistory";
-import { VoicePrint } from "./VoicePrint";
+import { PersonAvatar } from "./PersonAvatar";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { trackEvent } from "@/lib/analytics";
@@ -116,57 +117,60 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
     }
   };
 
-  if (loading) {
-    // Skeleton of the page shape, not a blocking spinner — the layout is
-    // known before the data is.
-    return (
-      <div
-        className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-6 pb-16 pt-8 sm:px-8"
-        role="status"
-        aria-label="Loading"
-      >
-        <div className="flex items-center gap-5">
-          <div className="h-16 w-16 animate-pulse rounded-full bg-white/[0.04]" />
-          <div className="flex flex-col gap-2">
-            <div className="h-8 w-44 animate-pulse rounded-lg bg-white/[0.04]" />
-            <div className="h-4 w-28 animate-pulse rounded-md bg-white/[0.03]" />
-          </div>
-        </div>
-        <div className="h-24 animate-pulse rounded-2xl bg-white/[0.03]" />
-        <div className="h-12 animate-pulse rounded-xl bg-white/[0.03]" />
-        <div className="h-64 animate-pulse rounded-2xl bg-white/[0.025]" />
-      </div>
-    );
-  }
+  const state = loading ? "loading" : !subject ? "missing" : "ready";
 
-  if (!subject) {
+  if (loading || !subject) {
     return (
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-24">
-        <EmptyState
-          title="Person not found"
-          body="They may have been removed, or the link may be old. Everyone you've preserved is on your people page."
-          action={
-            <Button variant="primary" size="md" onClick={() => router.push("/people")}>
-              Back to your people
-            </Button>
-          }
-        />
-      </div>
+      <FadeSwap swapKey={state}>
+        {loading ? (
+          <div
+            className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-6 pb-16 pt-8 sm:px-8"
+            role="status"
+            aria-label="Loading"
+          >
+            <div className="flex items-center gap-5">
+              <div className="h-16 w-16 animate-pulse rounded-full bg-white/[0.04]" />
+              <div className="flex flex-col gap-2">
+                <div className="h-8 w-44 animate-pulse rounded-lg bg-white/[0.04]" />
+                <div className="h-4 w-28 animate-pulse rounded-md bg-white/[0.03]" />
+              </div>
+            </div>
+            <div className="h-24 animate-pulse rounded-2xl bg-white/[0.03]" />
+            <div className="h-12 animate-pulse rounded-xl bg-white/[0.03]" />
+            <div className="h-64 animate-pulse rounded-2xl bg-white/[0.025]" />
+          </div>
+        ) : (
+          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-24">
+            <EmptyState
+              variant="people"
+              title="Person not found"
+              body="They may have been removed, or the link may be old. Everyone you've preserved is on your people page."
+              action={
+                <Button variant="primary" size="md" onClick={() => router.push("/people")}>
+                  Back to your people
+                </Button>
+              }
+            />
+          </div>
+        )}
+      </FadeSwap>
     );
   }
 
   const persona = (subject.persona ?? { mode: "persona", name: subject.name }) as PersonaConfig;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pb-16 pt-8 sm:px-8">
+    <FadeSwap swapKey={state} className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pb-16 pt-8 sm:px-8">
       <motion.div initial="hidden" animate="enter" variants={stagger(0.07)} className="flex flex-col gap-8">
         {/* ── Identity ───────────────────────────────────────────── */}
         <motion.header variants={fadeUp} className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-5">
-            <VoicePrint
+            <PersonAvatar
+              id={subject.id}
               seed={`${subject.voice_id ?? subject.id}:${subject.name}`}
               size={64}
               initial={subject.name.trim().charAt(0).toUpperCase()}
+              editable
             />
             <div className="flex min-w-0 flex-col gap-1">
               <h1 className="font-serif text-[30px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[36px]">
@@ -330,7 +334,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
           )}
         </motion.div>
       </motion.div>
-    </div>
+    </FadeSwap>
   );
 }
 

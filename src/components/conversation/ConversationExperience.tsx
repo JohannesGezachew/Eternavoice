@@ -5,14 +5,19 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/lib/session";
-import { streamChat } from "@/lib/streamChat";
+import { streamChat, prewarmChat } from "@/lib/streamChat";
 import { PlaybackQueue, base64ToArrayBuffer } from "@/lib/audio/playbackQueue";
 import { Composer, VoiceOrb } from "./Composer";
 import { VoicePrint } from "@/components/people/VoicePrint";
+import { PersonAvatar } from "@/components/people/PersonAvatar";
 import { Message } from "./Message";
+import { ShortcutsOverlay } from "./ShortcutsOverlay";
+import { useSmoothText } from "./useSmoothText";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
+import { haptic } from "@/lib/haptics";
+import { openingTone, closingTone, saveChime } from "@/lib/sound";
 import { saveConversation, deleteConversationDb } from "@/lib/db/conversations";
 import { addMemoryDb } from "@/lib/db/memories";
 import { formatRelativeDay } from "@/lib/utils";
@@ -21,36 +26,14 @@ import type { ChatTurn } from "@/lib/types";
 const CHAT_CONTEXT_TURNS = 12;
 const MEMORY_CONTEXT_LIMIT = 10;
 
-/** Tactile ack on phones — begin, barge-in. Silently no-ops elsewhere. */
-function buzz(pattern: number | number[] = 12) {
-  try {
-    navigator.vibrate?.(pattern);
-  } catch {
-    // not supported
-  }
-}
-
-/** A quiet rising tone as the session opens — the room coming alive. */
-function playOpeningTone() {
-  try {
-    const ctx = new AudioContext();
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    gain.connect(ctx.destination);
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.connect(gain);
-    const t0 = ctx.currentTime;
-    osc.frequency.setValueAtTime(392, t0); // G4 …
-    osc.frequency.linearRampToValueAtTime(523.25, t0 + 0.45); // … rising to C5
-    gain.gain.linearRampToValueAtTime(0.04, t0 + 0.18);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2);
-    osc.start(t0);
-    osc.stop(t0 + 1.3);
-    osc.onended = () => void ctx.close();
-  } catch {
-    // silence is an acceptable fallback for a chime
-  }
+/** Evening dimming for the candlelight overlay: 0 by day, deepening after
+ *  dark, gentlest in the small hours. Returns a 0–1 intensity. */
+function candleIntensity(date = new Date()): number {
+  const h = date.getHours() + date.getMinutes() / 60;
+  if (h >= 19 && h < 23) return Math.min(1, (h - 19) / 2) * 0.5 + 0.25; // dusk → night
+  if (h >= 23 || h < 5) return 0.6; // deep night
+  if (h >= 5 && h < 7) return 0.2; // pre-dawn
+  return 0; // daylight
 }
 
 interface ConversationExperienceProps {
@@ -104,6 +87,14 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [showReflection, setShowReflection] = useState(false);
   const [reflectionText, setReflectionText] = useState("");
   const restartActionRef = useRef<(() => void) | null>(null);
+  // Ambient (phone-call) mode: chrome falls away, the room dims to just the orb.
+  const [ambient, setAmbient] = useState(false);
+  // Keyboard-shortcut reference overlay (desktop, "?").
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  // Candlelight intensity, recomputed from the local clock through the session.
+  const [candle, setCandle] = useState(0);
+  // The user just barged in — flag the next reply to acknowledge the cut-off.
+  const interruptedRef = useRef(false);
   const opened = hasBegun || turns.length > 0;
   const queueRef = useRef<PlaybackQueue | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -157,22 +148,57 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     return () => { if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current); };
   }, [status, hasBegun, responseError]);
 
-  // Space-bar barge-in on desktop (not in text fields).
+  // Desktop keyboard shortcuts (never inside text fields).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
-      if (!hasBegun || !opened) return;
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
-      if (status === "speaking" || status === "thinking") {
+
+      // "?" — shortcut reference, available any time.
+      if (e.key === "?") {
         e.preventDefault();
-        bargeIn();
+        setShowShortcuts((v) => !v);
+        return;
+      }
+      if (!hasBegun || !opened) return;
+
+      if (e.code === "Space") {
+        if (status === "speaking" || status === "thinking") {
+          e.preventDefault();
+          bargeIn();
+        }
+        return;
+      }
+      if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        setAmbient((v) => !v);
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        setShowTranscript((v) => !v);
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        restart();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasBegun, opened, status]);
+
+  // Candlelight: recompute the evening dim now and every few minutes.
+  useEffect(() => {
+    setCandle(candleIntensity());
+    const id = window.setInterval(() => setCandle(candleIntensity()), 4 * 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // Ambient mode hides the cursor after stillness and locks page scroll.
+  useEffect(() => {
+    if (!ambient) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [ambient]);
 
   // One-time hint: barge-in exists but is invisible until someone tells you.
   // Surface it during the first long reply, then never again.
@@ -328,9 +354,13 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             // Remember-together mode for roughly the first two minutes of a
             // first-ever conversation, then it falls away naturally.
             firstMeeting: firstEverRef.current && messages.length < 12,
+            // One-shot: the user cut off the previous reply — let the persona
+            // acknowledge it. Cleared as soon as it's read.
+            recentlyInterrupted: interruptedRef.current,
           },
           controller.signal,
         )) {
+          interruptedRef.current = false;
           if (event.type === "text") {
             textReceived = true;
             if (!assistantId) {
@@ -450,8 +480,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     firstEverRef.current = isFirst;
     setFirstEver(isFirst);
     setHasBegun(true);
-    buzz(12);
-    playOpeningTone();
+    haptic("begin");
+    openingTone();
 
     await ensureUnlocked();
     trackEvent("conversation_opened");
@@ -501,7 +531,12 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const handleSpeechState = useCallback(
     (state: "idle" | "recording" | "transcribing") => {
       if (state === "transcribing") setStatus("transcribing");
-      else if (state === "recording") setStatus("idle");
+      else if (state === "recording") {
+        setStatus("idle");
+        // The moment we hear speech, warm the chat function so its cold-start
+        // is paid during speech + transcription, not added to reply latency.
+        prewarmChat();
+      }
     },
     [setStatus],
   );
@@ -514,9 +549,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     setResponseNotice(null);
     setSilenceMessage(null);
     starterSentRef.current = false;
+    if (turns.length >= 2) closingTone();
     resetConversation();
     trackEvent("conversation_new_chat");
-  }, [resetConversation]);
+  }, [resetConversation, turns.length]);
 
   const restart = useCallback(() => {
     // Only prompt for reflection if the session had real turns.
@@ -556,7 +592,9 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     setStatus("idle");
     setResponseError(null);
     setResponseNotice("Stopped. I'm listening.");
-    buzz(8);
+    // Tell the next reply it was cut off, so the persona acknowledges it.
+    interruptedRef.current = true;
+    haptic("interrupt");
     trackEvent("conversation_barge_in", { status });
   }, [setStatus, status]);
 
@@ -567,6 +605,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       addMemory(turn.content, activeSubjectId ?? null);
       void addMemoryDb(turn.content, activeSubjectId ?? undefined).catch(console.error);
       setResponseNotice("Saved — they'll carry that into every conversation.");
+      saveChime();
+      haptic("save");
       trackEvent("memory_added_from_talk");
     },
     [addMemory, activeSubjectId],
@@ -591,6 +631,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+      saveChime();
+      haptic("save");
       trackEvent("keepsake_clip_saved", { chunks: chunks.length });
     },
     [headerName],
@@ -635,12 +677,55 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       className="relative flex flex-col"
       style={{ minHeight: "100dvh" }}
     >
+      {/* Candlelight — warm evening dim, deepened further in ambient mode. */}
+      <div
+        className="candlelight"
+        data-flicker={candle > 0.3 ? "true" : "false"}
+        style={{ "--candle-intensity": ambient ? Math.max(0.7, candle) : candle } as React.CSSProperties}
+        aria-hidden
+      />
+      {/* Ambient (phone-call) mode: a further dim over the whole room so only
+          the orb and the words remain. Decorative — the orb and composer sit
+          above it and stay live; exit via the pill below, Esc, or A. */}
+      <AnimatePresence>
+        {ambient && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+            className="pointer-events-none fixed inset-0 z-[6] bg-black/45"
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
+      {/* Exit affordance, top-right, above everything in ambient mode */}
+      <AnimatePresence>
+        {ambient && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            onClick={() => setAmbient(false)}
+            aria-label="Leave ambient mode"
+            className="fixed right-4 top-4 z-[40] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] bg-[var(--color-ink-2)]/70 text-[var(--color-bone-dim)] backdrop-blur-md transition hover:text-[var(--color-bone)]"
+            style={{ marginTop: "env(safe-area-inset-top)" }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Sticky: the name and the History/Transcript controls must survive
-          the scroll the transcript introduces. During the premiere the
-          chrome steps back so the first words own the room. */}
+          the scroll the transcript introduces. During the premiere — or in
+          ambient mode — the chrome steps back so the first words own the room. */}
       <header
         className={`sticky top-0 z-30 bg-[var(--color-ink)]/75 backdrop-blur-xl transition-opacity duration-1000 ${
-          premiere ? "pointer-events-none opacity-25" : "opacity-100"
+          premiere ? "pointer-events-none opacity-25" : ambient ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-8 sm:py-4">
@@ -718,12 +803,39 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                 <path d="M4 6h16M4 10h16M4 14h10" />
               </svg>
             </button>
+            {/* Mobile ambient toggle */}
+            <button
+              type="button"
+              onClick={() => setAmbient(true)}
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] sm:hidden"
+              aria-label="Ambient mode"
+            >
+              <AmbientIcon />
+            </button>
 
             {/* Desktop: text links — management lives on the person's page */}
             <div className="hidden items-center gap-x-4 sm:flex">
               <button type="button" onClick={restart} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">New conversation</button>
               <button type="button" onClick={() => setShowTranscript((open) => !open)} aria-expanded={showTranscript} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">Transcript</button>
               <button type="button" onClick={() => setShowHistory((open) => !open)} aria-expanded={showHistory} className="cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">History</button>
+              <button
+                type="button"
+                onClick={() => setAmbient(true)}
+                title="Ambient mode (A)"
+                className="flex items-center gap-1.5 cursor-pointer text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              >
+                <AmbientIcon />
+                Ambient
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowShortcuts(true)}
+                aria-label="Keyboard shortcuts"
+                title="Keyboard shortcuts (?)"
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-rule-strong)] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              >
+                ?
+              </button>
               <Link href={backHref} className="text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">
                 {backHref === "/people" ? "Your people" : "Persona & memories"}
               </Link>
@@ -733,8 +845,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       </header>
 
       <main
-        className={`relative flex flex-1 flex-col items-center justify-center px-6 transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] sm:px-8 ${
-          showTranscript ? "lg:pr-[28rem]" : ""
+        className={`relative z-10 flex flex-1 flex-col items-center justify-center px-6 transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] sm:px-8 ${
+          showTranscript && !ambient ? "lg:pr-[28rem]" : ""
         }`}
         style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       >
@@ -743,8 +855,16 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         <div aria-live="polite" className="sr-only">
           {latestTurn && latestTurn.id !== streamingTurnId ? latestTurn.content : ""}
         </div>
-        {/* Mobile-only persona name — stacks above the spotlight on narrow screens. */}
+        {/* Mobile-only persona identity — photo (or voiceprint) + name above
+            the spotlight on narrow screens. */}
         <div className="flex flex-col items-center text-center sm:hidden mb-4">
+          <PersonAvatar
+            id={activeSubjectId ?? voiceId}
+            seed={`${voiceId}:${headerName}`}
+            size={44}
+            initial={headerName.trim().charAt(0).toUpperCase() || "·"}
+            className="mb-2"
+          />
           <span className="font-serif text-[18px] tracking-[-0.005em] text-[var(--color-bone)]">
             {headerName}
           </span>
@@ -772,7 +892,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                 }
               >
                 {latestTurn.role === "user" ? "“" : null}
-                {latestTurn.content}
+                <SpotlightText
+                  content={latestTurn.content}
+                  smooth={latestTurn.id === streamingTurnId && latestTurn.role === "assistant"}
+                />
                 {latestTurn.role === "user" ? "”" : null}
                 {latestTurn.id === streamingTurnId && latestTurn.role === "assistant" ? (
                   <span
@@ -868,7 +991,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           )}
         </div>
 
-        {showTranscript ? (
+        {showTranscript && !ambient ? (
           <Transcript
             turns={turns}
             streamingTurnId={streamingTurnId}
@@ -881,6 +1004,24 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             }}
           />
         ) : null}
+
+        {/* Ambient mode: a quiet way out, floating above the dim. */}
+        <AnimatePresence>
+          {ambient && (
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              onClick={() => setAmbient(false)}
+              className="fixed inset-x-0 bottom-10 z-[40] mx-auto w-max cursor-pointer text-[11px] tracking-[0.22em] text-[var(--color-bone-dim)]/50 uppercase transition hover:text-[var(--color-bone-dim)]"
+              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+            >
+              Tap to leave · A
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         <HistoryDrawer
           open={showHistory}
@@ -989,6 +1130,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           )}
         </AnimatePresence>
       </main>
+
+      <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   );
 }
@@ -1362,5 +1505,21 @@ function BeginGate({
         An AI voice built from recordings of {name}.
       </p>
     </motion.div>
+  );
+}
+
+/** The spotlight line. Streaming assistant turns reveal smoothly so the words
+ *  appear spoken-into-being rather than pasted in sentence chunks. */
+function SpotlightText({ content, smooth }: { content: string; smooth: boolean }) {
+  const shown = useSmoothText(content, smooth);
+  return <>{shown}</>;
+}
+
+function AmbientIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
+    </svg>
   );
 }

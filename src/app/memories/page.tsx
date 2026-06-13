@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { MemoryList } from "@/components/memory/MemoryList";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
@@ -59,11 +60,12 @@ export default function MemoriesPage() {
               ))}
             </div>
           ) : grouped.length === 0 && unscopedCount === 0 ? (
-            <motion.div variants={fadeUp} className="rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-8 text-center">
-              <p className="font-serif text-[20px] text-[var(--color-bone)]/70">Nothing here yet</p>
-              <p className="mt-2 text-[14px] leading-[1.7] text-[var(--color-text-secondary)]">
-                Memories are saved during conversations when something worth keeping comes up.
-              </p>
+            <motion.div variants={fadeUp}>
+              <EmptyState
+                variant="memories"
+                title="Nothing here yet"
+                body="Memories are saved during conversations when something worth keeping comes up — or add your own on a person's page."
+              />
             </motion.div>
           ) : (
             <>

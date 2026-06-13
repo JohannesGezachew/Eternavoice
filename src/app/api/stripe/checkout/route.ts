@@ -47,7 +47,8 @@ export async function POST(request: Request) {
     subscription_data: {
       metadata: { supabase_user_id: user.id },
     },
-    automatic_tax: { enabled: true },
+    // Re-enable once Stripe Tax is configured (origin address + registrations).
+    automatic_tax: { enabled: false },
     success_url: `${origin}/people?subscribed=1`,
     cancel_url: `${origin}/subscribe?cancelled=1`,
   });

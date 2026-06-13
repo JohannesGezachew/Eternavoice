@@ -141,6 +141,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
           <motion.div variants={fadeUp}>
             <EmptyState
               compact
+              variant="memories"
               title="Nothing here yet"
               body={`Add a note above and ${personName} will recall it in every conversation.`}
             />
