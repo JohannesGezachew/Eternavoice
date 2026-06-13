@@ -671,7 +671,7 @@ function AuthForm() {
                 disabled={loading || !email.trim()}
                 className="text-[12px] text-[var(--color-bone-dim)]/55 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)] disabled:opacity-40"
               >
-                Sign in with an email code
+                Sign in with a one-time email code
               </button>
             </div>
 
