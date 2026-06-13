@@ -68,14 +68,11 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
   const [responseNotice, setResponseNotice] = useState<string | null>(null);
-  const [showTranscript, setShowTranscript] = useState(() => {
-    const s = useSession.getState();
-    const convCount = s.conversations.filter(
-      (c) => c.subjectId === s.activeSubjectId || c.voiceId === s.voiceId,
-    ).length;
-    // Default to open for the first 3 conversations so users discover it.
-    return convCount < 3 || s.prefs.transcriptDefault;
-  });
+  // Hidden by default — the conversation is meant to be heard, not read. The
+  // Transcript nav toggle (or an explicit saved preference) reveals it.
+  const [showTranscript, setShowTranscript] = useState(
+    () => useSession.getState().prefs.transcriptDefault,
+  );
   const [showHistory, setShowHistory] = useState(false);
   const [hasBegun, setHasBegun] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
