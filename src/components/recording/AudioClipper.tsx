@@ -5,6 +5,9 @@ import WavesurferPlayer from "@wavesurfer/react";
 import RegionsPlugin from "wavesurfer.js/plugins/regions";
 import type WaveSurfer from "wavesurfer.js";
 
+// Ember tint for the selected clip region — works on both themes.
+const regionColor = "rgba(194,120,74,0.22)";
+
 interface Props {
   url: string;
   showNudge: boolean;
@@ -24,6 +27,15 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
   const [regionsPlugin] = useState(() => RegionsPlugin.create());
   const plugins = useMemo(() => [regionsPlugin], [regionsPlugin]);
 
+  // Waveform colors must contrast with whichever theme is active. The base
+  // tokens are light (bone), which disappear on the default light theme — so
+  // pick dark bars on light, light bars on dark.
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.dataset.theme === "dark";
+  const waveColor = isDark ? "rgba(245,239,230,0.28)" : "rgba(36,27,17,0.32)";
+  const progressColor = isDark ? "rgba(245,239,230,0.6)" : "rgba(36,27,17,0.62)";
+
   const handleReady = useCallback(
     (ws: WaveSurfer, duration: number) => {
       wsRef.current = ws;
@@ -33,7 +45,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
 
       const rp = regionsPlugin;
 
-      rp.enableDragSelection({ color: "rgba(194,120,74,0.15)" });
+      rp.enableDragSelection({ color: regionColor });
 
       rp.on("region-created", (region) => {
         rp.getRegions().forEach((r) => {
@@ -67,7 +79,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
       regionsPlugin.addRegion({
         start: boundedStart,
         end: boundedEnd,
-        color: "rgba(194,120,74,0.18)",
+        color: regionColor,
       });
       setHasRegion(true);
       onRegionChange({ start: boundedStart, end: boundedEnd });
@@ -113,9 +125,9 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
             url={url}
             plugins={plugins}
             height={72}
-            waveColor="rgba(245,239,230,0.18)"
-            progressColor="rgba(245,239,230,0.5)"
-            cursorColor="rgba(194,120,74,0.8)"
+            waveColor={waveColor}
+            progressColor={progressColor}
+            cursorColor="rgba(194,120,74,0.9)"
             barWidth={2}
             barGap={1}
             barRadius={2}
