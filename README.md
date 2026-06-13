@@ -1,4 +1,4 @@
-# EternaVoice — V1 Magic-Moment Demo
+# EternaVoice — V1
 
 Continuous voice conversations with someone you can no longer reach.
 
@@ -143,7 +143,6 @@ src/
 ```
 
 ---
-
 
 ## Stack
 
