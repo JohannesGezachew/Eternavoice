@@ -15,6 +15,7 @@ export interface RecorderInit {
 
 export interface ActiveRecorder {
   stop: () => Promise<{ blob: Blob; mimeType: string; durationMs: number }>;
+  reset: () => void;
   cancel: () => void;
   stream: MediaStream;
   audioContext: AudioContext;
@@ -143,6 +144,9 @@ export async function startRecording(init: RecorderInit = {}): Promise<ActiveRec
           reject(e);
         }
       }),
+    reset: () => {
+      chunks.length = 0;
+    },
     cancel: () => {
       try {
         if (recorder.state !== "inactive") recorder.stop();

@@ -1,9 +1,6 @@
-import { VoicePreview } from "@/components/recording/VoicePreview";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Preview voice · EternaVoice",
-};
-
+// The preview is the Listen step of the creation flow.
 export default function VoicePreviewPage() {
-  return <VoicePreview />;
+  redirect("/people/new");
 }

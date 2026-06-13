@@ -1,9 +1,6 @@
-import { ConversationList } from "@/components/conversation/ConversationList";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Conversations · EternaVoice",
-};
-
+// Conversation history is per-person and lives on the person's page now.
 export default function ConversationsPage() {
-  return <ConversationList />;
+  redirect("/people");
 }

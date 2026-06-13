@@ -7,6 +7,8 @@ import { buildChatPrompt } from "@/lib/prompts";
 import { SentenceBuffer } from "@/lib/sentences";
 import { encodeSse, type ChatEvent } from "@/lib/sse";
 import { checkRate } from "@/lib/rateLimit";
+import { createClient } from "@/lib/supabase/server";
+import { deriveUserKey, decryptField } from "@/lib/crypto";
 
 export const runtime = "nodejs";
 // Vercel Hobby caps function duration at 60s; replies typically finish in 5–20s.
@@ -61,6 +63,12 @@ const Body = z.object({
     )
     .max(20)
     .optional(),
+  subjectId: z.string().uuid().optional(),
+  /** First-ever conversation with this person: the persona gathers memory
+   *  by asking to be reminded of the shared life. */
+  firstMeeting: z.boolean().optional(),
+  /** The user just barged in mid-reply — acknowledge the interruption. */
+  recentlyInterrupted: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -79,7 +87,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
 
-  const turnId = `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  // Continuity context lives server-side: session summaries plus the stored
+  // memories for this person. Merging DB memories here means the prompt never
+  // depends on the client's local store being fresh — facts extracted from a
+  // previous conversation reach the very next one, on any device.
+  let sessionSummaries: Array<{ summary: string; createdAt: string }> = [];
+  const memoryPool: string[] = (parsed.memories ?? []).map((m) => m.content.trim()).filter(Boolean);
+  if (parsed.subjectId) {
+    try {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const key = deriveUserKey(user.id);
+        const { data } = await supabase
+          .from("session_summaries")
+          .select("summary_enc, created_at")
+          .eq("user_id", user.id)
+          .eq("subject_id", parsed.subjectId)
+          .order("created_at", { ascending: false })
+          .limit(3);
+        sessionSummaries = (data ?? []).map((row) => ({
+          summary: (() => {
+            try { return decryptField(row.summary_enc as string, key); } catch { return ""; }
+          })(),
+          createdAt: row.created_at as string,
+        })).filter((s) => s.summary);
+
+        const { data: memRows } = await supabase
+          .from("memories")
+          .select("content_enc")
+          .eq("user_id", user.id)
+          .eq("subject_id", parsed.subjectId)
+          .is("deleted_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(MEMORY_CONTEXT_LIMIT);
+        for (const row of memRows ?? []) {
+          try {
+            const content = decryptField(row.content_enc as string, key).trim();
+            if (content && !memoryPool.some((m) => m.toLowerCase() === content.toLowerCase())) {
+              memoryPool.push(content);
+            }
+          } catch {
+            // undecryptable row — skip
+          }
+        }
+      }
+    } catch {
+      // Non-fatal — continue without server context
+    }
+  }
+
+  // A real UUID — this becomes the assistant turn's id in the client store
+  // and, from there, a uuid primary key in the turns table.
+  const turnId = crypto.randomUUID();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -191,7 +251,10 @@ export async function POST(request: Request) {
 
       const systemPrompt = buildChatPrompt(
         parsed.persona,
-        (parsed.memories ?? []).slice(0, MEMORY_CONTEXT_LIMIT),
+        memoryPool.slice(0, 12).map((content) => ({ content })),
+        sessionSummaries,
+        Boolean(parsed.firstMeeting),
+        Boolean(parsed.recentlyInterrupted),
       );
       const sentences = new SentenceBuffer();
       let rawText = "";
@@ -199,7 +262,7 @@ export async function POST(request: Request) {
       let sentenceCount = 0;
 
       const enqueueSentence = (sentence: string) => {
-        const polished = humanizeSentence(sentence, parsed.persona);
+        const polished = humanizeSentence(sentence, parsed.persona, Boolean(parsed.firstMeeting));
         if (!polished) return;
         const index = sentenceCount++;
         fullText = `${fullText}${fullText ? " " : ""}${polished}`.trim();
@@ -220,9 +283,10 @@ export async function POST(request: Request) {
           model: env.OPENAI_CHAT_MODEL,
           stream: true,
           temperature: 0.75,
-          max_tokens:
-            parsed.persona.speechStyle?.talkativeness &&
-            parsed.persona.speechStyle.talkativeness >= 7
+          max_tokens: parsed.firstMeeting
+            ? 110 // room for a reaction plus the remembering question
+            : parsed.persona.speechStyle?.talkativeness &&
+                parsed.persona.speechStyle.talkativeness >= 7
               ? 130
               : 75,
           messages: [
@@ -296,7 +360,11 @@ const GENERIC_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\bas an ai\b/gi, ""],
 ];
 
-function humanizeSentence(sentence: string, persona: z.infer<typeof Body>["persona"]): string {
+function humanizeSentence(
+  sentence: string,
+  persona: z.infer<typeof Body>["persona"],
+  firstMeeting = false,
+): string {
   let next = sentence.replace(/\s+/g, " ").trim();
   if (!next) return "";
 
@@ -319,8 +387,10 @@ function humanizeSentence(sentence: string, persona: z.infer<typeof Body>["perso
     if (next && !/[.?!…]$/.test(next)) next += "...";
   }
 
+  // The anti-interrogation filter flattens trailing questions — but during
+  // the first-meeting interview, questions ARE the conversation.
   const questionCount = (next.match(/\?/g) ?? []).length;
-  if ((calibration?.tooManyQuestions || questionCount > 0) && next.endsWith("?")) {
+  if (!firstMeeting && (calibration?.tooManyQuestions || questionCount > 0) && next.endsWith("?")) {
     next = next.replace(/\?+$/, ".");
   }
 

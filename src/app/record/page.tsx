@@ -1,17 +1,6 @@
-import { Nav } from "@/components/shell/Nav";
-import { RecordExperience } from "@/components/recording/RecordExperience";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Record · EternaVoice",
-};
-
+// Recording now lives inside the guided creation flow.
 export default function RecordPage() {
-  return (
-    <>
-      <Nav />
-      <main className="relative flex flex-1 flex-col">
-        <RecordExperience />
-      </main>
-    </>
-  );
+  redirect("/people/new");
 }

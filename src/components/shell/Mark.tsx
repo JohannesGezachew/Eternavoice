@@ -15,23 +15,23 @@ export function Mark({ className }: { className?: string }) {
           cx="11"
           cy="11"
           r="10"
-          stroke="rgba(199,162,124,0.14)"
+          stroke="rgba(194,120,74,0.14)"
           strokeWidth="0.75"
-          className="transition-all duration-700 group-hover/mark:[stroke:rgba(199,162,124,0.28)]"
+          className="transition-all duration-700 group-hover/mark:[stroke:rgba(194,120,74,0.28)]"
         />
         <circle
           cx="11"
           cy="11"
           r="5.5"
-          fill="rgba(199,162,124,0.12)"
-          className="transition-all duration-700 group-hover/mark:[fill:rgba(199,162,124,0.24)]"
+          fill="rgba(194,120,74,0.12)"
+          className="transition-all duration-700 group-hover/mark:[fill:rgba(194,120,74,0.24)]"
         />
         <circle
           cx="11"
           cy="11"
           r="2.5"
-          fill="rgba(199,162,124,0.82)"
-          className="transition-all duration-700 group-hover/mark:[fill:rgba(199,162,124,1)]"
+          fill="rgba(194,120,74,0.82)"
+          className="transition-all duration-700 group-hover/mark:[fill:rgba(194,120,74,1)]"
         />
       </svg>
       <span className="font-serif text-[17px] tracking-[-0.01em] text-[var(--color-bone)]">

@@ -27,7 +27,7 @@ export function RecordControl({ state, onClick, disabled, label }: RecordControl
           className="absolute inset-[-12px] rounded-full"
           style={{
             background:
-              "radial-gradient(closest-side, rgba(199,162,124,0.35), transparent 70%)",
+              "radial-gradient(closest-side, rgba(194,120,74,0.35), transparent 70%)",
           }}
           animate={{ scale: [1, 1.15, 1] }}
           transition={{ duration: 2.6, ease: [0.16, 1, 0.3, 1], repeat: Infinity }}
@@ -38,7 +38,7 @@ export function RecordControl({ state, onClick, disabled, label }: RecordControl
         className={cn(
           "relative flex h-20 w-20 items-center justify-center rounded-full border transition-[background,border-color,box-shadow] duration-500",
           recording
-            ? "border-[var(--color-ember)]/60 bg-[var(--color-ember)]/10 shadow-[0_0_0_1px_rgba(199,162,124,0.2),0_20px_60px_-20px_rgba(199,162,124,0.6)]"
+            ? "border-[var(--color-ember)]/60 bg-[var(--color-ember)]/10 shadow-[0_0_0_1px_rgba(194,120,74,0.2),0_20px_60px_-20px_rgba(194,120,74,0.6)]"
             : "border-[var(--color-rule-strong)] bg-white/[0.03] group-hover:border-[var(--color-ember)]/40 group-hover:bg-white/[0.05]",
         )}
       >

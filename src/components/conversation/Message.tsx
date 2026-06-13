@@ -9,11 +9,17 @@ export function Message({
   streaming,
   onReplay,
   onFeedback,
+  onSaveClip,
+  onRemember,
 }: {
   turn: ChatTurn;
   streaming?: boolean;
   onReplay?: () => void;
   onFeedback?: (feedback: NonNullable<ChatTurn["feedback"]>) => void;
+  /** Download this reply's audio as a keepsake. */
+  onSaveClip?: () => void;
+  /** Save this (user) turn as a memory the persona carries forward. */
+  onRemember?: () => void;
 }) {
   const isUser = turn.role === "user";
   return (
@@ -36,7 +42,18 @@ export function Message({
         )}
       >
         {isUser ? (
-          <p className="text-[15px] leading-[1.6]">{turn.content}</p>
+          <div className="space-y-2">
+            <p className="text-[15px] leading-[1.6]">{turn.content}</p>
+            {onRemember ? (
+              <button
+                type="button"
+                onClick={onRemember}
+                className="rounded-full border border-[var(--color-rule-strong)] px-2.5 py-1 text-[11px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/40 hover:text-[var(--color-bone)]"
+              >
+                Remember this
+              </button>
+            ) : null}
+          </div>
         ) : (
           <div className="space-y-3">
             <p>
@@ -54,6 +71,15 @@ export function Message({
                     className="rounded-full border border-[var(--color-rule-strong)] px-2.5 py-1 text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
                   >
                     Replay voice
+                  </button>
+                ) : null}
+                {onSaveClip ? (
+                  <button
+                    type="button"
+                    onClick={onSaveClip}
+                    className="rounded-full border border-[var(--color-rule-strong)] px-2.5 py-1 text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                  >
+                    Save clip
                   </button>
                 ) : null}
                 {onFeedback ? [

@@ -12,12 +12,16 @@
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.46.0",
+    "@stripe/stripe-js": "^9.7.0",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.107.0",
     "@wavesurfer/react": "^1.0.12",
     "framer-motion": "^12.38.0",
     "next": "^16.2.6",
     "openai": "^6.37.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "stripe": "^22.2.0",
     "wavesurfer.js": "^7.12.7",
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
@@ -33,6 +37,7 @@
     "postcss": "^8.5.14",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
+    "puppeteer": "^24.43.1",
     "tailwindcss": "^4.2.4",
     "typescript": "^5.7.3"
   }

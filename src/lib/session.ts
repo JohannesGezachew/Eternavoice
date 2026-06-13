@@ -36,10 +36,18 @@ if (typeof window !== "undefined") {
   }
 }
 
+export interface ListeningPrefs {
+  /** TTS playback rate — slower options matter for older ears. */
+  playbackRate: number;
+  /** Open the talk page with the transcript already visible. */
+  transcriptDefault: boolean;
+}
+
 interface SessionState {
   voiceId: string | null;
   voiceCreatedAt: number | null;
   voiceName: string;
+  activeSubjectId: string | null;
   voices: VoiceLibraryItem[];
   persona: PersonaConfig;
   turns: ChatTurn[];
@@ -47,9 +55,10 @@ interface SessionState {
   currentConversationId: string | null;
   memories: MemoryItem[];
   status: ConversationStatus;
+  prefs: ListeningPrefs;
 
-  setVoice: (voiceId: string, name: string) => void;
-  setActiveVoice: (voiceId: string) => void;
+  setVoice: (voiceId: string, name: string, subjectId?: string) => void;
+  setActiveVoice: (voiceId: string, subjectId?: string) => void;
   renameVoice: (voiceId: string, name: string) => void;
   forgetVoice: (voiceId: string) => void;
   clearVoice: () => void;
@@ -66,12 +75,18 @@ interface SessionState {
   renameConversation: (conversationId: string, title: string) => void;
   toggleConversationPin: (conversationId: string) => void;
   deleteConversation: (conversationId: string) => void;
-  addMemory: (content: string) => void;
+  addMemory: (content: string, subjectId?: string | null) => void;
   updateMemory: (id: string, content: string) => void;
   deleteMemory: (id: string) => void;
   setStatus: (status: ConversationStatus) => void;
+  setPrefs: (prefs: Partial<ListeningPrefs>) => void;
   resetConversation: () => void;
   resetAll: () => void;
+  hydrateFromDb: (data: {
+    subjects: Array<{ id: string; name: string; voice_id: string | null; created_at: string }>;
+    memories: MemoryItem[];
+    conversations: ConversationRecord[];
+  }) => void;
 }
 
 const defaultPersona: PersonaConfig = {
@@ -79,8 +94,10 @@ const defaultPersona: PersonaConfig = {
   name: "",
 };
 
-function newId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+// Real UUIDs: conversation and turn ids are primary keys in Postgres uuid
+// columns — prefixed base36 ids made every DB save fail silently.
+function newId(_prefix: string): string {
+  return crypto.randomUUID();
 }
 
 function conversationTitle(turns: ChatTurn[]): string {
@@ -109,6 +126,7 @@ function upsertConversation(
     id,
     voiceId: state.voiceId,
     voiceName: state.voiceName,
+    subjectId: existing?.subjectId ?? state.activeSubjectId ?? null,
     persona: state.persona,
     turns,
     title: existing?.title ?? conversationTitle(turns),
@@ -155,6 +173,7 @@ export const useSession = create<SessionState>()(
       voiceId: null,
       voiceCreatedAt: null,
       voiceName: "",
+      activeSubjectId: null,
       voices: [],
       persona: defaultPersona,
       turns: [],
@@ -162,17 +181,29 @@ export const useSession = create<SessionState>()(
       currentConversationId: null,
       memories: [],
       status: "idle",
+      prefs: { playbackRate: 1, transcriptDefault: false },
 
-      setVoice: (voiceId, name) =>
+      setVoice: (voiceId, name, subjectId) =>
         set((s) => {
           const createdAt = Date.now();
           const voices = [
-            { id: voiceId, name, createdAt },
+            { id: voiceId, name, createdAt, subjectId },
             ...s.voices.filter((v) => v.id !== voiceId),
           ];
-          return { voiceId, voiceName: name, voiceCreatedAt: createdAt, voices };
+          // A new active voice always starts a fresh thread — turns from a
+          // previous persona must never bleed into this one.
+          return {
+            voiceId,
+            voiceName: name,
+            voiceCreatedAt: createdAt,
+            activeSubjectId: subjectId ?? null,
+            voices,
+            turns: [],
+            currentConversationId: null,
+            status: "idle" as const,
+          };
         }),
-      setActiveVoice: (voiceId) =>
+      setActiveVoice: (voiceId, subjectId) =>
         set((s) => {
           const voice = s.voices.find((v) => v.id === voiceId);
           if (!voice) return {};
@@ -180,6 +211,7 @@ export const useSession = create<SessionState>()(
             voiceId: voice.id,
             voiceName: voice.name,
             voiceCreatedAt: voice.createdAt,
+            activeSubjectId: subjectId ?? voice.subjectId ?? null,
             turns: [],
             currentConversationId: null,
             status: "idle",
@@ -256,8 +288,9 @@ export const useSession = create<SessionState>()(
           const conversation = s.conversations.find((c) => c.id === conversationId);
           if (!conversation) return {};
           return {
-            voiceId: conversation.voiceId,
-            voiceName: conversation.voiceName,
+            voiceId: conversation.voiceId || s.voiceId,
+            voiceName: conversation.voiceName || s.voiceName,
+            activeSubjectId: conversation.subjectId ?? s.activeSubjectId,
             voiceCreatedAt:
               s.voices.find((voice) => voice.id === conversation.voiceId)?.createdAt ??
               s.voiceCreatedAt,
@@ -302,14 +335,20 @@ export const useSession = create<SessionState>()(
             status: "idle",
           };
         }),
-      addMemory: (content) =>
+      addMemory: (content, subjectId) =>
         set((s) => {
           const clean = content.replace(/\s+/g, " ").trim();
           if (!clean) return {};
           const now = Date.now();
           return {
             memories: [
-              { id: newId("m"), content: clean, createdAt: now, updatedAt: now },
+              {
+                id: newId("m"),
+                content: clean,
+                createdAt: now,
+                updatedAt: now,
+                subjectId: subjectId ?? s.activeSubjectId ?? null,
+              },
               ...s.memories,
             ].slice(0, 80),
           };
@@ -329,6 +368,7 @@ export const useSession = create<SessionState>()(
       deleteMemory: (id) =>
         set((s) => ({ memories: s.memories.filter((memory) => memory.id !== id) })),
       setStatus: (status) => set({ status }),
+      setPrefs: (prefs) => set((s) => ({ prefs: { ...s.prefs, ...prefs } })),
       resetConversation: () =>
         set({ turns: [], currentConversationId: newId("c"), status: "idle" }),
       resetAll: () =>
@@ -336,6 +376,7 @@ export const useSession = create<SessionState>()(
           voiceId: null,
           voiceCreatedAt: null,
           voiceName: "",
+          activeSubjectId: null,
           voices: [],
           persona: defaultPersona,
           turns: [],
@@ -343,6 +384,44 @@ export const useSession = create<SessionState>()(
           currentConversationId: null,
           memories: [],
           status: "idle",
+        }),
+      hydrateFromDb: ({ subjects, memories, conversations }) =>
+        set((s) => {
+          // Build voices from subjects that have a voice_id
+          const dbVoices: VoiceLibraryItem[] = subjects
+            .filter((sub) => sub.voice_id)
+            .map((sub) => ({
+              id: sub.voice_id!,
+              name: sub.name,
+              createdAt: new Date(sub.created_at).getTime(),
+              subjectId: sub.id,
+            }));
+
+          // Merge: prefer DB voices over localStorage voices
+          const mergedVoices = dbVoices.length ? dbVoices : s.voices;
+
+          // Merge memories: prefer DB (more authoritative)
+          const mergedMemories = memories.length ? memories : s.memories;
+
+          // Merge conversations: prefer DB
+          const mergedConversations = conversations.length
+            ? sortConversations(conversations)
+            : s.conversations;
+
+          // If no active voice but we have DB voices, set the first one
+          const firstVoice = mergedVoices[0];
+          const voiceId = s.voiceId ?? (firstVoice?.id ?? null);
+          const voiceName = voiceId === firstVoice?.id ? (firstVoice?.name ?? s.voiceName) : s.voiceName;
+          const activeSubjectId = s.activeSubjectId ?? (firstVoice?.subjectId ?? null);
+
+          return {
+            voices: mergedVoices,
+            memories: mergedMemories,
+            conversations: mergedConversations,
+            voiceId,
+            voiceName,
+            activeSubjectId,
+          };
         }),
     }),
     {
@@ -375,10 +454,13 @@ export const useSession = create<SessionState>()(
         })),
         currentConversationId: state.currentConversationId,
         memories: state.memories,
+        prefs: state.prefs,
       }),
       merge: (persisted, current) => {
         const state = { ...current, ...(persisted as Partial<SessionState>) };
         state.memories = state.memories ?? [];
+        // Sessions persisted before prefs existed.
+        state.prefs = { ...current.prefs, ...(state.prefs ?? {}) };
         state.conversations = sortConversations(state.conversations ?? []);
         if (!state.voices?.length && state.voiceId) {
           state.voices = [
