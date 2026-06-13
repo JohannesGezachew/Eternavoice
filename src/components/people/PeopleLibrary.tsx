@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { VoicePrint } from "./VoicePrint";
+import { PersonAvatar } from "./PersonAvatar";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { formatRelativeDay } from "@/lib/utils";
@@ -212,6 +212,7 @@ export function PeopleLibrary() {
           ) : (
             <motion.div variants={fadeUp} className="sm:col-span-2">
               <EmptyState
+                variant="people"
                 title="No one here yet"
                 body="Start with any recording of their voice — a voicemail, a video, a voice note — and you'll be talking in a few minutes."
                 action={
@@ -269,7 +270,8 @@ function PersonCard({
       ) : null}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          <VoicePrint
+          <PersonAvatar
+            id={person.subjectId ?? person.voiceId}
             seed={`${person.voiceId}:${person.name}`}
             size={56}
             initial={person.name.trim().charAt(0).toUpperCase() || "·"}

@@ -417,3 +417,29 @@ html:not([data-theme="dark"]) [class*="hover:bg-white/"]:hover {
       0 0 0 1px rgba(194, 120, 74, 0.4),
       0 0 0 4px rgba(194, 120, 74, 0.35);
   }
+
+  /* Candlelight — a warm low vignette laid over the talk room in the evening.
+     Subtle by default; the inline --candle-intensity (set by the client from
+     the local hour) deepens it after dark. Pointer-events-none, decorative. */
+  .candlelight {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    opacity: var(--candle-intensity, 0);
+    transition: opacity 1.6s var(--ease-calm);
+    background:
+      radial-gradient(120% 90% at 50% 8%, transparent 38%, rgba(120, 64, 26, 0.10) 78%, rgba(70, 34, 12, 0.22) 100%),
+      radial-gradient(80% 60% at 50% 120%, rgba(194, 120, 74, 0.10), transparent 70%);
+  }
+
+  /* A barely-there flame flicker on the warm cast — disabled under
+     reduced-motion by the global block above. */
+  @keyframes candleFlicker {
+    0%, 100% { opacity: var(--candle-intensity, 0); }
+    45% { opacity: calc(var(--candle-intensity, 0) * 0.86); }
+    70% { opacity: calc(var(--candle-intensity, 0) * 1.06); }
+  }
+  .candlelight[data-flicker="true"] {
+    animation: candleFlicker 6.5s ease-in-out infinite;
+  }

@@ -67,6 +67,8 @@ const Body = z.object({
   /** First-ever conversation with this person: the persona gathers memory
    *  by asking to be reminded of the shared life. */
   firstMeeting: z.boolean().optional(),
+  /** The user just barged in mid-reply — acknowledge the interruption. */
+  recentlyInterrupted: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -252,6 +254,7 @@ export async function POST(request: Request) {
         memoryPool.slice(0, 12).map((content) => ({ content })),
         sessionSummaries,
         Boolean(parsed.firstMeeting),
+        Boolean(parsed.recentlyInterrupted),
       );
       const sentences = new SentenceBuffer();
       let rawText = "";

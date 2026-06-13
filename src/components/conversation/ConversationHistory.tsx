@@ -64,6 +64,7 @@ export function ConversationHistory({
     return (
       <EmptyState
         compact
+        variant="conversations"
         title="No conversations yet"
         body="They'll appear here after your first exchange — every word saved, ready to pick back up."
       />

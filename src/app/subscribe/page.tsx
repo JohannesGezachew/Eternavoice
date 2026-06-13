@@ -108,7 +108,7 @@ export default function SubscribePage() {
             </p>
             <div className="mt-3 flex items-baseline gap-2.5">
               <span className="font-serif text-[52px] leading-none tracking-[-0.03em] text-[var(--color-bone)]">
-                £30
+                $30
               </span>
               <div className="flex flex-col leading-tight">
                 <span className="text-[13px] text-[var(--color-bone-dim)]">/month</span>
@@ -144,11 +144,11 @@ export default function SubscribePage() {
                   transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                 />
               ) : (
-                "Continue — £30/month"
+                "Continue — $30/month"
               )}
             </button>
             <p className="text-center text-[12px] leading-relaxed text-[var(--color-bone-dim)]/80">
-              About £1 a day to keep talking · Cancel anytime · Secure checkout via Stripe
+              About $1 a day to keep talking · Cancel anytime · Secure checkout via Stripe
             </p>
           </div>
         </motion.div>

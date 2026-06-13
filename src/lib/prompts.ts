@@ -136,11 +136,17 @@ function firstMeetingDirective(persona: PersonaConfig): string {
   ].join("\n");
 }
 
+const INTERRUPTION_DIRECTIVE = [
+  "You were just interrupted:",
+  "The user began speaking before you finished your last reply, so they cut you off. Acknowledge it lightly and naturally the way a real person would — a brief \"sorry, go on\", \"you first\", or simply drop what you were saying and respond to them. Do not repeat the reply they cut off. Do not draw attention to it beyond a beat.",
+].join("\n");
+
 export function buildChatPrompt(
   persona: PersonaConfig,
   memories: Array<Pick<MemoryItem, "content">> = [],
   sessionSummaries: Array<{ summary: string; createdAt: string }> = [],
   firstMeeting = false,
+  recentlyInterrupted = false,
 ): string {
   const memoryLines = memories
     .map((memory) => memory.content.trim())
@@ -151,6 +157,10 @@ export function buildChatPrompt(
 
   if (firstMeeting) {
     parts.push(firstMeetingDirective(persona));
+  }
+
+  if (recentlyInterrupted) {
+    parts.push(INTERRUPTION_DIRECTIVE);
   }
 
   if (memoryLines.length) {
