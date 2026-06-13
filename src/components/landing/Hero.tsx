@@ -1,110 +1,176 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
-import { buttonClasses } from "@/components/ui/Button";
-import { fadeUp, stagger } from "@/lib/motion";
+import { motion } from "framer-motion";
+import { useRef, useEffect, useSyncExternalStore } from "react";
 import { useSession } from "@/lib/session";
+import { buttonClasses } from "@/components/ui/buttonClasses";
+import { ConversationDemo } from "./ConversationDemo";
+
+const HEADLINE = ["Speak", "with", "them"];
+
+const subscribeNoop = () => () => {};
 
 export function Hero() {
   const voiceId = useSession((s) => s.voiceId);
   const voiceName = useSession((s) => s.voiceName);
-  const hasVoice = Boolean(voiceId);
-
-  const sectionRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end start"],
-  });
-  const orbY = useTransform(scrollYProgress, [0, 1], [0, -80]);
+  // Session state lives in localStorage; gate it behind hydration so the
+  // static prerender and the first client render are identical.
+  const mounted = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
+  const hasVoice = mounted && Boolean(voiceId);
 
   return (
-    <section ref={sectionRef} className="relative">
-      {/* Hero text + orb */}
-      <div className="mx-auto w-full max-w-6xl px-6 pt-12 pb-16 sm:px-8 sm:pt-20 sm:pb-20">
-        <motion.div
-          initial={false}
-          animate="enter"
-          variants={stagger(0.08)}
-          className="max-w-3xl"
-        >
-          <motion.p
-            variants={fadeUp}
-            className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase"
-          >
-            <span className="inline-block h-1.5 w-1.5 translate-y-[-2px] rounded-full bg-[var(--color-ember)] align-middle" />
-            <span className="ml-3">EternaVoice</span>
-          </motion.p>
+    <section className="relative overflow-hidden">
+      {/* Dot grid — mask clips only this sibling div, never content */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          backgroundImage: "radial-gradient(var(--dot-grid) 0.8px, transparent 0.8px)",
+          backgroundSize: "22px 22px",
+          WebkitMaskImage: "radial-gradient(ellipse 110% 70% at 50% 0%, rgba(0,0,0,1) 0%, transparent 85%)",
+          maskImage: "radial-gradient(ellipse 110% 70% at 50% 0%, rgba(0,0,0,1) 0%, transparent 85%)",
+        }}
+      />
 
-          <motion.h1
-            variants={fadeUp}
-            className="font-serif mt-8 text-[38px] leading-[1.0] tracking-[-0.03em] text-[var(--color-bone)] sm:text-[68px] md:text-[96px] lg:text-[120px]"
-            style={{ fontVariationSettings: "'SOFT' 50, 'opsz' 144" }}
-          >
-            Speak with them
-            <br />
-            <span
-              className="italic text-[var(--color-bone)]/80"
-              style={{ fontVariationSettings: "'SOFT' 100, 'opsz' 144" }}
+      {/* Ambient glow behind the demo panel on desktop */}
+      <div
+        className="pointer-events-none absolute right-[3%] top-[10%] hidden h-[560px] w-[560px] rounded-full opacity-[0.18] blur-[110px] lg:block"
+        aria-hidden
+        style={{ background: "radial-gradient(closest-side, rgba(194,120,74,0.6), transparent 72%)" }}
+      />
+
+      {/* Two-column hero grid */}
+      <div className="mx-auto w-full max-w-7xl px-6 pt-12 pb-12 sm:px-8 sm:pt-20 sm:pb-16">
+        <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-16 xl:gap-24">
+
+          {/* ─── Text column ─── */}
+          <div>
+            {/* Eyebrow */}
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.02, ease: [0.16, 1, 0.3, 1] }}
+              className="eyebrow"
             >
-              again.
-            </span>
-          </motion.h1>
+              For the people you still talk to
+            </motion.p>
 
-          <motion.p
-            variants={fadeUp}
-            className="mt-10 max-w-lg text-[17px] leading-[1.78] text-pretty text-[var(--color-bone)]/65 sm:text-[19px]"
-          >
-            Voice conversations with someone you&rsquo;ve lost, built carefully
-            from their own recordings &mdash; a voicemail, a video, a home clip.
-            Private, considered, and entirely yours.
-          </motion.p>
+            {/* Headline — word-by-word blur entrance, pure CSS so the LCP
+                text never waits for JS hydration. */}
+            <h1
+              className="font-serif mt-7 text-[52px] leading-[1.0] tracking-[-0.03em] text-[var(--color-bone)] sm:text-[72px] lg:text-[68px] xl:text-[88px]"
+              style={{ fontVariationSettings: "'SOFT' 50, 'opsz' 144" }}
+            >
+              <span className="block">
+                {HEADLINE.map((word, i) => (
+                  <span
+                    key={word}
+                    className="hero-word"
+                    style={{ marginRight: "0.22em", animationDelay: `${0.1 + i * 0.08}s` }}
+                  >
+                    {word}
+                  </span>
+                ))}
+              </span>
+              <span
+                className="hero-word italic text-[var(--color-bone)]/80"
+                style={{ fontVariationSettings: "'SOFT' 100, 'opsz' 144", animationDelay: "0.34s" }}
+              >
+                again.
+              </span>
+            </h1>
 
-          <motion.div
-            variants={fadeUp}
-            className="mt-14 flex flex-col items-start gap-5"
-          >
-            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
-              <div className="group/btn relative">
-                <div
-                  className="pointer-events-none absolute inset-[-6px] rounded-full bg-[rgba(199,162,124,0.08)] blur-[20px] transition-all duration-500 group-hover/btn:bg-[rgba(199,162,124,0.18)] group-hover/btn:blur-[28px]"
-                  aria-hidden
-                />
-                <Link
-                  href={hasVoice ? "/conversation" : "/record"}
-                  className={buttonClasses({ size: "lg", variant: "primary" })}
-                >
-                  Begin
-                </Link>
+            {/* Sub-headline */}
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.42, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-7 max-w-md text-[16px] leading-[1.7] text-[var(--color-bone)]/60 sm:text-[18px]"
+            >
+              Real conversations in the voice of someone you&rsquo;ve lost, built from recordings you already have.
+            </motion.p>
+
+            {/* Demo — mobile only, between text and CTAs so it's above the fold */}
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-8 lg:hidden"
+            >
+              <ConversationDemo />
+            </motion.div>
+
+            {/* CTAs */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-10 flex flex-col items-start gap-5"
+            >
+              <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
+                <div className="group/btn relative">
+                  <div
+                    className="pointer-events-none absolute inset-[-6px] rounded-full bg-[rgba(194,120,74,0.08)] blur-[20px] transition-all duration-500 group-hover/btn:bg-[rgba(194,120,74,0.18)] group-hover/btn:blur-[28px]"
+                    aria-hidden
+                  />
+                  <Link
+                    href={hasVoice ? "/people/current/talk" : "/auth/login"}
+                    className={buttonClasses({ variant: "primary", size: "lg" })}
+                  >
+                    {hasVoice ? "Continue" : "Start with a voicemail"}
+                  </Link>
+                </div>
+                {!hasVoice && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="flex items-center gap-1.5 text-[14px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                  >
+                    See how it works
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M12 5v14M5 12l7 7 7-7" />
+                    </svg>
+                  </button>
+                )}
               </div>
-              <p className="text-[13px] text-[var(--color-bone-dim)]">
-                {hasVoice && voiceName
-                  ? `Pick up with ${voiceName}.`
-                  : "Ninety seconds of voice. One conversation away."}
-              </p>
-            </div>
-            <p className="text-[12px] tracking-[0.04em] text-[var(--color-bone-dim)]/70">
-              No voice is ever shared. Everything stays on your account.
-            </p>
-          </motion.div>
-        </motion.div>
+              <div className="flex flex-col gap-1">
+                {!hasVoice && (
+                  <p className="flex items-center gap-2 text-[12px] text-[var(--color-text-tertiary)]">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    7 days free · No card required
+                  </p>
+                )}
+                <p className="text-[12px] tracking-[0.02em] text-[var(--color-text-secondary)]">
+                  Their voice never leaves your account, and is never shared.
+                </p>
+              </div>
+            </motion.div>
+          </div>
 
-        {/* Orb — parallax on scroll */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 2, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          style={{ y: orbY }}
-          className="pointer-events-none absolute top-[44%] right-[-4%] hidden h-[560px] w-[560px] -translate-y-1/2 lg:block"
-          aria-hidden
-        >
-          <Orb />
-        </motion.div>
+          {/* ─── Product demo column — desktop only ─── */}
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            className="relative hidden lg:block lg:pt-4"
+          >
+            <ConversationDemo />
+          </motion.div>
+
+        </div>
       </div>
 
-      {/* Voice waveform — the product's visual signature */}
-      <div className="mx-auto w-full max-w-6xl px-6 pb-28 sm:px-8 sm:pb-36">
+      {/* Voice waveform — visual separator between hero and stats */}
+      <div className="relative mx-auto w-full max-w-6xl overflow-hidden px-0">
         <VoiceWave />
       </div>
 
@@ -112,7 +178,7 @@ export function Hero() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 1.2, delay: 1.4, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 1.2, delay: 1.5, ease: [0.16, 1, 0.3, 1] }}
         className="absolute bottom-8 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 sm:flex"
         aria-hidden
       >
@@ -129,8 +195,7 @@ export function Hero() {
         className="pointer-events-none absolute inset-x-0 bottom-0 h-64"
         aria-hidden
         style={{
-          background:
-            "linear-gradient(to bottom, transparent 0%, var(--color-ink) 100%)",
+          background: "linear-gradient(to bottom, transparent 0%, var(--color-ink) 100%)",
         }}
       />
     </section>
@@ -138,79 +203,113 @@ export function Hero() {
 }
 
 function VoiceWave() {
-  return (
-    <div className="relative h-14 w-full" style={{ animation: "waveBreath 4s ease-in-out infinite" }}>
-      <svg
-        viewBox="0 0 1200 60"
-        preserveAspectRatio="none"
-        className="h-full w-full"
-        aria-hidden
-      >
-        {/* Shadow path for depth */}
-        <path
-          d="M 0,30 L 80,30 C 92,30 92,24 104,24 C 116,24 116,36 128,36 C 140,36 140,20 154,20 C 166,20 166,40 178,40 C 190,40 190,16 204,16 C 218,16 218,44 230,44 C 242,44 242,14 256,14 C 270,14 270,48 282,48 C 294,48 294,16 308,16 C 322,16 322,46 334,46 C 344,46 344,12 358,12 C 372,12 372,50 384,50 C 396,50 396,18 410,18 C 424,18 424,44 436,44 C 446,44 446,12 460,12 C 474,12 474,50 486,50 C 498,50 498,20 512,20 C 526,20 526,42 538,42 C 548,42 548,14 562,14 C 576,14 576,48 588,48 C 600,48 600,18 614,18 C 628,18 628,44 640,44 C 650,44 650,14 664,14 C 678,14 678,48 690,48 C 702,48 702,20 716,20 C 730,20 730,42 742,42 C 752,42 752,16 766,16 C 780,16 780,46 792,46 C 804,46 804,22 818,22 C 832,22 832,40 844,40 C 854,40 854,18 868,18 C 882,18 882,44 894,44 C 906,44 906,24 920,24 C 934,24 934,36 946,36 C 956,36 956,22 968,22 C 980,22 980,38 992,38 C 1004,38 1004,26 1018,26 C 1032,26 1032,34 1044,34 C 1056,34 1056,28 1070,28 C 1084,28 1084,32 1096,32 L 1200,30"
-          stroke="rgba(199,162,124,0.14)"
-          strokeWidth="1.5"
-          fill="none"
-          strokeLinecap="round"
-          transform="translate(0,6)"
-        />
-        {/* Primary waveform */}
-        <path
-          d="M 0,30 L 80,30 C 92,30 92,24 104,24 C 116,24 116,36 128,36 C 140,36 140,20 154,20 C 166,20 166,40 178,40 C 190,40 190,16 204,16 C 218,16 218,44 230,44 C 242,44 242,14 256,14 C 270,14 270,48 282,48 C 294,48 294,16 308,16 C 322,16 322,46 334,46 C 344,46 344,12 358,12 C 372,12 372,50 384,50 C 396,50 396,18 410,18 C 424,18 424,44 436,44 C 446,44 446,12 460,12 C 474,12 474,50 486,50 C 498,50 498,20 512,20 C 526,20 526,42 538,42 C 548,42 548,14 562,14 C 576,14 576,48 588,48 C 600,48 600,18 614,18 C 628,18 628,44 640,44 C 650,44 650,14 664,14 C 678,14 678,48 690,48 C 702,48 702,20 716,20 C 730,20 730,42 742,42 C 752,42 752,16 766,16 C 780,16 780,46 792,46 C 804,46 804,22 818,22 C 832,22 832,40 844,40 C 854,40 854,18 868,18 C 882,18 882,44 894,44 C 906,44 906,24 920,24 C 934,24 934,36 946,36 C 956,36 956,22 968,22 C 980,22 980,38 992,38 C 1004,38 1004,26 1018,26 C 1032,26 1032,34 1044,34 C 1056,34 1056,28 1070,28 C 1084,28 1084,32 1096,32 L 1200,30"
-          stroke="rgba(199,162,124,0.40)"
-          strokeWidth="1.5"
-          fill="none"
-          strokeLinecap="round"
-        />
-      </svg>
-      {/* Horizontal edge fades so the wave dissolves at both ends */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        aria-hidden
-        style={{
-          background:
-            "linear-gradient(to right, var(--color-ink) 0%, transparent 7%, transparent 93%, var(--color-ink) 100%)",
-        }}
-      />
-    </div>
-  );
-}
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-function Orb() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let logW = 0;
+    let logH = 0;
+    let raf = 0;
+    let t = 0;
+
+    function setSize() {
+      const rect = canvas!.getBoundingClientRect();
+      logW = rect.width;
+      logH = rect.height;
+      canvas!.width = logW * dpr;
+      canvas!.height = logH * dpr;
+      ctx!.scale(dpr, dpr);
+    }
+
+    setSize();
+    const ro = new ResizeObserver(setSize);
+    ro.observe(canvas);
+
+    // Stop drawing while scrolled out of view — the wave sits at the fold
+    // and would otherwise animate under the whole page.
+    let visible = true;
+    const io = new IntersectionObserver(([entry]) => {
+      const nowVisible = Boolean(entry?.isIntersecting);
+      if (nowVisible && !visible) {
+        visible = true;
+        raf = requestAnimationFrame(frame);
+      } else if (!nowVisible) {
+        visible = false;
+        cancelAnimationFrame(raf);
+      }
+    });
+    io.observe(canvas);
+
+    function harmonics(x: number, speed: number, phase: number) {
+      return (
+        Math.sin(x * 0.0070 + speed + phase) * 0.45 +
+        Math.sin(x * 0.0120 + speed * 1.3 + phase) * 0.28 +
+        Math.sin(x * 0.0195 + speed * 0.8 + phase) * 0.16 +
+        Math.sin(x * 0.0310 + speed * 2.0 + phase) * 0.11
+      );
+    }
+
+    function drawLayer(speed: number, phase: number, amp: number, opacity: number, glow: number) {
+      const cy = logH / 2;
+
+      ctx!.beginPath();
+      for (let px = 0; px <= logW; px++) {
+        const xn = px / logW;
+        const fade = Math.pow(Math.sin(xn * Math.PI), 0.55);
+        const y = cy + harmonics(px, speed, phase) * amp * fade;
+        px === 0 ? ctx!.moveTo(px, y) : ctx!.lineTo(px, y);
+      }
+
+      const g = ctx!.createLinearGradient(0, 0, logW, 0);
+      g.addColorStop(0,    "rgba(194,120,74,0)");
+      g.addColorStop(0.12, `rgba(194,120,74,${opacity * 0.5})`);
+      g.addColorStop(0.5,  `rgba(194,120,74,${opacity})`);
+      g.addColorStop(0.88, `rgba(194,120,74,${opacity * 0.5})`);
+      g.addColorStop(1,    "rgba(194,120,74,0)");
+
+      ctx!.strokeStyle = g;
+      ctx!.lineWidth = 1.5;
+      ctx!.lineCap = "round";
+      ctx!.lineJoin = "round";
+
+      if (glow > 0) {
+        ctx!.shadowColor = "rgba(194,120,74,0.45)";
+        ctx!.shadowBlur = glow;
+      }
+      ctx!.stroke();
+      ctx!.shadowBlur = 0;
+    }
+
+    function frame() {
+      ctx!.clearRect(0, 0, logW, logH);
+      t += 0.011;
+
+      drawLayer(t * 0.60, 0,                 12, 0.10, 0);
+      drawLayer(t * 1.00, Math.PI * 0.35,    19, 0.20, 0);
+      drawLayer(t * 1.45, Math.PI * 1.10,    15, 0.48, 9);
+
+      raf = requestAnimationFrame(frame);
+    }
+
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      io.disconnect();
+    };
+  }, []);
+
   return (
-    <div className="relative h-full w-full">
-      {/* Concentric sound rings */}
-      <div
-        className="absolute inset-[-22%] animate-[ring_8s_ease-in-out_infinite] rounded-full border border-[rgba(199,162,124,0.05)]"
-        style={{ animationDelay: "2s" }}
-      />
-      <div
-        className="absolute inset-[-11%] animate-[ring_8s_ease-in-out_infinite] rounded-full border border-[rgba(199,162,124,0.08)]"
-        style={{ animationDelay: "1s" }}
-      />
-      <div className="absolute inset-0 animate-[ring_8s_ease-in-out_infinite] rounded-full border border-[rgba(199,162,124,0.13)]" />
-      {/* Main breathing glow */}
-      <div className="absolute inset-0 animate-[breathe_7s_ease-in-out_infinite] rounded-full bg-[radial-gradient(closest-side,rgba(199,162,124,0.50),rgba(199,162,124,0.06)_55%,transparent_75%)] blur-[2px]" />
-      {/* Inner sphere */}
-      <div className="absolute inset-[14%] rounded-full border border-[var(--color-rule-strong)] bg-[radial-gradient(closest-side,rgba(245,239,230,0.09),transparent_70%)]" />
-      {/* Core */}
-      <div className="absolute inset-[34%] rounded-full bg-[radial-gradient(closest-side,rgba(245,239,230,0.24),transparent_70%)] mix-blend-screen" />
-      <style>{`
-        @keyframes breathe {
-          0%, 100% { transform: scale(1); opacity: 0.9; }
-          50% { transform: scale(1.05); opacity: 1; }
-        }
-        @keyframes ring {
-          0%, 100% { opacity: 0.5; transform: scale(0.98); }
-          50% { opacity: 1; transform: scale(1.015); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          [class*="animate-[breathe"], [class*="animate-[ring"] {
-            animation: none;
-          }
-        }
-      `}</style>
+    <div className="relative h-16 w-full" aria-hidden>
+      <canvas ref={canvasRef} className="h-full w-full" style={{ display: "block" }} />
     </div>
   );
 }

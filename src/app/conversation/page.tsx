@@ -1,13 +1,6 @@
-import { ConversationExperience } from "@/components/conversation/ConversationExperience";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Conversation · EternaVoice",
-};
-
+// The talk screen now lives under the person it belongs to.
 export default function ConversationPage() {
-  return (
-    <main className="relative flex flex-1 flex-col">
-      <ConversationExperience />
-    </main>
-  );
+  redirect("/people/current/talk");
 }

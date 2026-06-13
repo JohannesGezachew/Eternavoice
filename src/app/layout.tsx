@@ -1,6 +1,24 @@
 import type { Metadata, Viewport } from "next";
+import { Instrument_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 import { BackgroundCanvas } from "@/components/shell/BackgroundCanvas";
+import { MotionProvider } from "@/components/shell/MotionProvider";
+
+// Self-hosted via next/font: no render-blocking Google Fonts stylesheet,
+// no layout shift, fonts served from our own origin. Instrument Sans over
+// Inter: a humanist voice instead of the default-template one.
+const instrument = Instrument_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-instrument",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-fraunces",
+  axes: ["SOFT", "opsz"],
+});
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +49,7 @@ export const metadata: Metadata = {
       {
         rel: "mask-icon",
         url: "/safari-pinned-tab.svg",
-        color: "#c7a27c",
+        color: "#c2784a",
       },
     ],
   },
@@ -68,33 +86,42 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   other: {
-    "msapplication-TileColor": "#0b0b0e",
+    "msapplication-TileColor": "#0d0b09",
     "msapplication-config": "/browserconfig.xml",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0b0e",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f0e4" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0b09" },
+  ],
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
 };
 
+// Resolves the theme before first paint: stored choice wins, otherwise the
+// system preference. Without JS the app simply renders light.
+const themeScript = `(function(){try{var t=localStorage.getItem("ev-theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="light"}})()`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${instrument.variable} ${fraunces.variable}`} suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:opsz,wght,SOFT@9..144,400;500;600;700,30..100&display=swap"
-        />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="relative isolate">
-        <BackgroundCanvas />
-        <div className="relative z-10 flex min-h-dvh flex-col">{children}</div>
+        <a
+          href="#main"
+          className="sr-only z-[200] rounded-lg bg-[var(--color-bone)] px-4 py-2 text-[14px] font-medium text-[var(--color-ink)] focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        >
+          Skip to content
+        </a>
+        <MotionProvider>
+          <BackgroundCanvas />
+          <div id="main" className="relative z-10 flex min-h-dvh flex-col">{children}</div>
+        </MotionProvider>
       </body>
     </html>
   );

@@ -1,17 +1,6 @@
-import { Nav } from "@/components/shell/Nav";
-import { PersonaSetup } from "@/components/persona/PersonaSetup";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Who · EternaVoice",
-};
-
+// Personas are edited on the person's own page now.
 export default function PersonaPage() {
-  return (
-    <>
-      <Nav />
-      <main className="relative flex flex-1 flex-col">
-        <PersonaSetup />
-      </main>
-    </>
-  );
+  redirect("/people");
 }

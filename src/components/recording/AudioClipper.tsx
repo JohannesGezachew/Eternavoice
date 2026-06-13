@@ -33,7 +33,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
 
       const rp = regionsPlugin;
 
-      rp.enableDragSelection({ color: "rgba(199,162,124,0.15)" });
+      rp.enableDragSelection({ color: "rgba(194,120,74,0.15)" });
 
       rp.on("region-created", (region) => {
         rp.getRegions().forEach((r) => {
@@ -67,7 +67,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
       regionsPlugin.addRegion({
         start: boundedStart,
         end: boundedEnd,
-        color: "rgba(199,162,124,0.18)",
+        color: "rgba(194,120,74,0.18)",
       });
       setHasRegion(true);
       onRegionChange({ start: boundedStart, end: boundedEnd });
@@ -115,7 +115,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
             height={72}
             waveColor="rgba(245,239,230,0.18)"
             progressColor="rgba(245,239,230,0.5)"
-            cursorColor="rgba(199,162,124,0.8)"
+            cursorColor="rgba(194,120,74,0.8)"
             barWidth={2}
             barGap={1}
             barRadius={2}
@@ -136,14 +136,14 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
             >
               {isPlaying ? "Pause" : "Play"}
             </button>
-            <span className="text-[12px] text-[var(--color-bone-dim)]/40">
+            <span className="text-[12px] text-[var(--color-bone-dim)]/80">
               {fmt(currentTime)} / {fmt(totalDuration)}
             </span>
             <button
               type="button"
               onClick={() => void suggestBestClip()}
               disabled={isSuggesting}
-              className="text-[11px] text-[var(--color-bone-dim)]/65 transition-colors hover:text-[var(--color-bone-dim)] disabled:opacity-50 sm:ml-auto"
+              className="text-[11px] text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)] disabled:opacity-50 sm:ml-auto"
             >
               {isSuggesting ? "Finding clip..." : "Suggest best clip"}
             </button>
@@ -151,7 +151,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
               <button
                 type="button"
                 onClick={clearRegion}
-                className="text-[11px] text-[var(--color-bone-dim)]/50 transition-colors hover:text-[var(--color-bone-dim)]"
+                className="text-[11px] text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)]"
               >
                 Clear selection
               </button>

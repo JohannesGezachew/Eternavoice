@@ -1,18 +1,20 @@
 import { cn } from "@/lib/utils";
 
-export type ButtonVariant = "primary" | "ghost" | "outline";
+export type ButtonVariant = "primary" | "ghost" | "outline" | "danger";
 export type ButtonSize = "md" | "lg";
 
 const base =
-  "group relative inline-flex items-center justify-center gap-2.5 select-none rounded-full font-medium tracking-tight transition-[transform,background,color,border-color,box-shadow,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] disabled:pointer-events-none disabled:opacity-40";
+  "group relative inline-flex cursor-pointer items-center justify-center gap-2.5 select-none rounded-full font-medium tracking-tight transition-[transform,background,color,border-color,box-shadow,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] disabled:pointer-events-none disabled:opacity-40";
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    "bg-[var(--color-bone)] text-[var(--color-ink)] hover:bg-[var(--color-bone-2)] active:scale-[0.985] shadow-[0_1px_0_rgba(255,255,255,0.4)_inset,0_12px_40px_-16px_rgba(199,162,124,0.5)]",
+    "bg-[var(--color-bone)] text-[var(--color-ink)] hover:bg-[var(--color-bone-2)] active:scale-[0.985] shadow-[0_1px_0_rgba(255,255,255,0.4)_inset,0_12px_40px_-16px_rgba(194,120,74,0.5)]",
   ghost:
     "bg-transparent text-[var(--color-bone)]/80 hover:text-[var(--color-bone)] hover:bg-white/[0.03]",
   outline:
     "border border-[var(--color-rule-strong)] bg-white/[0.02] text-[var(--color-bone)]/90 hover:bg-white/[0.04] hover:border-[var(--color-ember)]/40",
+  danger:
+    "border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/15 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/25",
 };
 
 const sizes: Record<ButtonSize, string> = {

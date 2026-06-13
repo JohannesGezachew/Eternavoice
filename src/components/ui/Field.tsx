@@ -4,8 +4,9 @@ import { forwardRef } from "react";
 import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
+// 16px minimum: anything smaller makes iOS Safari zoom-jump on focus.
 const baseField =
-  "w-full rounded-xl bg-white/[0.025] px-4 py-3 text-[15px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/60 transition-[background,border-color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hairline focus:bg-white/[0.04] focus:border-[var(--color-ember)]/40 focus:outline-none";
+  "w-full rounded-xl bg-white/[0.025] px-4 py-3 text-[16px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/80 transition-[background,border-color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hairline focus:bg-white/[0.04] focus:border-[var(--color-ember)]/40 focus:outline-none";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...rest }, ref) {

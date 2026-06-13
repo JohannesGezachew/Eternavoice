@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="May 26, 2026">
+    <LegalPage title="Privacy Policy" updated="May 26, 2026" sibling={{ href: "/terms", label: "Terms" }}>
       <p>
         EternaVoice handles voice recordings, cloned voices, persona details,
         and conversation text. This page explains the current product behavior
@@ -23,9 +23,8 @@ export default function PrivacyPage() {
       <h2>How It Is Used</h2>
       <p>
         Recordings are processed by EternaVoice services to create and play
-        cloned voices.
-        Messages and voice input may be sent to OpenAI to generate and
-        transcribe conversation turns.
+        cloned voices. Messages and voice input may be sent to OpenAI to generate
+        and transcribe conversation turns.
       </p>
       <h2>Current Storage</h2>
       <p>
@@ -58,33 +57,39 @@ export default function PrivacyPage() {
 function LegalPage({
   title,
   updated,
+  sibling,
   children,
 }: {
   title: string;
   updated: string;
+  sibling: { href: string; label: string };
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-6 sm:px-8">
+    <div className="flex min-h-dvh w-full flex-col bg-[var(--color-ink)] text-[var(--color-bone)]"><div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-6 sm:px-8">
       <header className="flex items-center justify-between">
         <Link href="/" aria-label="Home" className="-mx-1 px-1">
           <Mark />
         </Link>
-        <Link href="/terms" className="text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]">
-          Terms
+        <Link
+          href={sibling.href}
+          className="text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+        >
+          {sibling.label}
         </Link>
       </header>
-      <main className="prose prose-invert py-12">
+      <main className="py-14">
         <p className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
           Last updated {updated}
         </p>
-        <h1 className="font-serif text-[42px] leading-[1.08] text-[var(--color-bone)]">
+        <h1 className="font-serif mt-4 text-[30px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[54px]">
           {title}
         </h1>
-        <div className="mt-8 space-y-7 text-[15px] leading-[1.8] text-[var(--color-bone)]/72 [&_h2]:font-serif [&_h2]:text-[24px] [&_h2]:text-[var(--color-bone)]">
+        <div className="mt-10 space-y-8 border-t border-[var(--color-rule)] pt-10 text-[15px] leading-[1.85] text-[var(--color-bone)]/65 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-[22px] [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.01em] [&_h2]:text-[var(--color-bone)] [&_p]:mt-0">
           {children}
         </div>
       </main>
+    </div>
     </div>
   );
 }

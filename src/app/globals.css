@@ -2,27 +2,113 @@
 
 @theme {
   --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+    var(--font-instrument), "Instrument Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-serif:
-    "Fraunces", "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
+    var(--font-fraunces), "Fraunces", "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
 
-  --color-ink: #0b0b0e;
-  --color-ink-2: #121217;
-  --color-ink-3: #1a1a22;
+  /* Warm ink scale — the darks carry the same undertone as bone/ember so
+     surfaces feel like one material instead of warm text on a cool screen. */
+  --color-ink: #0d0b09;
+  --color-ink-2: #15110d;
+  --color-ink-3: #1e1812;
   --color-bone: #f5efe6;
   --color-bone-2: #e8e1d4;
   --color-bone-dim: #c9c2b5;
-  --color-ember: #c7a27c;
-  --color-ember-soft: #d9b894;
+  /* Signature pair: burnt copper (was generic amber) + verdigris — the
+     colors of aged memorial bronze. Copper carries brand/accent duty;
+     verdigris carries living/active states. */
+  --color-ember: #c2784a;
+  --color-ember-soft: #d69a6e;
+  --color-verdigris: #6f9486;
   --color-rule: rgba(245, 239, 230, 0.08);
   --color-rule-strong: rgba(245, 239, 230, 0.16);
+
+  /* Semantic status colors — tuned to the warm palette, never stock neon.
+     verdigris = healthy/active, warning = needs attention, danger = destructive. */
+  --color-sage: #6f9486;
+  --color-warning: #cda64e;
+  --color-danger: #d98873;
+
+  /* Text hierarchy with guaranteed contrast on ink. Use these instead of
+     opacity-suffixed bone/bone-dim for anything that must be read:
+     secondary ≥ 7:1, tertiary ≥ 4.6:1 against --color-ink. */
+  --color-text-secondary: #b8b1a4;
+  --color-text-tertiary: #948e83;
 
   --ease-calm: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
 
-  --shadow-glow: 0 0 0 1px rgba(199, 162, 124, 0.18), 0 12px 40px rgba(199, 162, 124, 0.08);
+  --shadow-glow: 0 0 0 1px rgba(194, 120, 74, 0.18), 0 12px 40px rgba(194, 120, 74, 0.08);
   --shadow-inner-soft: inset 0 1px 0 rgba(245, 239, 230, 0.04);
+}
+
+/* ── Theming ──────────────────────────────────────────────────────────────
+   Two complete modes, one token set. Light ("paper") is the default — warm
+   ivory, the materiality of letters and albums. Dark is the original warm
+   ink, available everywhere as a true dark mode. A pre-paint script on
+   <html> resolves the stored choice (or the system preference) into
+   data-theme="light" | "dark"; without JS the app is simply light.
+
+   Per-theme decorative vars (--orb-*, --dot-grid, --vignette) exist so the
+   talk-room orb and ambient layers read correctly on both grounds. */
+html:not([data-theme="dark"]) {
+  color-scheme: light;
+  --color-ink: #f6f0e4;
+  --color-ink-2: #efe7d7;
+  --color-ink-3: #e6dbc6;
+  --color-bone: #241b11;
+  --color-bone-2: #382c1e;
+  --color-bone-dim: #6d5f4c;
+  --color-ember: #9c5a2e;
+  --color-ember-soft: #b3753f;
+  --color-verdigris: #4e7466;
+  --color-sage: #4e7466;
+  --color-warning: #8a6c1d;
+  --color-danger: #b04f38;
+  --color-rule: rgba(36, 27, 17, 0.12);
+  --color-rule-strong: rgba(36, 27, 17, 0.22);
+  --color-text-secondary: #564b3a;
+  --color-text-tertiary: #7c6e58;
+  --shadow-glow: 0 0 0 1px rgba(156, 90, 46, 0.14), 0 12px 40px rgba(156, 90, 46, 0.07);
+
+  /* Orb on paper: a warm copper presence, normal blending (screen blending
+     vanishes on a light ground). */
+  --orb-blend: multiply;
+  --orb-glow-hi: rgba(156, 90, 46, 0.45);
+  --orb-glow-mid: rgba(156, 90, 46, 0.3);
+  --orb-glow-lo: rgba(156, 90, 46, 0.18);
+  --orb-core-hi: rgba(140, 78, 36, 0.6);
+  --orb-core-mid: rgba(156, 90, 46, 0.3);
+  --orb-core-lo: rgba(156, 90, 46, 0.08);
+  --orb-shimmer: rgba(122, 66, 28, 0.5);
+  --orb-specular: rgba(255, 252, 245, 0.9);
+  --dot-grid: rgba(36, 27, 17, 0.07);
+  --vignette: rgba(36, 27, 17, 0.06);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --orb-blend: screen;
+  --orb-glow-hi: rgba(245, 239, 230, 0.55);
+  --orb-glow-mid: rgba(214, 154, 110, 0.5);
+  --orb-glow-lo: rgba(214, 154, 110, 0.32);
+  --orb-core-hi: rgba(245, 239, 230, 0.6);
+  --orb-core-mid: rgba(245, 239, 230, 0.42);
+  --orb-core-lo: rgba(194, 120, 74, 0.18);
+  --orb-shimmer: rgba(245, 239, 230, 0.5);
+  --orb-specular: rgba(255, 255, 255, 0.8);
+  --dot-grid: rgba(245, 239, 230, 0.055);
+  --vignette: rgba(0, 0, 0, 0.6);
+}
+
+/* On paper, the white-tint card washes used across the app are nearly
+   invisible — give cards and hovers a real presence with an ink wash. */
+html:not([data-theme="dark"]) [class*="bg-white/"] {
+  background-color: rgba(36, 27, 17, 0.04);
+}
+html:not([data-theme="dark"]) [class*="hover:bg-white/"]:hover {
+  background-color: rgba(36, 27, 17, 0.07);
 }
 
 @layer base {
@@ -54,10 +140,10 @@
     }
   }
 
-  /* Hide the default audio element controls' background on Safari */
+  /* Hide the default audio element controls' background on Safari.
+     color-scheme inherits from the active theme. */
   audio {
     width: 100%;
-    color-scheme: dark;
   }
 
   /* Long-press / context menu on the mic button is undesirable on touch */
@@ -67,7 +153,7 @@
   }
 
   ::selection {
-    background: rgba(199, 162, 124, 0.28);
+    background: rgba(194, 120, 74, 0.28);
     color: var(--color-bone);
   }
 
@@ -80,6 +166,13 @@
   button,
   [role="button"] {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Tailwind v4 preflight resets buttons to cursor: default — interactive
+     elements must read as interactive without per-element classes. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 
   textarea,
@@ -122,6 +215,120 @@
     border: 1px solid var(--color-rule-strong);
   }
 
+  /* Unified card surface — one background tint, border, and radius for every
+     card across the app so panels stop drifting between /[0.015]–/[0.03]. */
+  .surface {
+    border: 1px solid var(--color-rule);
+    background-color: rgba(245, 239, 230, 0.02);
+    border-radius: 1rem;
+  }
+
+  .surface-interactive {
+    border: 1px solid var(--color-rule);
+    background-color: rgba(245, 239, 230, 0.02);
+    border-radius: 1rem;
+    transition:
+      background-color 0.3s var(--ease-calm),
+      border-color 0.3s var(--ease-calm);
+  }
+
+  .surface-interactive:hover {
+    background-color: rgba(245, 239, 230, 0.035);
+    border-color: var(--color-rule-strong);
+  }
+
+  /* Fine film grain laid over the whole page — adds tactile, analog depth
+     that separates a crafted site from a flat template. Invisible to read,
+     felt as texture. */
+  .grain-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* At phone density the grain is invisible texture but still costs a
+     full-screen blended layer — skip it. */
+  @media (max-width: 480px) {
+    .grain-overlay {
+      display: none;
+    }
+  }
+
+  /* Hero headline entrance as pure CSS so the LCP text appears without
+     waiting for JS hydration. Pairs with inline animation-delay per word. */
+  @keyframes heroWord {
+    from {
+      opacity: 0;
+      filter: blur(14px);
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0px);
+      transform: translateY(0);
+    }
+  }
+
+  .hero-word {
+    display: inline-block;
+    animation: heroWord 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Voiceprint idle rotation — slow enough to feel alive, not animated. */
+  @keyframes vpSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Consistent section eyebrow: a short ember rule + small-caps label.
+     One label system across the whole page instead of scattered pills. */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-bone-dim);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 1.75rem;
+    height: 1px;
+    background: linear-gradient(to right, var(--color-ember), transparent);
+  }
+
+  /* Centered variant: symmetric rules so the label reads truly centered. */
+  .eyebrow-center {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-bone-dim);
+  }
+
+  .eyebrow-center::before,
+  .eyebrow-center::after {
+    content: "";
+    width: 1.75rem;
+    height: 1px;
+  }
+
+  .eyebrow-center::before {
+    background: linear-gradient(to right, transparent, var(--color-ember));
+  }
+
+  .eyebrow-center::after {
+    background: linear-gradient(to left, transparent, var(--color-ember));
+  }
+
   @keyframes scrollLine {
     from { transform: translateY(-100%); }
     to { transform: translateY(400%); }
@@ -143,3 +350,96 @@
     }
   }
 }
+
+/* Accessible range slider: real native input with a visible thumb and a
+   focus ring, instead of an invisible opacity-0 overlay. Lives outside
+   @layer utilities because Tailwind v4 drops pseudo-element selectors
+   from utility layers. */
+.range-ember {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 20px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .range-ember::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: rgba(245, 239, 230, 0.1);
+  }
+
+  .range-ember::-moz-range-track {
+    height: 3px;
+    border-radius: 9999px;
+    background: rgba(245, 239, 230, 0.1);
+  }
+
+  .range-ember::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -6.5px;
+    height: 16px;
+    width: 16px;
+    border-radius: 9999px;
+    background: var(--color-ember);
+    border: 2px solid var(--color-ink);
+    box-shadow: 0 0 0 1px rgba(194, 120, 74, 0.4);
+    transition: transform 0.15s ease;
+  }
+
+  .range-ember::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 9999px;
+    background: var(--color-ember);
+    border: 2px solid var(--color-ink);
+    box-shadow: 0 0 0 1px rgba(194, 120, 74, 0.4);
+  }
+
+  .range-ember:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+  }
+
+  .range-ember:focus-visible {
+    outline: none;
+  }
+
+  .range-ember:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      0 0 0 1px rgba(194, 120, 74, 0.4),
+      0 0 0 4px rgba(194, 120, 74, 0.35);
+  }
+
+  .range-ember:focus-visible::-moz-range-thumb {
+    box-shadow:
+      0 0 0 1px rgba(194, 120, 74, 0.4),
+      0 0 0 4px rgba(194, 120, 74, 0.35);
+  }
+
+  /* Candlelight — a warm low vignette laid over the talk room in the evening.
+     Subtle by default; the inline --candle-intensity (set by the client from
+     the local hour) deepens it after dark. Pointer-events-none, decorative. */
+  .candlelight {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    opacity: var(--candle-intensity, 0);
+    transition: opacity 1.6s var(--ease-calm);
+    background:
+      radial-gradient(120% 90% at 50% 8%, transparent 38%, rgba(120, 64, 26, 0.10) 78%, rgba(70, 34, 12, 0.22) 100%),
+      radial-gradient(80% 60% at 50% 120%, rgba(194, 120, 74, 0.10), transparent 70%);
+  }
+
+  /* A barely-there flame flicker on the warm cast — disabled under
+     reduced-motion by the global block above. */
+  @keyframes candleFlicker {
+    0%, 100% { opacity: var(--candle-intensity, 0); }
+    45% { opacity: calc(var(--candle-intensity, 0) * 0.86); }
+    70% { opacity: calc(var(--candle-intensity, 0) * 1.06); }
+  }
+  .candlelight[data-flicker="true"] {
+    animation: candleFlicker 6.5s ease-in-out infinite;
+  }

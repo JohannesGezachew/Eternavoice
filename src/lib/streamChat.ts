@@ -2,6 +2,24 @@
 
 import type { ChatRequestPayload } from "./types";
 
+/**
+ * Warm the chat function ahead of the real request — call when the user starts
+ * speaking, so the cold-start and connection cost is paid during the ~1–2s of
+ * speech + transcription rather than added to time-to-first-word. Throttled so
+ * rapid re-triggers don't spam the endpoint. Fire-and-forget.
+ */
+let lastPrewarm = 0;
+export function prewarmChat(): void {
+  const now = Date.now();
+  if (now - lastPrewarm < 8000) return;
+  lastPrewarm = now;
+  try {
+    void fetch("/api/warmup", { method: "GET", keepalive: true }).catch(() => {});
+  } catch {
+    // best-effort
+  }
+}
+
 export type ChatEvent =
   | { type: "ready" }
   | { type: "text"; turnId: string; delta: string }
