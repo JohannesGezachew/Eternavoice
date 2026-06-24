@@ -1146,18 +1146,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   className="mt-4 w-full resize-none rounded-xl bg-white/[0.035] px-4 py-3 text-[14px] leading-[1.6] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/50 focus:outline-none focus:ring-1 focus:ring-[var(--color-ember)]/40"
                 />
 
-                <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowReflection(false);
-                      restartActionRef.current?.();
-                      restartActionRef.current = null;
-                    }}
-                    className="order-2 flex h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-6 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)] sm:order-1"
-                  >
-                    Skip &amp; start new
-                  </button>
+                <div className="mt-4 flex flex-col gap-2.5">
+                  {/* Primary: save the note (if any) and start fresh. */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1169,9 +1159,36 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                       restartActionRef.current?.();
                       restartActionRef.current = null;
                     }}
-                    className="order-1 flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-[13px] text-white transition hover:opacity-90 sm:order-2"
+                    className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-[13px] text-white transition hover:opacity-90"
                   >
-                    {reflectionText.trim() ? "Save & start new" : "Start new conversation"}
+                    {reflectionText.trim() ? "Save note & start new" : "Start new conversation"}
+                  </button>
+
+                  {/* Only meaningful when there's a typed note to throw away. */}
+                  {reflectionText.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReflection(false);
+                        restartActionRef.current?.();
+                        restartActionRef.current = null;
+                      }}
+                      className="flex h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-6 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]"
+                    >
+                      Start new without saving
+                    </button>
+                  )}
+
+                  {/* Escape hatch — discoverable instead of relying on a backdrop tap. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReflection(false);
+                      restartActionRef.current = null;
+                    }}
+                    className="mt-0.5 flex h-9 cursor-pointer items-center justify-center text-[12px] text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-bone-dim)]"
+                  >
+                    Keep talking
                   </button>
                 </div>
               </motion.div>
