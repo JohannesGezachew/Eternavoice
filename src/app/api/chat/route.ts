@@ -8,6 +8,7 @@ import { SentenceBuffer } from "@/lib/sentences";
 import { encodeSse, type ChatEvent } from "@/lib/sse";
 import { checkRate } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
+import { assertVoiceOwner } from "@/lib/db/voiceOwnership";
 import { deriveUserKey, decryptField } from "@/lib/crypto";
 
 export const runtime = "nodejs";
@@ -85,6 +86,15 @@ export async function POST(request: Request) {
     parsed = Body.parse(await request.json());
   } catch {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
+  }
+
+  // Never synthesize in a voice the caller doesn't own.
+  const owner = await assertVoiceOwner(parsed.voiceId);
+  if (!owner.ok) {
+    return NextResponse.json(
+      { error: owner.status === 401 ? "Unauthorized" : "That voice isn't yours." },
+      { status: owner.status },
+    );
   }
 
   // Continuity context lives server-side: session summaries plus the stored

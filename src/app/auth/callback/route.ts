@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeInternalPath } from "@/lib/utils";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const type = searchParams.get("type");
-  const next = searchParams.get("next") ?? "/people";
+  // Internal paths only — never redirect to an attacker-supplied absolute URL.
+  const next = safeInternalPath(searchParams.get("next"));
 
   if (code) {
     const supabase = await createClient();
