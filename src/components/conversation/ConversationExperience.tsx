@@ -97,10 +97,6 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const abortRef = useRef<AbortController | null>(null);
   const openingRef = useRef(false);
   const lastAmpRef = useRef(0);
-  // Pre-generated in-voice backchannel clips ("mm", "let me think") played the
-  // instant the user stops, to bridge the gap before the real reply lands.
-  const backchannelClipsRef = useRef<ArrayBuffer[]>([]);
-  const backchannelVoiceRef = useRef<string | null>(null);
   // Set once when the session opens — true only for the very first
   // conversation ever held with this person. State drives the premiere
   // rendering; the ref feeds request payloads inside callbacks (which would
@@ -299,46 +295,6 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     queueRef.current?.setRate(prefs.playbackRate);
   }, [prefs.playbackRate]);
 
-  // Pre-generate a small set of backchannel clips in this voice, once. Failure
-  // is non-fatal — the gap simply stays quiet, as before.
-  useEffect(() => {
-    if (!voiceId || backchannelVoiceRef.current === voiceId) return;
-    backchannelVoiceRef.current = voiceId;
-    backchannelClipsRef.current = [];
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/backchannel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voiceId }),
-        });
-        if (!res.ok) return;
-        const json = (await res.json()) as { clips?: string[] };
-        if (cancelled || !json.clips?.length) return;
-        backchannelClipsRef.current = json.clips.map((b) => base64ToArrayBuffer(b));
-      } catch {
-        // non-fatal
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [voiceId]);
-
-  // Play one backchannel immediately when the user stops, ~2 in 3 turns so it
-  // feels natural rather than mechanical. Survives the queue's reply-start
-  // stop(); the first reply audio stops it explicitly.
-  const playBackchannel = useCallback(() => {
-    const clips = backchannelClipsRef.current;
-    if (clips.length === 0) return;
-    if (Math.random() > 0.65) return;
-    const clip = clips[Math.floor(Math.random() * clips.length)];
-    if (!clip) return;
-    queueRef.current?.stopOneShots();
-    void queueRef.current?.playOneShot(clip.slice(0));
-  }, []);
-
   const headerSubtitle = useMemo(() => {
     if (persona.mode === "persona") {
       return persona.relationship?.trim() || "A voice you carry";
@@ -410,8 +366,6 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             }
             appendAssistantToken(event.turnId, event.delta);
           } else if (event.type === "audio") {
-            // The real reply is here — hand off from any backchannel filler.
-            if (!receivedAudio) queueRef.current?.stopOneShots();
             receivedAudio = true;
             appendAssistantAudio(event.turnId, {
               sentenceIndex: event.sentenceIndex,
@@ -575,8 +529,6 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     (state: "idle" | "recording" | "transcribing") => {
       if (state === "transcribing") {
         setStatus("transcribing");
-        // Acknowledge instantly, in their voice, while we transcribe + think.
-        playBackchannel();
       } else if (state === "recording") {
         setStatus("idle");
         // The moment we hear speech, warm the chat function so its cold-start
@@ -584,13 +536,12 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         prewarmChat();
       }
     },
-    [setStatus, playBackchannel],
+    [setStatus],
   );
 
   const doRestart = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
-    queueRef.current?.stopOneShots();
     summariseRef.current();
     setResponseError(null);
     setResponseNotice(null);
@@ -626,7 +577,6 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const interrupt = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
-    queueRef.current?.stopOneShots();
     setStreamingTurnId(null);
     setStatus("idle");
     setResponseNotice("Stopped. You can speak or type again.");
@@ -636,7 +586,6 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const bargeIn = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
-    queueRef.current?.stopOneShots();
     setStreamingTurnId(null);
     setStatus("idle");
     setResponseError(null);
