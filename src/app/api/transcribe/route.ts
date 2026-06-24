@@ -37,6 +37,10 @@ export async function POST(request: Request) {
       file,
       model: env.OPENAI_TRANSCRIBE_MODEL,
       response_format: "json",
+      // Pin to English. Without this, Whisper auto-detects the language and
+      // frequently mis-detects short / accented / noisy English audio as
+      // another language, which then makes the persona reply in that language.
+      language: "en",
     });
     const text =
       typeof transcription === "object" && transcription && "text" in transcription
