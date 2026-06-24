@@ -21,7 +21,7 @@ export interface RateLimitResult {
  *
  * Before public launch, replace this with a durable, per-user limiter
  * (Redis / Vercel KV / a Postgres counter) plus monthly usage caps on the paid
- * endpoints (chat, transcribe, clone, voice-preview, backchannel). Every call
+ * endpoints (chat, transcribe, clone, voice-preview, tts). Every call
  * site already does `const limit = await checkRate(...); if (!limit.ok) ...`,
  * so re-enabling is a single-file change.
  */
