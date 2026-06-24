@@ -661,16 +661,35 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     [addMemory, activeSubjectId],
   );
 
-  // Keepsake: a reply in their voice, saved as an audio file.
+  // Keepsake: a reply in their voice, saved as an audio file. Uses the live
+  // audio if it's still in memory, otherwise regenerates it from the saved text
+  // (audio isn't persisted), so it works from history too.
   const saveClip = useCallback(
-    (turn: ChatTurn) => {
-      if (!turn.audio?.length) return;
-      const chunks = [...turn.audio].sort((a, b) => a.sentenceIndex - b.sentenceIndex);
-      const mime = chunks[0]?.mime || "audio/mpeg";
-      const blob = new Blob(
-        chunks.map((c) => new Uint8Array(base64ToArrayBuffer(c.base64))),
-        { type: mime },
-      );
+    async (turn: ChatTurn) => {
+      let blob: Blob | null = null;
+      let mime = "audio/mpeg";
+      if (turn.audio?.length) {
+        const chunks = [...turn.audio].sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+        mime = chunks[0]?.mime || "audio/mpeg";
+        blob = new Blob(chunks.map((c) => new Uint8Array(base64ToArrayBuffer(c.base64))), { type: mime });
+      } else if (voiceId && turn.content.trim()) {
+        setResponseNotice("Preparing the clip in their voice…");
+        try {
+          const res = await fetch("/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ voiceId, text: turn.content }),
+          });
+          if (res.ok) blob = new Blob([await res.arrayBuffer()], { type: "audio/mpeg" });
+        } catch {
+          // fall through to the failure notice below
+        }
+      }
+      if (!blob) {
+        setResponseNotice("Couldn't prepare that clip — try again in a moment.");
+        return;
+      }
+      setResponseNotice(null);
       const ext = mime.includes("wav") ? "wav" : "mp3";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -682,28 +701,53 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
       saveChime();
       haptic("save");
-      trackEvent("keepsake_clip_saved", { chunks: chunks.length });
+      trackEvent("keepsake_clip_saved", { source: turn.audio?.length ? "memory" : "resynth" });
     },
-    [headerName],
+    [headerName, voiceId],
   );
 
+  // Replay a reply in their voice. Plays the live audio if still in memory,
+  // otherwise regenerates it from the saved text — so replay works for any
+  // reply, including ones reopened from history.
   const replayTurn = useCallback(
     async (turn: ChatTurn) => {
-      if (!turn.audio?.length) return;
       await ensureUnlocked();
       queueRef.current?.stop();
       setResponseError(null);
       setResponseNotice(null);
-      trackEvent("conversation_reply_replayed", { chunks: turn.audio.length });
-      for (const item of [...turn.audio].sort((a, b) => a.sentenceIndex - b.sentenceIndex)) {
-        try {
-          await queueRef.current?.enqueue(base64ToArrayBuffer(item.base64), item.pauseMs ?? 0);
-        } catch {
-          setResponseNotice("One saved audio segment could not be replayed.");
+
+      if (turn.audio?.length) {
+        trackEvent("conversation_reply_replayed", { chunks: turn.audio.length, source: "memory" });
+        for (const item of [...turn.audio].sort((a, b) => a.sentenceIndex - b.sentenceIndex)) {
+          try {
+            await queueRef.current?.enqueue(base64ToArrayBuffer(item.base64), item.pauseMs ?? 0);
+          } catch {
+            setResponseNotice("One saved audio segment could not be replayed.");
+          }
         }
+        return;
+      }
+
+      if (!voiceId || !turn.content.trim()) return;
+      setResponseNotice("Bringing their voice back…");
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voiceId, text: turn.content }),
+        });
+        if (!res.ok) {
+          setResponseNotice("Couldn't play that line in their voice — try again.");
+          return;
+        }
+        setResponseNotice(null);
+        await queueRef.current?.enqueue(await res.arrayBuffer(), 0);
+        trackEvent("conversation_reply_replayed", { source: "resynth" });
+      } catch {
+        setResponseNotice("Couldn't play that line in their voice — try again.");
       }
     },
-    [ensureUnlocked],
+    [ensureUnlocked, voiceId],
   );
 
   if (!voiceId) return null;
