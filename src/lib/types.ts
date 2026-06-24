@@ -70,6 +70,11 @@ export interface MemoryItem {
   /** Person this memory belongs to. Null/undefined = legacy unscoped memory,
    *  shared with every persona for backwards compatibility. */
   subjectId?: string | null;
+  /** How the memory was created. "manual" = the user added it (a note, a
+   *  "remember this", a reflection); "conversation" = auto-extracted by the
+   *  summariser after a chat. The display shows only manual ones; the persona
+   *  still uses both for continuity. Legacy rows are treated as "manual". */
+  source?: "manual" | "conversation";
 }
 
 export interface ChatRequestPayload {

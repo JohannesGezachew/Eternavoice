@@ -24,6 +24,11 @@ export class PlaybackQueue {
   private nextStart = 0;
   private activeSources = 0;
   private sources = new Set<AudioBufferSourceNode>();
+  // One-shot clips (e.g. an instant backchannel "mm" in the gap before the
+  // real reply). Kept separate from the sequential queue: they play
+  // immediately, never touch nextStart, and survive a queue stop() so they can
+  // bridge the thinking gap until the reply's first audio explicitly stops them.
+  private oneShots = new Set<AudioBufferSourceNode>();
   private rafId = 0;
   private timeBuffer: Uint8Array<ArrayBuffer> | null = null;
   private opts: PlaybackQueueOptions;
@@ -98,6 +103,45 @@ export class PlaybackQueue {
     this.nextStart = startAt + decoded.duration / this.rate + Math.max(0, pauseMs) / 1000;
   }
 
+  /**
+   * Play a single clip immediately on the (already-unlocked) context, routed
+   * through the analyser so the orb reacts. Does not affect the sequential
+   * queue's scheduling. Used for the instant in-voice backchannel.
+   */
+  async playOneShot(buffer: ArrayBuffer): Promise<void> {
+    if (this.destroyed) return;
+    await this.unlock();
+    if (!this.context || !this.master) return;
+    let decoded: AudioBuffer;
+    try {
+      decoded = await this.context.decodeAudioData(buffer.slice(0));
+    } catch {
+      return;
+    }
+    if (this.destroyed || !this.context) return;
+    const source = this.context.createBufferSource();
+    source.buffer = decoded;
+    source.playbackRate.value = this.rate;
+    source.connect(this.master);
+    this.oneShots.add(source);
+    source.onended = () => {
+      this.oneShots.delete(source);
+    };
+    source.start(this.context.currentTime + 0.01);
+  }
+
+  /** Stop any in-flight one-shot clips (e.g. when the real reply audio lands). */
+  stopOneShots(): void {
+    for (const source of this.oneShots) {
+      try {
+        source.stop();
+      } catch {
+        // ignored
+      }
+    }
+    this.oneShots.clear();
+  }
+
   stop(): void {
     for (const source of this.sources) {
       try {
@@ -115,6 +159,7 @@ export class PlaybackQueue {
   destroy(): void {
     this.destroyed = true;
     cancelAnimationFrame(this.rafId);
+    this.stopOneShots();
     this.opts.onActivityChange?.(false);
     if (this.context) {
       try {

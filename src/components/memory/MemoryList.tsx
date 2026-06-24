@@ -24,9 +24,13 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
   const [editingValue, setEditingValue] = useState("");
 
   // This person's memories, plus legacy unscoped notes from before memories
-  // were per-person.
+  // were per-person. Only ones the user added by hand — the summariser's
+  // auto-extracted memories are kept for continuity but hidden here to avoid
+  // clutter.
   const scoped = memories.filter(
-    (m) => m.subjectId == null || m.subjectId === subjectId,
+    (m) =>
+      m.source !== "conversation" &&
+      (m.subjectId == null || m.subjectId === subjectId),
   );
 
   const saveDraft = () => {
