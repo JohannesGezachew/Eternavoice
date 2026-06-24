@@ -348,6 +348,9 @@ export const useSession = create<SessionState>()(
                 createdAt: now,
                 updatedAt: now,
                 subjectId: subjectId ?? s.activeSubjectId ?? null,
+                // Everything added through the store is user-initiated (a note,
+                // a "remember this", a reflection) — never the auto-extractor.
+                source: "manual" as const,
               },
               ...s.memories,
             ].slice(0, 80),

@@ -12,7 +12,7 @@ export async function getMemories(subjectId?: string): Promise<MemoryItem[]> {
   const key = deriveUserKey(user.id);
   let query = supabase
     .from("memories")
-    .select("id, subject_id, content_enc, created_at, updated_at")
+    .select("id, subject_id, content_enc, created_at, updated_at, memory_type")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
@@ -31,6 +31,9 @@ export async function getMemories(subjectId?: string): Promise<MemoryItem[]> {
     createdAt: new Date(row.created_at as string).getTime(),
     updatedAt: new Date(row.updated_at as string).getTime(),
     subjectId: (row.subject_id as string | null) ?? null,
+    // memory_type is the source discriminator; legacy "general" rows count
+    // as manual so existing hand-written notes are never hidden.
+    source: row.memory_type === "conversation" ? "conversation" : "manual",
   }));
 }
 
@@ -48,7 +51,9 @@ export async function addMemoryDb(content: string, subjectId?: string): Promise<
       user_id: user.id,
       subject_id: subjectId ?? null,
       content_enc: encryptField(content, key),
-      memory_type: "general",
+      // User-added memories are tagged "manual" so the display can show only
+      // these and hide the summariser's auto-extracted ones.
+      memory_type: "manual",
       created_at: now,
       updated_at: now,
     })
@@ -62,6 +67,7 @@ export async function addMemoryDb(content: string, subjectId?: string): Promise<
     createdAt: new Date(data.created_at as string).getTime(),
     updatedAt: new Date(data.updated_at as string).getTime(),
     subjectId: subjectId ?? null,
+    source: "manual",
   };
 }
 

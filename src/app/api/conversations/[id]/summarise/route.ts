@@ -130,7 +130,9 @@ export async function POST(
           user_id: user.id,
           subject_id: body.subjectId,
           content_enc: encryptField(content, key),
-          memory_type: "general",
+          // Auto-extracted from the conversation — kept for the persona's
+          // continuity but hidden from the memory display.
+          memory_type: "conversation",
           created_at: now,
           updated_at: now,
         })),
