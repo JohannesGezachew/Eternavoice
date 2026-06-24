@@ -97,6 +97,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const abortRef = useRef<AbortController | null>(null);
   const openingRef = useRef(false);
   const lastAmpRef = useRef(0);
+  // Pre-generated in-voice backchannel clips ("mm", "let me think") played the
+  // instant the user stops, to bridge the gap before the real reply lands.
+  const backchannelClipsRef = useRef<ArrayBuffer[]>([]);
+  const backchannelVoiceRef = useRef<string | null>(null);
   // Set once when the session opens — true only for the very first
   // conversation ever held with this person. State drives the premiere
   // rendering; the ref feeds request payloads inside callbacks (which would
@@ -295,6 +299,46 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     queueRef.current?.setRate(prefs.playbackRate);
   }, [prefs.playbackRate]);
 
+  // Pre-generate a small set of backchannel clips in this voice, once. Failure
+  // is non-fatal — the gap simply stays quiet, as before.
+  useEffect(() => {
+    if (!voiceId || backchannelVoiceRef.current === voiceId) return;
+    backchannelVoiceRef.current = voiceId;
+    backchannelClipsRef.current = [];
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/backchannel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voiceId }),
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as { clips?: string[] };
+        if (cancelled || !json.clips?.length) return;
+        backchannelClipsRef.current = json.clips.map((b) => base64ToArrayBuffer(b));
+      } catch {
+        // non-fatal
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [voiceId]);
+
+  // Play one backchannel immediately when the user stops, ~2 in 3 turns so it
+  // feels natural rather than mechanical. Survives the queue's reply-start
+  // stop(); the first reply audio stops it explicitly.
+  const playBackchannel = useCallback(() => {
+    const clips = backchannelClipsRef.current;
+    if (clips.length === 0) return;
+    if (Math.random() > 0.65) return;
+    const clip = clips[Math.floor(Math.random() * clips.length)];
+    if (!clip) return;
+    queueRef.current?.stopOneShots();
+    void queueRef.current?.playOneShot(clip.slice(0));
+  }, []);
+
   const headerSubtitle = useMemo(() => {
     if (persona.mode === "persona") {
       return persona.relationship?.trim() || "A voice you carry";
@@ -366,6 +410,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             }
             appendAssistantToken(event.turnId, event.delta);
           } else if (event.type === "audio") {
+            // The real reply is here — hand off from any backchannel filler.
+            if (!receivedAudio) queueRef.current?.stopOneShots();
             receivedAudio = true;
             appendAssistantAudio(event.turnId, {
               sentenceIndex: event.sentenceIndex,
@@ -527,20 +573,24 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
 
   const handleSpeechState = useCallback(
     (state: "idle" | "recording" | "transcribing") => {
-      if (state === "transcribing") setStatus("transcribing");
-      else if (state === "recording") {
+      if (state === "transcribing") {
+        setStatus("transcribing");
+        // Acknowledge instantly, in their voice, while we transcribe + think.
+        playBackchannel();
+      } else if (state === "recording") {
         setStatus("idle");
         // The moment we hear speech, warm the chat function so its cold-start
         // is paid during speech + transcription, not added to reply latency.
         prewarmChat();
       }
     },
-    [setStatus],
+    [setStatus, playBackchannel],
   );
 
   const doRestart = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
+    queueRef.current?.stopOneShots();
     summariseRef.current();
     setResponseError(null);
     setResponseNotice(null);
@@ -576,6 +626,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const interrupt = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
+    queueRef.current?.stopOneShots();
     setStreamingTurnId(null);
     setStatus("idle");
     setResponseNotice("Stopped. You can speak or type again.");
@@ -585,6 +636,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const bargeIn = useCallback(() => {
     abortRef.current?.abort();
     queueRef.current?.stop();
+    queueRef.current?.stopOneShots();
     setStreamingTurnId(null);
     setStatus("idle");
     setResponseError(null);
@@ -1094,18 +1146,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   className="mt-4 w-full resize-none rounded-xl bg-white/[0.035] px-4 py-3 text-[14px] leading-[1.6] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/50 focus:outline-none focus:ring-1 focus:ring-[var(--color-ember)]/40"
                 />
 
-                <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowReflection(false);
-                      restartActionRef.current?.();
-                      restartActionRef.current = null;
-                    }}
-                    className="order-2 flex h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-6 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)] sm:order-1"
-                  >
-                    Skip &amp; start new
-                  </button>
+                <div className="mt-4 flex flex-col gap-2.5">
+                  {/* Primary: save the note (if any) and start fresh. */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1117,9 +1159,36 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                       restartActionRef.current?.();
                       restartActionRef.current = null;
                     }}
-                    className="order-1 flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-[13px] text-white transition hover:opacity-90 sm:order-2"
+                    className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-[13px] text-white transition hover:opacity-90"
                   >
-                    {reflectionText.trim() ? "Save & start new" : "Start new conversation"}
+                    {reflectionText.trim() ? "Save note & start new" : "Start new conversation"}
+                  </button>
+
+                  {/* Only meaningful when there's a typed note to throw away. */}
+                  {reflectionText.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReflection(false);
+                        restartActionRef.current?.();
+                        restartActionRef.current = null;
+                      }}
+                      className="flex h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-6 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]"
+                    >
+                      Start new without saving
+                    </button>
+                  )}
+
+                  {/* Escape hatch — discoverable instead of relying on a backdrop tap. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReflection(false);
+                      restartActionRef.current = null;
+                    }}
+                    className="mt-0.5 flex h-9 cursor-pointer items-center justify-center text-[12px] text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-bone-dim)]"
+                  >
+                    Keep talking
                   </button>
                 </div>
               </motion.div>

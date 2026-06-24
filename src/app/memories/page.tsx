@@ -29,16 +29,20 @@ export default function MemoriesPage() {
     });
   }, []);
 
+  // Only user-added memories are shown; the summariser's auto-extracted ones
+  // are kept for the persona's continuity but hidden from this display.
+  const visibleMemories = memories.filter((m) => m.source !== "conversation");
+
   // Group memories by subjectId
   const grouped = subjects
-    .filter((s) => memories.some((m) => m.subjectId === s.id))
+    .filter((s) => visibleMemories.some((m) => m.subjectId === s.id))
     .map((s) => ({
       subject: s,
-      count: memories.filter((m) => m.subjectId === s.id).length,
+      count: visibleMemories.filter((m) => m.subjectId === s.id).length,
     }))
     .sort((a, b) => b.count - a.count);
 
-  const unscopedCount = memories.filter((m) => !m.subjectId).length;
+  const unscopedCount = visibleMemories.filter((m) => !m.subjectId).length;
 
   return (
     <AppShell title="Memories" showTabs>
