@@ -1,37 +1,4 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { randomUUID } from "node:crypto";
-
-const SESSION_COOKIE = "ev_session";
-
-interface Bucket {
-  windowStart: number;
-  count: number;
-}
-
-const buckets = new Map<string, Bucket>();
-
-function gcBuckets(now: number) {
-  if (buckets.size < 1024) return;
-  for (const [key, bucket] of buckets) {
-    if (now - bucket.windowStart > 60 * 60 * 1000) buckets.delete(key);
-  }
-}
-
-export async function getSessionId(): Promise<string> {
-  const store = await cookies();
-  const existing = store.get(SESSION_COOKIE)?.value;
-  if (existing) return existing;
-  const id = randomUUID();
-  store.set(SESSION_COOKIE, id, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  });
-  return id;
-}
 
 export interface RateLimit {
   windowMs: number;
@@ -45,27 +12,19 @@ export interface RateLimitResult {
   resetMs: number;
 }
 
-export async function checkRate(limit: RateLimit): Promise<RateLimitResult> {
-  const id = await getSessionId();
-  const now = Date.now();
-  gcBuckets(now);
-  const key = `${id}:${limit.scope}`;
-  const bucket = buckets.get(key);
-  if (!bucket || now - bucket.windowStart > limit.windowMs) {
-    buckets.set(key, { windowStart: now, count: 1 });
-    return { ok: true, remaining: limit.max - 1, resetMs: limit.windowMs };
-  }
-  if (bucket.count >= limit.max) {
-    return {
-      ok: false,
-      remaining: 0,
-      resetMs: limit.windowMs - (now - bucket.windowStart),
-    };
-  }
-  bucket.count += 1;
-  return {
-    ok: true,
-    remaining: limit.max - bucket.count,
-    resetMs: limit.windowMs - (now - bucket.windowStart),
-  };
+/**
+ * Rate limiting is temporarily DISABLED.
+ *
+ * The previous implementation was an in-memory Map, which isn't durable on
+ * serverless (per-instance, wiped on cold start) and — with no customers yet —
+ * only got in the way of testing. This stub always allows.
+ *
+ * Before public launch, replace this with a durable, per-user limiter
+ * (Redis / Vercel KV / a Postgres counter) plus monthly usage caps on the paid
+ * endpoints (chat, transcribe, clone, voice-preview, backchannel). Every call
+ * site already does `const limit = await checkRate(...); if (!limit.ok) ...`,
+ * so re-enabling is a single-file change.
+ */
+export async function checkRate(_limit: RateLimit): Promise<RateLimitResult> {
+  return { ok: true, remaining: Number.POSITIVE_INFINITY, resetMs: 0 };
 }
