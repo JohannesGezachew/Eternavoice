@@ -21,7 +21,7 @@ import { openingTone, closingTone, saveChime } from "@/lib/sound";
 import { saveConversation, deleteConversationDb } from "@/lib/db/conversations";
 import { addMemoryDb } from "@/lib/db/memories";
 import { formatRelativeDay } from "@/lib/utils";
-import type { ChatTurn } from "@/lib/types";
+import type { ChatTurn, ConversationRecord } from "@/lib/types";
 
 const CHAT_CONTEXT_TURNS = 12;
 const MEMORY_CONTEXT_LIMIT = 10;
@@ -699,6 +699,39 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     [ensureUnlocked, voiceId],
   );
 
+  // Direct play from the history list: speak that conversation's last reply in
+  // their voice, regenerated from the saved text (audio isn't persisted).
+  const [historyPlayingId, setHistoryPlayingId] = useState<string | null>(null);
+  const playConversationLine = useCallback(
+    async (conversation: ConversationRecord) => {
+      if (!voiceId) return;
+      const lastReply = [...conversation.turns]
+        .reverse()
+        .find((t) => t.role === "assistant" && t.content.trim());
+      const text = lastReply?.content.trim();
+      if (!text) return;
+      await ensureUnlocked();
+      queueRef.current?.stop();
+      setHistoryPlayingId(conversation.id);
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voiceId, text }),
+        });
+        if (res.ok) {
+          await queueRef.current?.enqueue(await res.arrayBuffer(), 0);
+          trackEvent("history_line_played");
+        }
+      } catch {
+        // non-fatal — the orb simply stays quiet
+      } finally {
+        setHistoryPlayingId(null);
+      }
+    },
+    [voiceId, ensureUnlocked],
+  );
+
   if (!voiceId) return null;
 
   // The "spotlight" message: the latest turn shown above the orb. Streaming
@@ -1084,6 +1117,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           }}
           onPin={toggleConversationPin}
           onDelete={(id, title) => setPendingDelete({ id, title })}
+          onPlay={(conversation) => void playConversationLine(conversation)}
+          playingId={historyPlayingId}
         />
 
         <ConfirmDialog
@@ -1205,6 +1240,8 @@ function HistoryDrawer({
   onNew,
   onPin,
   onDelete,
+  onPlay,
+  playingId,
 }: {
   open: boolean;
   conversations: ReturnType<typeof useSession.getState>["conversations"];
@@ -1215,6 +1252,8 @@ function HistoryDrawer({
   onNew: () => void;
   onPin: (id: string) => void;
   onDelete: (id: string, title: string) => void;
+  onPlay: (conversation: ConversationRecord) => void;
+  playingId: string | null;
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
 
@@ -1345,6 +1384,23 @@ function HistoryDrawer({
                             ) : null}
                           </span>
                         </button>
+                        {conversation.turns.some((t) => t.role === "assistant" && t.content.trim()) ? (
+                          <button
+                            type="button"
+                            onClick={() => onPlay(conversation)}
+                            disabled={playingId === conversation.id}
+                            aria-label="Play their last reply in this conversation"
+                            className="flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-ember)] disabled:cursor-default"
+                          >
+                            {playingId === conversation.id ? (
+                              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--color-ember)]/30 border-t-[var(--color-ember)]" />
+                            ) : (
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => onPin(conversation.id)}
