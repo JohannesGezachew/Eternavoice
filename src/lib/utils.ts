@@ -17,6 +17,17 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Sanitize a post-auth "next" redirect target to an internal path only.
+ * Rejects absolute URLs and protocol-relative / backslash tricks so a crafted
+ * ?next= can't bounce a just-authenticated user to an external phishing site.
+ */
+export function safeInternalPath(raw: string | null | undefined, fallback = "/people"): string {
+  if (!raw || !raw.startsWith("/")) return fallback;
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
+  return raw;
+}
+
 export function formatRelativeDay(ts: number): string {
   const days = Math.floor((Date.now() - ts) / 86_400_000);
   if (days <= 0) return "today";

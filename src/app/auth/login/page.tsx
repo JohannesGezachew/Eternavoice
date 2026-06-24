@@ -15,6 +15,7 @@ import { Mark } from "@/components/shell/Mark";
 import { Input } from "@/components/ui/Field";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { fadeUp, stagger } from "@/lib/motion";
+import { safeInternalPath } from "@/lib/utils";
 
 type View = "auth" | "confirm" | "magic-sent" | "forgot" | "forgot-sent";
 type AuthMode = "sign-in" | "sign-up";
@@ -170,7 +171,9 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
 /* ── Auth form ───────────────────────────────────────────────────────────── */
 function AuthForm() {
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/people";
+  // Internal paths only — a crafted ?next=https://evil.com must not bounce a
+  // just-signed-in user off-site.
+  const next = safeInternalPath(searchParams.get("next"));
   const errorParam = searchParams.get("error");
   const router = useRouter();
 
