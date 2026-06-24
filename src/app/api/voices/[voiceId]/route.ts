@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { elevenlabs } from "@/lib/elevenlabs";
 import { checkRate } from "@/lib/rateLimit";
+import { assertVoiceOwner } from "@/lib/db/voiceOwnership";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,15 @@ export async function DELETE(
   const parsed = Params.safeParse(await context.params);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid voice id." }, { status: 400 });
+  }
+
+  // Only the owner may delete their cloned voice from the provider.
+  const owner = await assertVoiceOwner(parsed.data.voiceId);
+  if (!owner.ok) {
+    return NextResponse.json(
+      { error: owner.status === 401 ? "Unauthorized" : "That voice isn't yours." },
+      { status: owner.status },
+    );
   }
 
   try {

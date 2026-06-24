@@ -3,6 +3,7 @@ import { z } from "zod";
 import { elevenlabs, VOICE_SETTINGS } from "@/lib/elevenlabs";
 import { env } from "@/lib/env";
 import { checkRate } from "@/lib/rateLimit";
+import { assertVoiceOwner } from "@/lib/db/voiceOwnership";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -55,6 +56,14 @@ export async function POST(request: Request) {
     parsed = Body.parse(await request.json());
   } catch {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
+  }
+
+  const owner = await assertVoiceOwner(parsed.voiceId);
+  if (!owner.ok) {
+    return NextResponse.json(
+      { error: owner.status === 401 ? "Unauthorized" : "That voice isn't yours." },
+      { status: owner.status },
+    );
   }
 
   const results = await Promise.all(PHRASES.map((p) => ttsBase64(parsed.voiceId, p)));
