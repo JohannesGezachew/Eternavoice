@@ -28,12 +28,17 @@ interface ComposerProps {
 // MIN_TURN_MS gate before we transcribe.
 const MIN_SPEECH_RMS = 0.022;
 const SPEECH_ABOVE_NOISE = 2.4;
-const END_SILENCE_MS = 700;
+// Adaptive end-of-turn: once they've said a real sentence, close quickly so the
+// reply feels immediate; right after a brief start, allow more grace so a
+// mid-thought pause ("I was thinking… maybe we…") isn't cut off.
+const END_SILENCE_SHORT_MS = 520;
+const END_SILENCE_LONG_MS = 760;
+const SHORT_UTTERANCE_MS = 1200;
 const MIN_TURN_MS = 280;
 const MAX_TURN_MS = 30_000;
 const BARGE_IN_MIN_RMS = 0.055;
 const BARGE_IN_MIN_PEAK = 0.18;
-const BARGE_IN_SUSTAIN_MS = 220;
+const BARGE_IN_SUSTAIN_MS = 190;
 
 export function Composer({
   disabled,
@@ -247,12 +252,14 @@ export function Composer({
             }
             t.lastLoudAt = now;
           }
-          if (
-            t.firstLoudAt !== null &&
-            now - t.lastLoudAt > END_SILENCE_MS
-          ) {
-            void closeAndSendTurn();
-            return;
+          if (t.firstLoudAt !== null) {
+            const spokenMs = t.lastLoudAt - t.firstLoudAt;
+            const endSilence =
+              spokenMs < SHORT_UTTERANCE_MS ? END_SILENCE_LONG_MS : END_SILENCE_SHORT_MS;
+            if (now - t.lastLoudAt > endSilence) {
+              void closeAndSendTurn();
+              return;
+            }
           }
           if (
             t.firstLoudAt !== null &&
