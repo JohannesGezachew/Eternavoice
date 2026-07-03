@@ -34,7 +34,15 @@ export function ConversationDemo() {
     return () => clearTimeout(t);
   }, [visible]);
 
-  const shownMessages = MESSAGES.slice(0, visible);
+  // Only ever show the last two messages, sliding like a live chat. Keeping a
+  // fixed window (rather than accumulating 1→4) means the card's height never
+  // changes, so nothing below it on the page shifts as the demo loops.
+  const WINDOW = 2;
+  const windowStart = Math.max(0, visible - WINDOW);
+  const shownMessages = MESSAGES.slice(windowStart, visible).map((msg, i) => ({
+    ...msg,
+    idx: windowStart + i,
+  }));
   const lastIsAi = shownMessages.length > 0 && shownMessages[shownMessages.length - 1]?.role === "ai";
 
   return (
@@ -63,12 +71,13 @@ export function ConversationDemo() {
         </span>
       </div>
 
-      {/* Messages */}
-      <div className="flex min-h-[200px] flex-col gap-3 px-5 py-5">
-        <AnimatePresence mode="sync">
-          {shownMessages.map((msg, i) => (
+      {/* Messages — fixed height + bottom-anchored so the card never grows or
+          shrinks as messages cycle (which would push the page content below). */}
+      <div className="flex h-[240px] flex-col justify-end gap-3 overflow-hidden px-5 py-5">
+        <AnimatePresence mode="popLayout" initial={false}>
+          {shownMessages.map((msg) => (
             <motion.div
-              key={i}
+              key={msg.idx}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
