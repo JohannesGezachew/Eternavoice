@@ -28,10 +28,6 @@ export default function TermsPage() {
           Terms of Service
         </h1>
         <div className="mt-10 space-y-8 border-t border-[var(--color-rule)] pt-10 text-[15px] leading-[1.85] text-[var(--color-bone)]/65 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-[22px] [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.01em] [&_h2]:text-[var(--color-bone)]">
-          <p>
-            These terms describe the current EternaVoice product behavior and
-            should be reviewed by counsel before commercial launch.
-          </p>
           <h2>Consent</h2>
           <p>
             Only upload or record a voice when you have the legal right and
@@ -61,12 +57,6 @@ export default function TermsPage() {
           <p>
             Voice cloning and conversation features depend on external providers
             and may fail, slow down, or become unavailable.
-          </p>
-          <h2>Launch Readiness</h2>
-          <p>
-            Before opening to real users, add account storage, provider-side
-            deletion workflows, monitoring, abuse controls, and a reviewed legal
-            policy set.
           </p>
         </div>
       </main>
