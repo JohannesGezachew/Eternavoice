@@ -50,15 +50,6 @@ export function Hero() {
 
           {/* ─── Text column ─── */}
           <div>
-            {/* Eyebrow */}
-            <motion.p
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.02, ease: [0.16, 1, 0.3, 1] }}
-              className="eyebrow"
-            >
-              For the people you still talk to
-            </motion.p>
 
             {/* Headline — word-by-word blur entrance, pure CSS so the LCP
                 text never waits for JS hydration. */}
