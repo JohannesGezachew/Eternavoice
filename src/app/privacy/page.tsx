@@ -11,8 +11,8 @@ export default function PrivacyPage() {
     <LegalPage title="Privacy Policy" updated="May 26, 2026" sibling={{ href: "/terms", label: "Terms" }}>
       <p>
         EternaVoice handles voice recordings, cloned voices, persona details,
-        and conversation text. This page explains the current product behavior
-        and should be reviewed by counsel before commercial launch.
+        and conversation text. This page explains what we collect, how it is
+        protected, and how you can delete it.
       </p>
       <h2>What We Collect</h2>
       <p>
