@@ -3,14 +3,14 @@ import { Mark } from "@/components/shell/Mark";
 
 export const metadata = {
   title: "Privacy Policy",
-  description: "How EternaVoice handles voice recordings, cloned voices, and conversation data.",
+  description: "How EternaVoice handles voice recordings, recreated voices, and conversation data.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" updated="May 26, 2026" sibling={{ href: "/terms", label: "Terms" }}>
       <p>
-        EternaVoice handles voice recordings, cloned voices, persona details,
+        EternaVoice handles voice recordings, recreated voices, persona details,
         and conversation text. This page explains what we collect, how it is
         protected, and how you can delete it.
       </p>
@@ -22,8 +22,8 @@ export default function PrivacyPage() {
       </p>
       <h2>How It Is Used</h2>
       <p>
-        Recordings are processed by EternaVoice services to create and play
-        cloned voices. Messages and voice input may be sent to OpenAI to generate
+        Recordings are processed by EternaVoice services to recreate and play
+        their voices. Messages and voice input may be sent to OpenAI to generate
         and transcribe conversation turns.
       </p>
       <h2>Current Storage</h2>
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
       </p>
       <h2>Third-Party Processing</h2>
       <p>
-        EternaVoice relies on external AI providers for voice cloning,
+        EternaVoice relies on external AI providers for voice recreation,
         text-to-speech, transcription, and response generation. Those providers
         process submitted content to return the requested feature.
       </p>

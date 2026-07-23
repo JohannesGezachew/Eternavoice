@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     template: "%s · EternaVoice",
   },
   description:
-    "Create a private voice clone from a recording, preview it, and have a continuous spoken conversation.",
+    "Privately recreate a voice from a recording, preview it, and have a continuous spoken conversation.",
   applicationName: "EternaVoice",
   authors: [{ name: "EternaVoice" }],
   metadataBase: new URL("https://eternavoice.app"),
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "EternaVoice",
     description:
-      "Create a private voice clone from a recording, preview it, and have a continuous spoken conversation.",
+      "Privately recreate a voice from a recording, preview it, and have a continuous spoken conversation.",
     url: "/",
     siteName: "EternaVoice",
     images: [
@@ -73,7 +73,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "EternaVoice",
     description:
-      "Create a private voice clone from a recording, preview it, and have a continuous spoken conversation.",
+      "Privately recreate a voice from a recording, preview it, and have a continuous spoken conversation.",
     images: ["/opengraph-image"],
   },
   robots: {
