@@ -130,7 +130,7 @@ export default function HomePage() {
                 <Link href="/terms" className="transition hover:text-[var(--color-bone-dim)]">Terms</Link>
                 <Link href="/privacy" className="transition hover:text-[var(--color-bone-dim)]">Privacy</Link>
                 <Link href="/privacy#cookies" className="transition hover:text-[var(--color-bone-dim)]">Cookies</Link>
-                <a href="mailto:support@eternavoice.app" className="transition hover:text-[var(--color-bone-dim)]">Support</a>
+                <a href="mailto:dev@eternavoice.com" className="transition hover:text-[var(--color-bone-dim)]">Support</a>
               </div>
             </div>
 

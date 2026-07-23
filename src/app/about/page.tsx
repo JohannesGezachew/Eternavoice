@@ -72,8 +72,8 @@ export default function AboutPage() {
           <p className="border-t border-[var(--color-rule)] pt-7 text-[14px] leading-[1.8] text-[var(--color-text-secondary)]">
             EternaVoice is built by a small team that has lost people too.
             Questions, doubts, or something we should hear?{" "}
-            <a href="mailto:support@eternavoice.app" className="underline underline-offset-4">
-              support@eternavoice.app
+            <a href="mailto:dev@eternavoice.com" className="underline underline-offset-4">
+              dev@eternavoice.com
             </a>{" "}
             reaches a person, not a queue.
           </p>
