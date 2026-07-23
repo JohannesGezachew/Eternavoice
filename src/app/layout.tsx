@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     "Privately recreate a voice from a recording, preview it, and have a continuous spoken conversation.",
   applicationName: "EternaVoice",
   authors: [{ name: "EternaVoice" }],
-  metadataBase: new URL("https://eternavoice.app"),
+  metadataBase: new URL("https://eternavoice.com"),
   manifest: "/site.webmanifest",
   alternates: {
     canonical: "/",
