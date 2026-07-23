@@ -1517,12 +1517,15 @@ function Transcript({
                 turn={turn}
                 streaming={turn.id === streamingTurnId}
                 onReplay={
-                  turn.role === "assistant" && turn.audio?.length
+                  // Show for any assistant turn with text — live turns replay
+                  // their in-memory audio, reopened ones re-synthesize from the
+                  // saved text (audio isn't persisted).
+                  turn.role === "assistant" && (turn.audio?.length || turn.content.trim())
                     ? () => onReplay(turn)
                     : undefined
                 }
                 onSaveClip={
-                  turn.role === "assistant" && turn.audio?.length
+                  turn.role === "assistant" && (turn.audio?.length || turn.content.trim())
                     ? () => onSaveClip(turn)
                     : undefined
                 }
