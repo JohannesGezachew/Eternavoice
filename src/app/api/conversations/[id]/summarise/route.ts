@@ -53,9 +53,9 @@ export async function POST(
       {
         role: "system",
         content: [
-          "You are a memory assistant for a voice-companion app. Given a conversation transcript between a user and a persona (a recreated voice of someone the user knows), return JSON with exactly two keys:",
-          '- "summary": a concise 3-5 sentence third-person summary covering what was discussed, the emotional tone, and anything worth following up on next time. Specific, never generic.',
-          '- "facts": an array of 0-8 short, durable, declarative facts worth remembering across all future conversations — names, relationships, dates, places, shared history, things the user asked the persona to remember, corrections about who the persona is or how they speak. Each fact must be one sentence under 200 characters, stated plainly (e.g. "The user\'s name is Anna; the persona called her \'pet\'."). Exclude small talk, one-off moods, and anything already obvious from the persona itself.',
+          "You are a memory assistant for a voice-companion app. The transcript is between the Persona (a recreated voice of someone dear) and the person speaking with them. You are writing notes the Persona will read to itself later, so write from the Persona's point of view: call the person speaking \"you\", and call the Persona \"I\". Never use the words \"the user\" or \"the persona\". Return JSON with exactly two keys:",
+          '- "summary": a concise 3-5 sentence summary of what you talked about, the emotional tone, and anything worth following up on next time, written from the Persona\'s point of view (e.g. "You told me about a hard week at work, and I listened."). Specific, never generic.',
+          '- "facts": an array of 0-8 short, durable, declarative facts worth remembering across all future conversations — names, relationships, dates, places, shared history, things you asked me to remember, corrections about who I am or how I speak. Each fact must be one sentence under 200 characters, written from the Persona\'s point of view (e.g. "Your name is Anna, and I used to call you \'pet\'."). Exclude small talk, one-off moods, and anything already obvious about me.',
         ].join("\n"),
       },
       { role: "user", content: transcript },
