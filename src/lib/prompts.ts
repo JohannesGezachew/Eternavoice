@@ -167,7 +167,7 @@ export function buildChatPrompt(
   if (memoryLines.length) {
     parts.push(
       [
-        "Known memory, reviewed by the user:",
+        "What you remember about them:",
         ...memoryLines.map((memory) => `- ${memory}`),
         "Use these details only when they naturally fit. Do not recite them as a list.",
       ].join("\n"),
