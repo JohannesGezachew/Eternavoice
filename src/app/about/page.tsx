@@ -41,7 +41,7 @@ export default function AboutPage() {
               "Your recordings and the voice made from them are never shared, never used to train anything, and never heard by anyone but you.",
               "We don't pretend. Every voice here is introduced as what it is: an AI voice built from recordings of someone you love.",
               "We won't make leaving hard. Delete everything — voices, conversations, your account — in one place, in seconds, permanently.",
-              "We ask you to confirm you have the right to use a voice before you clone it, every time. Grief deserves consent, on both sides.",
+              "We ask you to confirm you have the right to use a voice before you recreate it, every time. Grief deserves consent, on both sides.",
             ].map((line) => (
               <li key={line} className="flex gap-3">
                 <span className="mt-[11px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-ember)]" aria-hidden />

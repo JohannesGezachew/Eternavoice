@@ -39,7 +39,7 @@ export default function Image() {
             <div>Continue the conversation.</div>
           </div>
           <div style={{ marginTop: 36, fontSize: 30, lineHeight: 1.35, color: "#c9c0b5" }}>
-            Private voice cloning, preview, and spoken conversation from a recording.
+            Recreate a voice from a recording, preview it, and speak with them again.
           </div>
         </div>
         <div style={{ fontSize: 22, color: "#8f877d" }}>eternavoice.app</div>

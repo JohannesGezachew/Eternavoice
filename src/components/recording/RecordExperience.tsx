@@ -404,7 +404,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
         >
           {mode === "upload"
             ? "A voicemail, voice note, or video clip — thirty seconds of clear, natural speech is enough."
-            : "Around seventy-five seconds is enough. Don't perform — just read. The recording stays on this device until you choose to make the clone."}
+            : "Around seventy-five seconds is enough. Don't perform — just read. The recording stays on this device until you choose to recreate the voice."}
         </motion.p>
 
         <motion.div
@@ -639,7 +639,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
               >
                 <p className="text-[13px] text-[var(--color-text-secondary)]">
                   Hold on — converting your file to audio. Nothing leaves this
-                  device until you choose to make the clone.
+                  device until you choose to recreate the voice.
                 </p>
               </motion.div>
             ) : null}
@@ -702,7 +702,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                     </p>
                   ) : null}
                   <Button variant="primary" size="lg" onClick={submitUpload} className="w-full sm:w-auto">
-                    {selectedRegion ? "Clone this clip" : "Create the voice"}
+                    {selectedRegion ? "Use this clip" : "Create the voice"}
                   </Button>
                   {uploadError ? (
                     <p className="text-[13px] text-[var(--color-danger)]" role="alert">
@@ -775,7 +775,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
               >
                 <div className="space-y-5">
                   <p className="text-[14px] text-[var(--color-bone)]/85">
-                    Listen back before we lift the clone.
+                    Listen back before we create the voice.
                     {undershoot ? " A touch short — another twenty seconds will help realism." : ""}
                   </p>
                   <p className="text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
@@ -822,7 +822,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                     </span>
                     <div>
                       <p className="text-[14px] text-[var(--color-bone)]/85">
-                        Creating the clone{cloneElapsed ? ` · ${cloneElapsed}s` : ""}
+                        Creating the voice{cloneElapsed ? ` · ${cloneElapsed}s` : ""}
                       </p>
                       <p className="mt-1 text-[12px] text-[var(--color-bone-dim)]">
                         Voice creation can take a few seconds, and longer for larger clips.
@@ -903,13 +903,13 @@ function fmt(s: number): string {
 function qualitySummary(verdict: QualityVerdict): string {
   switch (verdict) {
     case "ready":
-      return "Quality check: this take sounds strong enough to clone.";
+      return "Quality check: this take sounds strong enough to build the voice from.";
     case "too-quiet":
       return "Quality check: the voice is a little quiet. Re-record closer to the mic if you can.";
     case "too-loud":
-      return "Quality check: the recording is peaking. Pull back slightly and try again for a cleaner clone.";
+      return "Quality check: the recording is peaking. Pull back slightly and try again for a cleaner take.";
     case "noisy":
-      return "Quality check: there is background noise. A quieter room will usually make a better clone.";
+      return "Quality check: there is background noise. A quieter room will usually make a better take.";
     default:
       return "Quality check: listen once before cloning. Clear, steady speech works best.";
   }
@@ -939,7 +939,7 @@ function cloneSteps(elapsed: number): Array<{
 }
 
 async function readCloneError(res: Response): Promise<string> {
-  const fallback = "Could not create the clone.";
+  const fallback = "Could not create the voice.";
   const contentType = res.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {

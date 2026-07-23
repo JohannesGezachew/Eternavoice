@@ -456,7 +456,7 @@ function ListenStep({
           <div className="flex flex-col gap-5">
             <PreviewPlayer src={previewUrl} audioRef={audioRef} name={name} />
             <p className="text-[12px] text-[var(--color-text-tertiary)]">
-              Generated from the clone — not the original recording.
+              Generated from their voice — not the original recording.
             </p>
           </div>
         ) : null}

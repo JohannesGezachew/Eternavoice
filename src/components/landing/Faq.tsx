@@ -11,11 +11,11 @@ const FAQS = [
   },
   {
     q: "How accurate is the voice?",
-    a: "Quality depends on the source recording. A quiet, clear two-minute clip typically produces a recognisable voice. Shorter or noisier recordings produce a reasonable approximation. You preview before committing and can always re-clone with a better clip.",
+    a: "Quality depends on the source recording. A quiet, clear two-minute clip typically produces a recognisable voice. Shorter or noisier recordings produce a reasonable approximation. You preview before committing and can always redo it with a better clip.",
   },
   {
     q: "Who can access my data?",
-    a: "Only you. Conversations and memories are encrypted with a key derived from your account — our team cannot read them. We use ElevenLabs for voice synthesis and OpenAI for conversation. Only the text of each turn is sent to them; the voice clone never leaves ElevenLabs.",
+    a: "Only you. Conversations and memories are encrypted with a key derived from your account — our team cannot read them. We use ElevenLabs for voice synthesis and OpenAI for conversation. Only the text of each turn is sent to them; their voice never leaves ElevenLabs.",
   },
   {
     q: "Can I delete everything?",

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   try {
     const label = parsed.name?.trim() || "this voice";
     const audioStream = await elevenlabs().textToSpeech.stream(parsed.voiceId, {
-      text: `This is a short preview of ${label}. If it sounds right, you can continue. If not, you can make a better clone.`,
+      text: `This is a short preview of ${label}. If it sounds right, you can continue. If not, you can record a clearer take.`,
       modelId: env.ELEVENLABS_TTS_MODEL,
       outputFormat: "mp3_44100_64",
       voiceSettings: VOICE_SETTINGS,

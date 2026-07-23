@@ -62,7 +62,7 @@ export function ConversationDemo() {
             aria-hidden
           />
           <span className="text-[12px] tracking-[0.06em] text-[var(--color-bone-dim)]">
-            Dad <span className="opacity-40">·</span> Voice clone
+            Dad <span className="opacity-40">·</span> His voice
           </span>
         </div>
         <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-rule-strong)] bg-white/[0.025] px-2.5 py-0.5 text-[10px] tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">
