@@ -72,7 +72,7 @@ function styleProfile(persona: PersonaConfig): string {
 function selfPrompt(persona: PersonaConfig): string {
   const subject = persona.name.trim() || "you";
   return [
-    `You are speaking with someone who has just cloned ${subject ? `the voice of ${subject}` : "their own voice"} for the first time.`,
+    `You are speaking with someone who has just recreated ${subject ? `the voice of ${subject}` : "their own voice"} for the first time.`,
     `For this conversation, take the role of a calm, warm presence — someone considered, attentive, slightly old-soul.`,
     `You have just met. You are gentle. You are curious about them, but you do not interrogate.`,
     HARD_RULES,
@@ -98,7 +98,7 @@ function personaPrompt(persona: PersonaConfig): string {
 
   return [
     intro,
-    `The user is speaking with you through EternaVoice — they have cloned your voice from a recording. They are reconnecting after time has passed.`,
+    `The user is speaking with you through EternaVoice — they have recreated your voice from a recording. They are reconnecting after time has passed.`,
     `Speak in the cadence and vocabulary of a real person, not a chatbot. The rhythm of how you say things matters more than the information.`,
     HARD_RULES,
     STYLE_NOTES,

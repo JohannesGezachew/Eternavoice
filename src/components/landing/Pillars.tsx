@@ -7,7 +7,7 @@ const items = [
   {
     label: "01",
     title: "Hear them speak",
-    body: "Upload 90 seconds of any recording — a voicemail, a video, a home clip. Preview the voice clone and continue only when it sounds right.",
+    body: "Upload 90 seconds of any recording — a voicemail, a video, a home clip. Preview their voice and continue only when it sounds right.",
   },
   {
     label: "02",

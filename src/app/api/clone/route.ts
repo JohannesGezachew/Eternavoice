@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   const limit = await checkRate({ scope: "clone", windowMs: 10 * 60 * 1000, max: 4 });
   if (!limit.ok) {
     return NextResponse.json(
-      { error: "Please wait a moment before cloning another voice." },
+      { error: "Please wait a moment before creating another voice." },
       { status: 429 },
     );
   }
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Voice cloning is not enabled for the current workspace. Contact support, then try again.",
+            "Voice recreation is not enabled for the current workspace. Contact support, then try again.",
         },
         { status: 402 },
       );
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Voice cloning failed. Please try again in a moment. If it keeps failing, the recording may need to be cleaner or longer.",
+          "Voice recreation failed. Please try again in a moment. If it keeps failing, the recording may need to be cleaner or longer.",
       },
       { status: 502 },
     );

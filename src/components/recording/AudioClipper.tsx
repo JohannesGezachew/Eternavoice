@@ -194,13 +194,13 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
       {showNudge && !hasRegion && !isLoading ? (
         <p className="text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
           Long recording — drag on the waveform to pick the clearest 30–60 seconds,
-          or just clone the whole thing.
+          or just use the whole thing.
         </p>
       ) : null}
 
       {hasRegion ? (
         <p className="text-[12px] text-[var(--color-bone-dim)]">
-          Selected clip will be used for cloning.
+          Selected clip will be used to create the voice.
         </p>
       ) : null}
     </div>
