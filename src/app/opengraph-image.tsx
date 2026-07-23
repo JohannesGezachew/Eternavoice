@@ -42,7 +42,7 @@ export default function Image() {
             Recreate a voice from a recording, preview it, and speak with them again.
           </div>
         </div>
-        <div style={{ fontSize: 22, color: "#8f877d" }}>eternavoice.app</div>
+        <div style={{ fontSize: 22, color: "#8f877d" }}>eternavoice.com</div>
       </div>
     ),
     size,
