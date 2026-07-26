@@ -16,7 +16,7 @@ const Body = z.object({
       }),
     )
     .min(1)
-    .max(40),
+    .max(400),
   subjectId: z.string().uuid().optional(),
 });
 
@@ -47,7 +47,7 @@ export async function POST(
   // conversations) and durable facts (memories the persona carries forever).
   const response = await openai().chat.completions.create({
     model: "gpt-4o-mini",
-    max_tokens: 700,
+    max_tokens: 1500,
     response_format: { type: "json_object" },
     messages: [
       {
@@ -55,7 +55,7 @@ export async function POST(
         content: [
           "You are a memory assistant for a voice-companion app. The transcript is between the Persona (a recreated voice of someone dear) and the person speaking with them. You are writing notes the Persona will read to itself later, so write from the Persona's point of view: call the person speaking \"you\", and call the Persona \"I\". Never use the words \"the user\" or \"the persona\". Return JSON with exactly two keys:",
           '- "summary": a concise 3-5 sentence summary of what you talked about, the emotional tone, and anything worth following up on next time, written from the Persona\'s point of view (e.g. "You told me about a hard week at work, and I listened."). Specific, never generic.',
-          '- "facts": an array of 0-8 short, durable, declarative facts worth remembering across all future conversations — names, relationships, dates, places, shared history, things you asked me to remember, corrections about who I am or how I speak. Each fact must be one sentence under 200 characters, written from the Persona\'s point of view (e.g. "Your name is Anna, and I used to call you \'pet\'."). Exclude small talk, one-off moods, and anything already obvious about me.',
+          '- "facts": an array of 0-20 short, durable, declarative facts worth remembering across all future conversations. Be thorough — capture every specific, lasting detail that came up: names, relationships, dates, places, events, plans, preferences, shared history, things you asked me to remember, and corrections about who I am or how I speak. Do not stop at a handful; if the conversation was rich, return many. Each fact must be one sentence under 200 characters, written from the Persona\'s point of view (e.g. "Your name is Anna, and I used to call you \'pet\'."). Exclude only pure small talk and fleeting moods, and anything already obvious about me.',
         ].join("\n"),
       },
       { role: "user", content: transcript },
@@ -75,7 +75,7 @@ export async function POST(
           .filter((f): f is string => typeof f === "string")
           .map((f) => f.trim())
           .filter((f) => f.length > 0 && f.length <= 300)
-          .slice(0, 8)
+          .slice(0, 20)
       : [];
   } catch {
     // Malformed model output — nothing to store.
@@ -116,17 +116,37 @@ export async function POST(
       summary_enc: encryptField(summary, key),
     });
     if (insertErr) {
-      // Without a stored summary the fact guard below would re-fire on the
-      // next call — bail out rather than risk duplicate memories.
       return NextResponse.json({ error: "Could not store summary" }, { status: 500 });
     }
+  }
 
-    // Facts are written once per conversation (on its first summarise) so
-    // re-summarising never duplicates memories.
-    if (facts.length && body.subjectId) {
+  // Store durable facts on EVERY summarise (not just the first), de-duped
+  // against what this person already remembers. The client re-summarises as a
+  // conversation grows and on leaving, so this is how anything said later in a
+  // long conversation still becomes a lasting memory instead of being lost.
+  let added = 0;
+  if (facts.length && body.subjectId) {
+    const { data: existingMems } = await supabase
+      .from("memories")
+      .select("content_enc")
+      .eq("user_id", user.id)
+      .eq("subject_id", body.subjectId)
+      .eq("memory_type", "conversation")
+      .is("deleted_at", null);
+
+    const seen = new Set(
+      (existingMems ?? [])
+        .map((row) => {
+          try { return decryptField(row.content_enc as string, key).trim().toLowerCase(); } catch { return ""; }
+        })
+        .filter(Boolean),
+    );
+
+    const fresh = facts.filter((f) => !seen.has(f.trim().toLowerCase()));
+    if (fresh.length) {
       const now = new Date().toISOString();
       await supabase.from("memories").insert(
-        facts.map((content) => ({
+        fresh.map((content) => ({
           user_id: user.id,
           subject_id: body.subjectId,
           content_enc: encryptField(content, key),
@@ -137,10 +157,11 @@ export async function POST(
           updated_at: now,
         })),
       );
+      added = fresh.length;
     }
   }
 
-  return NextResponse.json({ ok: true, facts: facts.length });
+  return NextResponse.json({ ok: true, facts: added });
 }
 
 export async function GET(
@@ -148,7 +169,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   void params;
-  // Returns the last 2 session summaries for the subject in the query param
+  // Returns the recent session summaries for the subject in the query param
   const url = new URL(_request.url);
   const subjectId = url.searchParams.get("subjectId");
 
@@ -161,7 +182,7 @@ export async function GET(
     .select("summary_enc, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(2);
+    .limit(4);
 
   if (subjectId) query = query.eq("subject_id", subjectId);
 

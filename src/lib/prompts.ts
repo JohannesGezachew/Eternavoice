@@ -168,7 +168,7 @@ export function buildChatPrompt(
   const memoryLines = memories
     .map((memory) => memory.content.trim())
     .filter(Boolean)
-    .slice(0, 20);
+    .slice(0, 40);
 
   const parts = [buildSystemPrompt(persona)];
 

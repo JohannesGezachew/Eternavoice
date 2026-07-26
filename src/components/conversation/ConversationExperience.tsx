@@ -23,8 +23,11 @@ import { addMemoryDb } from "@/lib/db/memories";
 import { formatRelativeDay } from "@/lib/utils";
 import type { ChatTurn, ConversationRecord } from "@/lib/types";
 
-const CHAT_CONTEXT_TURNS = 12;
-const MEMORY_CONTEXT_LIMIT = 10;
+const CHAT_CONTEXT_TURNS = 30;
+const MEMORY_CONTEXT_LIMIT = 24;
+// Re-summarise periodically as a conversation grows so anything said mid-way
+// becomes a durable memory, rather than relying solely on the exit beacon.
+const SUMMARISE_EVERY_TURNS = 8;
 
 /** Evening dimming for the candlelight overlay: 0 by day, deepening after
  *  dark, gentlest in the small hours. Returns a 0–1 intensity. */
@@ -225,28 +228,71 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   // opening a different one. Reads live state through a ref so the beacon
   // always carries the latest turns, not the ones from when the
   // conversation was opened.
+  const lastSummarisedCountRef = useRef(0);
+  const buildSummaryPayload = useCallback(() => {
+    if (!currentConversationId || turns.length < 2) return null;
+    // Send the whole conversation (not just the tail) so nothing said early on
+    // is dropped before it can be remembered. The route de-dupes facts, so
+    // re-sending an overlapping transcript never creates duplicate memories.
+    return JSON.stringify({
+      turns: turns.slice(-400).map((t) => ({ role: t.role, content: t.content.slice(0, 2000) })),
+      subjectId: activeSubjectId ?? undefined,
+    });
+  }, [currentConversationId, turns, activeSubjectId]);
+
   const summariseRef = useRef<() => void>(() => {});
   useEffect(() => {
     summariseRef.current = () => {
-      if (!currentConversationId || turns.length < 2) return;
-      const payload = JSON.stringify({
-        turns: turns.slice(-20).map((t) => ({ role: t.role, content: t.content.slice(0, 800) })),
-        subjectId: activeSubjectId ?? undefined,
-      });
+      const payload = buildSummaryPayload();
+      if (!payload || !currentConversationId) return;
+      lastSummarisedCountRef.current = turns.length;
       navigator.sendBeacon(
         `/api/conversations/${currentConversationId}/summarise`,
         new Blob([payload], { type: "application/json" }),
       );
     };
   });
+
+  // Reset the periodic counter whenever the active conversation changes.
+  useEffect(() => {
+    lastSummarisedCountRef.current = 0;
+  }, [currentConversationId]);
+
+  // Flush the summary on any way of leaving: navigation, tab close, and — the
+  // ones a plain beforeunload misses on mobile — backgrounding and pagehide.
   useEffect(() => {
     const summarise = () => summariseRef.current();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") summarise();
+    };
     window.addEventListener("beforeunload", summarise);
+    window.addEventListener("pagehide", summarise);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       summarise();
       window.removeEventListener("beforeunload", summarise);
+      window.removeEventListener("pagehide", summarise);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [currentConversationId]);
+
+  // Periodically capture memories as the conversation grows, so a long chat
+  // isn't remembered only from its final beacon. Fires when the persona is
+  // idle and enough new turns have accumulated; keepalive survives a quick exit.
+  useEffect(() => {
+    if (status === "thinking" || status === "speaking") return;
+    if (!currentConversationId || turns.length < 2) return;
+    if (turns.length - lastSummarisedCountRef.current < SUMMARISE_EVERY_TURNS) return;
+    const payload = buildSummaryPayload();
+    if (!payload) return;
+    lastSummarisedCountRef.current = turns.length;
+    void fetch(`/api/conversations/${currentConversationId}/summarise`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+  }, [turns.length, status, currentConversationId, buildSummaryPayload]);
 
   // Persist turns to DB after each assistant reply completes (debounced).
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
