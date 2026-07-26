@@ -7,14 +7,18 @@ import { AppShell } from "@/components/shell/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { RecordExperience, type CloneResult } from "@/components/recording/RecordExperience";
+import { NarrationStep, type NarrationResult } from "./NarrationStep";
 import { useSession } from "@/lib/session";
+import { addMemoryDb } from "@/lib/db/memories";
 import { trackEvent } from "@/lib/analytics";
 import { cn, formatSeconds } from "@/lib/utils";
+import type { PersonaConfig } from "@/lib/types";
 
-type Step = "who" | "voice" | "listen";
+type Step = "who" | "narrate" | "voice" | "listen";
 
 const STEPS: Array<{ id: Step; label: string }> = [
   { id: "who", label: "Who" },
+  { id: "narrate", label: "About" },
   { id: "voice", label: "Voice" },
   { id: "listen", label: "Listen" },
 ];
@@ -39,6 +43,7 @@ export function NewPersonWizard() {
   const router = useRouter();
   const setVoice = useSession((s) => s.setVoice);
   const setPersona = useSession((s) => s.setPersona);
+  const addMemory = useSession((s) => s.addMemory);
 
   const [step, setStep] = useState<Step>("who");
   const [name, setName] = useState("");
@@ -47,6 +52,9 @@ export function NewPersonWizard() {
   const [consent, setConsent] = useState(false);
   const [whoError, setWhoError] = useState<string | null>(null);
   const [clone, setClone] = useState<CloneResult | null>(null);
+  // What the narration step captured about them — merged into the persona and
+  // seeded as memories once the voice (and its subject row) exist.
+  const [narration, setNarration] = useState<NarrationResult | null>(null);
 
   // The wizard survives a closed tab: restore what was entered, land on the
   // step they left (the clone itself can't persist — voice re-upload is the
@@ -70,7 +78,11 @@ export function NewPersonWizard() {
         if (saved.relationship) setRelationship(saved.relationship);
         if (saved.customRelationship) setCustomRelationship(saved.customRelationship);
         if (saved.consent) setConsent(true);
-        if (saved.step === "voice" && saved.name?.trim()) setStep("voice");
+        // The narration result and clone are ephemeral, so resume anyone past
+        // "who" at the narration step — they can narrate again or skip.
+        if ((saved.step === "voice" || saved.step === "narrate") && saved.name?.trim()) {
+          setStep("narrate");
+        }
       } catch {
         // a fresh wizard is always a safe fallback
       }
@@ -83,7 +95,7 @@ export function NewPersonWizard() {
       sessionStorage.setItem(
         "ev-wizard",
         JSON.stringify({
-          step: step === "listen" ? "voice" : step,
+          step: step === "listen" ? "narrate" : step,
           name,
           relationship,
           customRelationship,
@@ -116,31 +128,51 @@ export function NewPersonWizard() {
     }
     setWhoError(null);
     trackEvent("wizard_who_completed", { relationship: relationship ?? "unset" });
-    setStep("voice");
+    setStep("narrate");
   };
+
+  // A complete persona for {personName}: the wizard's relationship plus
+  // anything the narration inferred (a characterisation, phrases, style).
+  const buildPersona = useCallback(
+    (personName: string): PersonaConfig => {
+      const p = narration?.persona;
+      return {
+        mode: isSelf ? "self" : "persona",
+        name: personName,
+        relationship: (p?.relationship || resolvedRelationship) || undefined,
+        description: p?.description,
+        catchphrases: p?.catchphrases,
+        speechStyle: p?.speechStyle,
+      };
+    },
+    [narration, isSelf, resolvedRelationship],
+  );
 
   const handleCloned = useCallback(
     (result: CloneResult) => {
       setClone(result);
-      // Stamp relationship + a starter persona onto the subject the clone
-      // route created, so the hub shows a complete person immediately.
+      // Stamp relationship + the narration-enriched persona onto the subject
+      // the clone route created, and seed the narrated memories so the very
+      // first conversation already remembers them.
       if (result.subjectId) {
+        const persona = buildPersona(result.name);
         void fetch(`/api/subjects/${result.subjectId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            relationship: resolvedRelationship,
-            persona: {
-              mode: isSelf ? "self" : "persona",
-              name: result.name,
-              relationship: resolvedRelationship || undefined,
-            },
+            relationship: persona.relationship ?? resolvedRelationship,
+            persona,
           }),
         }).catch(() => null);
+
+        for (const content of narration?.memories ?? []) {
+          addMemory(content, result.subjectId);
+          void addMemoryDb(content, result.subjectId).catch(() => null);
+        }
       }
       setStep("listen");
     },
-    [resolvedRelationship, isSelf],
+    [resolvedRelationship, narration, buildPersona, addMemory],
   );
 
   const beginTalking = () => {
@@ -151,11 +183,7 @@ export function NewPersonWizard() {
       // nothing to clean
     }
     setVoice(clone.voiceId, clone.name, clone.subjectId);
-    setPersona({
-      mode: isSelf ? "self" : "persona",
-      name: clone.name,
-      relationship: resolvedRelationship || undefined,
-    });
+    setPersona(buildPersona(clone.name));
     trackEvent("wizard_completed");
     router.push(clone.subjectId ? `/people/${clone.subjectId}/talk` : "/people/current/talk");
   };
@@ -164,7 +192,8 @@ export function NewPersonWizard() {
   // and only leaves the flow from the first step.
   const stepBack = () => {
     if (step === "listen") setStep("voice");
-    else if (step === "voice") setStep("who");
+    else if (step === "voice") setStep("narrate");
+    else if (step === "narrate") setStep("who");
     else router.push("/people");
   };
 
@@ -310,7 +339,29 @@ export function NewPersonWizard() {
           </motion.section>
         ) : null}
 
-        {/* ── Step 2 · Voice ───────────────────────────────────── */}
+        {/* ── Step 2 · About (audio narration) ─────────────────── */}
+        {step === "narrate" ? (
+          <motion.section
+            key="narrate"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-1 flex-col"
+          >
+            <NarrationStep
+              name={name.trim()}
+              relationship={resolvedRelationship || undefined}
+              mode={isSelf ? "self" : "persona"}
+              onComplete={(result) => {
+                setNarration(result);
+                setStep("voice");
+              }}
+            />
+          </motion.section>
+        ) : null}
+
+        {/* ── Step 3 · Voice ───────────────────────────────────── */}
         {step === "voice" ? (
           <motion.section
             key="voice"

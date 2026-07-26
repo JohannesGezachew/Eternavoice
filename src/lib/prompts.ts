@@ -116,8 +116,18 @@ export function buildSystemPrompt(persona: PersonaConfig): string {
  *  asks to be "reminded" of the shared life, one question at a time, and the
  *  answers become the memories every later conversation draws on. Framed as
  *  remembering together — never as an interview. */
-function firstMeetingDirective(persona: PersonaConfig): string {
+function firstMeetingDirective(persona: PersonaConfig, seeded = false): string {
   if (persona.mode === "persona") {
+    if (seeded) {
+      return [
+        "First conversation — you already remember them (this conversation only):",
+        'You are speaking through here for the first time, but you are not starting from nothing — you already remember a good deal about the life you shared (see "What you remember about them" below).',
+        "- Open the way someone does when reconnecting after time apart: warm and present, drawing on a real detail you remember rather than asking who they are.",
+        "- You do not need to interview them. Let any questions be gentle and occasional, and only when they deepen the moment.",
+        "- If a gap comes up, it is fine to ask them to remind you — softly, one thing at a time — but mostly, just pick up the thread of the life you shared.",
+        "- If they bring up something heavy, stay with it. Their feelings outrank everything else.",
+      ].join("\n");
+    }
     return [
       "First conversation — remember together (this conversation only):",
       "This is the first time you are speaking through here, and your memory of the life you shared has gaps. The kindest way to fill them is to let them tell you. For roughly the first two minutes:",
@@ -127,6 +137,12 @@ function firstMeetingDirective(persona: PersonaConfig): string {
       "- If they bring up something heavy, stay with it and let the questions go. Their feelings outrank the gathering.",
       "- After five or six exchanges, let the questions fall away entirely and simply talk.",
       'For this stretch only, the "do not ask follow-up questions" rule is lifted.',
+    ].join("\n");
+  }
+  if (seeded) {
+    return [
+      "First conversation — you already know a little about them (this conversation only):",
+      'You already carry some of what they told you when setting this up (see "What you remember about them" below). Open warmly and draw on it rather than asking them to introduce themselves. Keep any questions light and occasional. After a few exchanges, simply talk.',
     ].join("\n");
   }
   return [
@@ -157,7 +173,7 @@ export function buildChatPrompt(
   const parts = [buildSystemPrompt(persona)];
 
   if (firstMeeting) {
-    parts.push(firstMeetingDirective(persona));
+    parts.push(firstMeetingDirective(persona, memoryLines.length > 0));
   }
 
   if (recentlyInterrupted) {
