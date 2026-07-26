@@ -16,8 +16,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-const MODEL_CONTEXT_TURNS = 12;
-const MEMORY_CONTEXT_LIMIT = 10;
+const MODEL_CONTEXT_TURNS = 30;
+const MEMORY_CONTEXT_LIMIT = 24;
 
 const Body = z.object({
   voiceId: z.string().min(8).max(64),
@@ -62,7 +62,7 @@ const Body = z.object({
         content: z.string().min(1).max(500),
       }),
     )
-    .max(20)
+    .max(40)
     .optional(),
   subjectId: z.string().uuid().optional(),
   /** First-ever conversation with this person: the persona gathers memory
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
           .eq("user_id", user.id)
           .eq("subject_id", parsed.subjectId)
           .order("created_at", { ascending: false })
-          .limit(3);
+          .limit(4);
         sessionSummaries = (data ?? []).map((row) => ({
           summary: (() => {
             try { return decryptField(row.summary_enc as string, key); } catch { return ""; }
@@ -261,7 +261,7 @@ export async function POST(request: Request) {
 
       const systemPrompt = buildChatPrompt(
         parsed.persona,
-        memoryPool.slice(0, 12).map((content) => ({ content })),
+        memoryPool.slice(0, MEMORY_CONTEXT_LIMIT).map((content) => ({ content })),
         sessionSummaries,
         Boolean(parsed.firstMeeting),
         Boolean(parsed.recentlyInterrupted),
