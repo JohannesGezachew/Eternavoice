@@ -113,7 +113,7 @@ create table if not exists memories (
   user_id uuid not null references profiles(id) on delete cascade,
   subject_id uuid references subjects(id) on delete cascade,
   content_enc text not null,       -- encrypted
-  memory_type text not null default 'general',  -- 'general' | 'user_fact'
+  memory_type text not null default 'general',  -- 'manual' | 'conversation' ('general' = legacy, treated as manual)
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz

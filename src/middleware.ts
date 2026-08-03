@@ -1,7 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_PATHS = ["/", "/auth", "/privacy", "/terms", "/auth/login", "/auth/callback"];
+const PUBLIC_PATHS = [
+  "/",
+  "/auth",
+  "/privacy",
+  "/terms",
+  "/about",
+  "/auth/login",
+  "/auth/callback",
+  // Crawler files must be reachable anonymously, or they redirect to login
+  // and search engines see a sign-in page instead of the sitemap.
+  "/robots.txt",
+  "/sitemap.xml",
+];
 const PUBLIC_PREFIXES = ["/auth/", "/_next/", "/favicon", "/opengraph", "/site.web", "/apple", "/safari", "/android", "/browserconfig"];
 const API_PATHS_SKIP_AUTH = ["/api/stripe/webhook"];
 

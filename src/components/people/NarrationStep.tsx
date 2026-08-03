@@ -472,7 +472,7 @@ function ReviewStep({
                 type="button"
                 onClick={() => removeMemory(i)}
                 aria-label="Remove"
-                className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-danger)]"
+                className="flex min-h-[44px] shrink-0 items-center rounded-lg px-3 text-[12px] text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-danger)]"
               >
                 Remove
               </button>

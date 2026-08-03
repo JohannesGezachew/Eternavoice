@@ -259,6 +259,9 @@ export default function AccountPage() {
   return (
     <AppShell title="Account" showTabs>
     <div className="mx-auto flex w-full max-w-lg flex-col px-6 py-10 sm:px-8">
+      {/* The visible page title lives in the app bar; screen readers still
+          need a real top-level heading before the section h2s. */}
+      <h1 className="sr-only">Account</h1>
       <motion.div initial="hidden" animate="enter" variants={stagger(0.07)} className="flex flex-col gap-6">
         {/* User identity */}
         <motion.div variants={fadeUp} className="flex items-center gap-4 py-2">

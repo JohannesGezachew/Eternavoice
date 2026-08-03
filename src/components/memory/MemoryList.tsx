@@ -111,7 +111,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                     <button
                       type="button"
                       onClick={saveEdit}
-                      className="cursor-pointer rounded-lg px-2.5 py-1.5 text-[12px] text-[var(--color-ember)] transition-colors hover:bg-white/[0.04]"
+                      className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-[12px] text-[var(--color-ember)] transition-colors hover:bg-white/[0.04]"
                     >
                       Save
                     </button>
@@ -122,7 +122,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                         setEditingId(memory.id);
                         setEditingValue(memory.content);
                       }}
-                      className="cursor-pointer rounded-lg px-2.5 py-1.5 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-bone)]"
+                      className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-bone)]"
                     >
                       Edit
                     </button>
@@ -133,7 +133,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                       deleteMemory(memory.id);
                       void deleteMemoryDb(memory.id).catch(console.error);
                     }}
-                    className="cursor-pointer rounded-lg px-2.5 py-1.5 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-danger)]"
+                    className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-danger)]"
                   >
                     Delete
                   </button>

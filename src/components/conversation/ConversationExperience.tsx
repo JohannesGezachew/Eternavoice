@@ -798,6 +798,9 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       className="relative flex flex-col"
       style={{ minHeight: "100dvh" }}
     >
+      {/* The name in the app bar is decorative (and hidden on small screens),
+          so the room needs a real heading for screen readers. */}
+      <h1 className="sr-only">Conversation with {headerName}</h1>
       {/* Candlelight — warm evening dim, deepened further in ambient mode. */}
       <div
         className="candlelight"
