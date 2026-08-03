@@ -17,11 +17,17 @@ const Body = z.object({
   mode: z.enum(["self", "persona"]).default("persona"),
 });
 
-/** What the model returns; every field optional so a thin narration still parses. */
+/**
+ * What the model returns. Deliberately permissive about LENGTH and COUNT: the
+ * prompt asks for short memories and a handful of them, but models overshoot,
+ * and a strict `.max()` here would throw — costing the user their whole
+ * narration over a few extra characters. Over-long output is trimmed in
+ * shapeExtraction instead, so a verbose model degrades rather than fails.
+ */
 const Extracted = z.object({
-  description: z.string().max(600).optional(),
-  relationship: z.string().max(120).optional(),
-  catchphrases: z.string().max(600).optional(),
+  description: z.string().optional(),
+  relationship: z.string().optional(),
+  catchphrases: z.string().optional(),
   speechStyle: z
     .object({
       warmth: z.number(),
@@ -32,13 +38,66 @@ const Extracted = z.object({
     })
     .partial()
     .optional(),
-  memories: z.array(z.string().max(240)).max(12).optional(),
+  memories: z.array(z.string()).optional(),
 });
 
 const clamp = (n: unknown, fallback = 5): number => {
   const v = typeof n === "number" && Number.isFinite(n) ? n : fallback;
   return Math.min(10, Math.max(0, Math.round(v)));
 };
+
+/** Trim to a limit without slicing a word in half. */
+function trim(value: string | undefined, max: number): string | undefined {
+  const text = value?.trim();
+  if (!text) return undefined;
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trim();
+}
+
+export interface ShapedExtraction {
+  persona: {
+    description?: string;
+    relationship?: string;
+    catchphrases?: string;
+    speechStyle: {
+      warmth: number;
+      directness: number;
+      expressiveness: number;
+      humor: number;
+      talkativeness: number;
+    };
+  };
+  memories: string[];
+}
+
+/**
+ * Normalise raw model output into the persona the wizard persists. Exported so
+ * the failure modes that matter — over-long fields, too many memories, missing
+ * or non-numeric dials, junk — are covered by tests without calling OpenAI.
+ */
+export function shapeExtraction(raw: unknown, isSelf: boolean): ShapedExtraction {
+  const parsed = Extracted.parse(raw);
+  return {
+    persona: {
+      description: trim(parsed.description, 600),
+      relationship: isSelf ? undefined : trim(parsed.relationship, 120),
+      catchphrases: trim(parsed.catchphrases, 600),
+      speechStyle: {
+        warmth: clamp(parsed.speechStyle?.warmth),
+        directness: clamp(parsed.speechStyle?.directness),
+        expressiveness: clamp(parsed.speechStyle?.expressiveness),
+        humor: clamp(parsed.speechStyle?.humor),
+        talkativeness: clamp(parsed.speechStyle?.talkativeness),
+      },
+    },
+    memories: (parsed.memories ?? [])
+      .map((m) => trim(m, 240))
+      .filter((m): m is string => Boolean(m))
+      .slice(0, 10),
+  };
+}
 
 /**
  * Turn a free-spoken 2-3 minute narration about a person into a structured
@@ -78,7 +137,7 @@ export async function POST(request: Request) {
     `- "memories": 0-10 short, durable, first-person facts worth carrying into every future conversation — names, relationships, shared history, what mattered, what they never want forgotten. One sentence each, under 200 characters, in the Persona's voice (e.g. "I taught you to fish on Saturday mornings."). Only what was actually said; never invent.`,
   ].join("\n");
 
-  let extracted: z.infer<typeof Extracted> = {};
+  let shaped: ShapedExtraction;
   try {
     const response = await openai().chat.completions.create({
       model: env.OPENAI_CHAT_MODEL,
@@ -91,7 +150,7 @@ export async function POST(request: Request) {
       ],
     });
     const raw = JSON.parse(response.choices[0]?.message?.content ?? "{}");
-    extracted = Extracted.parse(raw);
+    shaped = shapeExtraction(raw, isSelf);
   } catch {
     return NextResponse.json(
       { error: "Could not read that narration. You can try again, or fill things in yourself." },
@@ -99,23 +158,5 @@ export async function POST(request: Request) {
     );
   }
 
-  const persona = {
-    description: extracted.description?.trim() || undefined,
-    relationship: isSelf ? undefined : extracted.relationship?.trim() || undefined,
-    catchphrases: extracted.catchphrases?.trim() || undefined,
-    speechStyle: {
-      warmth: clamp(extracted.speechStyle?.warmth),
-      directness: clamp(extracted.speechStyle?.directness),
-      expressiveness: clamp(extracted.speechStyle?.expressiveness),
-      humor: clamp(extracted.speechStyle?.humor),
-      talkativeness: clamp(extracted.speechStyle?.talkativeness),
-    },
-  };
-
-  const memories = (extracted.memories ?? [])
-    .map((m) => m.trim())
-    .filter((m) => m.length > 0)
-    .slice(0, 10);
-
-  return NextResponse.json({ persona, memories });
+  return NextResponse.json(shaped);
 }
