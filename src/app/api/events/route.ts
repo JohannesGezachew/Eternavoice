@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRate } from "@/lib/rateLimit";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,11 +15,13 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
-  const limit = await checkRate({
-    scope: "client-events",
-    windowMs: 60 * 60 * 1000,
-    max: 120,
-  });
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const limit = await checkRate(
+    { scope: "client-events", windowMs: 60 * 60 * 1000, max: 120 },
+    user?.id,
+  );
   if (!limit.ok) {
     return NextResponse.json({ ok: true });
   }

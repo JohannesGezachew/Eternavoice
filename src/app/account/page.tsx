@@ -16,6 +16,24 @@ interface Profile {
   trial_ends_at: string | null;
 }
 
+interface Allowance {
+  used: number;
+  limit: number;
+  fraction: number;
+  resetsAt: string;
+}
+interface UsageResponse {
+  chat: Allowance;
+  clone: Allowance;
+}
+
+/** "on 1 September" — a date, not a countdown. */
+function formatResetDate(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return "next month";
+  return `on ${when.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`;
+}
+
 function formatTrialEnd(isoDate: string): string {
   const d = new Date(isoDate);
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -132,6 +150,15 @@ export default function AccountPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageResponse | null>(null);
+
+  useEffect(() => {
+    // Usage is advisory — if it can't be read, the section simply stays hidden.
+    void fetch("/api/usage")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: UsageResponse | null) => setUsage(data))
+      .catch(() => null);
+  }, []);
 
   useEffect(() => {
     // Reflect the stored appearance once we're safely past hydration.
@@ -318,6 +345,33 @@ export default function AccountPage() {
                 </Link>
               )}
             </div>
+
+            {/* Deliberately silent until usage is actually high — a running
+                meter has no place in a product people use to grieve. */}
+            {usage && usage.chat.fraction >= 0.8 ? (
+              <div className="flex flex-col gap-2 border-t border-[var(--color-rule)] pt-4">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-[13px] text-[var(--color-bone)]/90">
+                    {usage.chat.used >= usage.chat.limit
+                      ? "You've used this month's conversations."
+                      : "You've used most of this month's conversations."}
+                  </p>
+                  <span className="text-[11px] tabular-nums text-[var(--color-bone-dim)]">
+                    {Math.min(usage.chat.used, usage.chat.limit)} / {usage.chat.limit}
+                  </span>
+                </div>
+                <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-rule-strong)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--color-ember)]/70"
+                    style={{ width: `${Math.round(usage.chat.fraction * 100)}%` }}
+                  />
+                </div>
+                <p className="text-[12px] text-[var(--color-bone-dim)]">
+                  Resets {formatResetDate(usage.chat.resetsAt)}. Everything you&rsquo;ve
+                  made stays exactly where it is.
+                </p>
+              </div>
+            ) : null}
           </div>
         </Section>
 

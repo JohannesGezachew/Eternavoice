@@ -16,7 +16,10 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const limit = await checkRate({ scope: "transcribe", windowMs: 60 * 60 * 1000, max: 240 });
+  const limit = await checkRate(
+    { scope: "transcribe", windowMs: 60 * 60 * 1000, max: 400 },
+    user.id,
+  );
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many transcriptions in this session." },

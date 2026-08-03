@@ -26,12 +26,14 @@ export default function PrivacyPage() {
         their voices. Messages and voice input may be sent to OpenAI to generate
         and transcribe conversation turns.
       </p>
-      <h2>Current Storage</h2>
+      <h2>How It Is Stored</h2>
       <p>
-        In this build, voice IDs, persona settings, the local voice list, and
-        conversation history are stored in this browser&apos;s local storage.
-        Clearing browser data removes that local copy. Server-side account
-        storage has not been added yet.
+        Your conversations, memories, and persona settings are stored in our
+        database against your account. Conversation text, memories, and session
+        summaries are encrypted at rest with AES-256 using a key derived
+        specifically for your account, so they cannot be read from the database
+        alone. Your browser also keeps a local copy of some of this so the app
+        works quickly; clearing browser data removes only that local copy.
       </p>
       <h2>Third-Party Processing</h2>
       <p>
@@ -41,9 +43,12 @@ export default function PrivacyPage() {
       </p>
       <h2>Your Choices</h2>
       <p>
-        You can clear local browser storage, forget local voice entries from the
-        voice library, or stop using the app. Provider-side deletion and account
-        data export require a server account system and operational process.
+        You can export everything held against your account, and you can delete
+        it. Deleting your account permanently removes your conversations,
+        memories, session summaries, persona settings, and profile from our
+        database, deletes the recreated voices from our voice provider, and
+        cancels any active subscription. It cannot be undone. Both are
+        available from the Account page.
       </p>
       <h2>Contact</h2>
       <p>

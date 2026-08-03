@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { buildChatPrompt } from "@/lib/prompts";
 import { SentenceBuffer } from "@/lib/sentences";
 import { encodeSse, type ChatEvent } from "@/lib/sse";
-import { checkRate } from "@/lib/rateLimit";
+import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
 import { assertVoiceOwner } from "@/lib/db/voiceOwnership";
 import { deriveUserKey, decryptField } from "@/lib/crypto";
@@ -73,14 +73,6 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
-  const limit = await checkRate({ scope: "chat", windowMs: 60 * 60 * 1000, max: 60 });
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: "You've reached this session's hourly conversation limit." },
-      { status: 429 },
-    );
-  }
-
   let parsed: z.infer<typeof Body>;
   try {
     parsed = Body.parse(await request.json());
@@ -88,12 +80,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
 
-  // Never synthesize in a voice the caller doesn't own.
+  // Never synthesize in a voice the caller doesn't own. This also gives us the
+  // caller's id, which the per-user limits below are keyed on.
   const owner = await assertVoiceOwner(parsed.voiceId);
   if (!owner.ok) {
     return NextResponse.json(
       { error: owner.status === 401 ? "Unauthorized" : "That voice isn't yours." },
       { status: owner.status },
+    );
+  }
+
+  // Burst guard — wide enough that ordinary conversation never reaches it;
+  // catches a runaway client loop.
+  const limit = await checkRate(
+    { scope: "chat", windowMs: 60 * 60 * 1000, max: 200 },
+    owner.userId,
+  );
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "That's a lot of replies at once — give it a moment." },
+      { status: 429 },
+    );
+  }
+
+  // Monthly allowance. Consumed here, before the reply is generated, because
+  // this is the point where the request commits to spending money.
+  const allowance = await consumeAllowance("chat", owner.userId);
+  if (!allowance.ok) {
+    return NextResponse.json(
+      {
+        error: "monthly_allowance_reached",
+        scope: "chat",
+        resetsAt: allowance.resetsAt,
+      },
+      { status: 429 },
     );
   }
 

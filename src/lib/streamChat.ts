@@ -29,6 +29,20 @@ export type ChatEvent =
   | { type: "done"; turnId: string; full: string }
   | { type: "error"; message: string; stage?: "tts" | "llm" | "network" };
 
+/**
+ * The subscriber has used this month's allowance. Not an error condition —
+ * nothing failed and retrying cannot help — so it is typed separately from
+ * the generic failure path.
+ */
+export class AllowanceReachedError extends Error {
+  readonly resetsAt?: string;
+  constructor(resetsAt?: string) {
+    super("monthly_allowance_reached");
+    this.name = "AllowanceReachedError";
+    this.resetsAt = resetsAt;
+  }
+}
+
 export async function* streamChat(
   payload: ChatRequestPayload,
   signal?: AbortSignal,
@@ -43,7 +57,14 @@ export async function* streamChat(
   if (!res.ok || !res.body) {
     const contentType = res.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
-      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      const json = (await res.json().catch(() => null)) as
+        | { error?: string; resetsAt?: string }
+        | null;
+      // Distinct from a failure: nothing is broken and retrying won't help, so
+      // the UI must say something kind rather than offer a retry button.
+      if (json?.error === "monthly_allowance_reached") {
+        throw new AllowanceReachedError(json.resetsAt);
+      }
       throw new Error(json?.error || `Chat failed (${res.status}).`);
     }
     const txt = await res.text().catch(() => "");
