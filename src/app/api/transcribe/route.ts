@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
 import { env } from "@/lib/env";
 import { checkRate } from "@/lib/rateLimit";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -9,6 +10,12 @@ export const maxDuration = 30;
 const MAX_BYTES = 12 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  // Defence in depth alongside the middleware gate — this route spends money
+  // per call (Whisper) and handles a user's recorded audio.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const limit = await checkRate({ scope: "transcribe", windowMs: 60 * 60 * 1000, max: 240 });
   if (!limit.ok) {
     return NextResponse.json(

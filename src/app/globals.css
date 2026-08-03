@@ -157,12 +157,6 @@ html:not([data-theme="dark"]) [class*="hover:bg-white/"]:hover {
     color: var(--color-bone);
   }
 
-  *:focus-visible {
-    outline: 1px solid var(--color-ember);
-    outline-offset: 3px;
-    border-radius: 2px;
-  }
-
   button,
   [role="button"] {
     -webkit-tap-highlight-color: transparent;
@@ -349,6 +343,17 @@ html:not([data-theme="dark"]) [class*="hover:bg-white/"]:hover {
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* Keyboard focus ring. Deliberately UNLAYERED so it always wins: several
+   inputs carry Tailwind's `focus:outline-none` utility, and a layered rule
+   would lose to it, leaving keyboard users with only a faint border tint
+   (WCAG 2.4.11). Unlayered normal declarations beat layered ones regardless
+   of specificity, so every focusable element keeps a visible indicator. */
+*:focus-visible {
+  outline: 2px solid var(--color-ember);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 /* Accessible range slider: real native input with a visible thumb and a

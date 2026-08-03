@@ -47,8 +47,11 @@ export default function PrivacyPage() {
       </p>
       <h2>Contact</h2>
       <p>
-        For privacy requests, publish a dedicated support address before opening
-        the product to real users.
+        For privacy requests, email{" "}
+        <a href="mailto:dev@eternavoice.com" className="underline underline-offset-4">
+          dev@eternavoice.com
+        </a>
+        .
       </p>
     </LegalPage>
   );

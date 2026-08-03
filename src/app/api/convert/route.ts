@@ -6,6 +6,7 @@ import { writeFile, readFile, rm, mkdir } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { randomBytes } from "crypto";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -18,6 +19,13 @@ function err(msg: string, status = 500) {
 }
 
 export async function POST(req: NextRequest) {
+  // Defence in depth: middleware already gates /api/*, but this route shells
+  // out to ffmpeg with a 300s budget on caller-supplied bytes — far too costly
+  // to leave protected by a single layer that a matcher change could widen.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return err("Unauthorized", 401);
+
   let tmpDir: string | null = null;
 
   try {
@@ -39,7 +47,9 @@ export async function POST(req: NextRequest) {
       return err(`Could not read upload: ${e instanceof Error ? e.message : String(e)}`, 400);
     }
 
-    console.log(`[convert] received ${filename} (${(bodyBuf.length / 1e6).toFixed(1)} MB)`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[convert] received ${filename} (${(bodyBuf.length / 1e6).toFixed(1)} MB)`);
+    }
 
     // ── 3. Write to temp dir ───────────────────────────────────────────────
     const id = randomBytes(8).toString("hex");
@@ -78,7 +88,9 @@ export async function POST(req: NextRequest) {
       return err("FFmpeg produced no output — file may be corrupt or have no audio track", 422);
     }
 
-    console.log(`[convert] done — ${(mp3.length / 1e6).toFixed(1)} MB MP3`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[convert] done — ${(mp3.length / 1e6).toFixed(1)} MB MP3`);
+    }
 
     const baseName = filename.replace(/\.[^.]+$/, "");
     return new NextResponse(mp3 as unknown as BodyInit, {
