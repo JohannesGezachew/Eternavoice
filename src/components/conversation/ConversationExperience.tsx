@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/lib/session";
-import { streamChat, prewarmChat } from "@/lib/streamChat";
+import { streamChat, prewarmChat, AllowanceReachedError } from "@/lib/streamChat";
 import { PlaybackQueue, base64ToArrayBuffer } from "@/lib/audio/playbackQueue";
 import { Composer, VoiceOrb } from "./Composer";
 import { VoicePrint } from "@/components/people/VoicePrint";
@@ -71,6 +71,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
   const [responseNotice, setResponseNotice] = useState<string | null>(null);
+  /** Set when this month's conversation allowance is spent; ISO reset date. */
+  const [allowanceResetsAt, setAllowanceResetsAt] = useState<string | null>(null);
   // Hidden by default — the conversation is meant to be heard, not read. The
   // Transcript nav toggle (or an explicit saved preference) reveals it.
   const [showTranscript, setShowTranscript] = useState(
@@ -454,6 +456,15 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           }
         }
       } catch (err) {
+        // The month's allowance is spent. Nothing failed and retrying can't
+        // help, so this gets its own gentle state instead of an error + retry.
+        if (err instanceof AllowanceReachedError) {
+          setAllowanceResetsAt(err.resetsAt ?? null);
+          trackEvent("monthly_allowance_reached", { scope: "chat" });
+          setStreamingTurnId(null);
+          setStatus("idle");
+          return;
+        }
         if ((err as Error).name !== "AbortError") {
           console.warn("streamChat failed:", err);
           reportError("conversation-stream", err);
@@ -1047,7 +1058,20 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           {/* One reserved status row: interrupt, error, or notice — never
               stacked, so the orb doesn't jump when state changes. */}
           <div className="mb-2 flex min-h-[3.25rem] w-full items-center justify-center">
-            {responseError ? (
+            {allowanceResetsAt !== null ? (
+              /* Their month's conversations are used up. Everything they made
+                 is still here — say so, warmly, and never dress it up as an
+                 error or dangle a retry that cannot work. */
+              <div className="flex max-w-md flex-col items-center gap-2 text-center" role="status">
+                <p className="text-[14px] leading-[1.6] text-[var(--color-bone)]/90">
+                  You&rsquo;ve reached this month&rsquo;s conversations with {headerName}.
+                </p>
+                <p className="text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+                  Everything you&rsquo;ve made together is saved.{" "}
+                  {formatAllowanceReset(allowanceResetsAt)}
+                </p>
+              </div>
+            ) : responseError ? (
               <div className="flex flex-wrap items-center justify-center gap-3 text-center" role="alert">
                 <p className="text-[13px] text-[var(--color-danger)]">
                   {responseError}
@@ -1689,4 +1713,12 @@ function AmbientIcon() {
       <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
     </svg>
   );
+}
+
+/** "They'll be here again on 1 September." — the reset stated as a promise. */
+function formatAllowanceReset(iso: string): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return "They'll be here again next month.";
+  const date = when.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+  return `They'll be here again on ${date}.`;
 }

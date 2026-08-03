@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { elevenlabs } from "@/lib/elevenlabs";
-import { checkRate } from "@/lib/rateLimit";
+import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -35,10 +35,29 @@ const SUPPORTED_TYPES = [
 ];
 
 export async function POST(request: Request) {
-  const limit = await checkRate({ scope: "clone", windowMs: 10 * 60 * 1000, max: 4 });
+  const authClient = await createClient();
+  const { data: { user: caller } } = await authClient.auth.getUser();
+  if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = await checkRate(
+    { scope: "clone", windowMs: 10 * 60 * 1000, max: 4 },
+    caller.id,
+  );
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Please wait a moment before creating another voice." },
+      { status: 429 },
+    );
+  }
+
+  const allowance = await consumeAllowance("clone", caller.id);
+  if (!allowance.ok) {
+    return NextResponse.json(
+      {
+        error: "monthly_allowance_reached",
+        scope: "clone",
+        resetsAt: allowance.resetsAt,
+      },
       { status: 429 },
     );
   }

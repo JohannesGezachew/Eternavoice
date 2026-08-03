@@ -15,29 +15,29 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ voiceId: string }> },
 ) {
-  const limit = await checkRate({
-    scope: "voice-delete",
-    windowMs: 60 * 60 * 1000,
-    max: 20,
-  });
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: "Too many voice delete attempts. Try again later." },
-      { status: 429 },
-    );
-  }
-
   const parsed = Params.safeParse(await context.params);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid voice id." }, { status: 400 });
   }
 
-  // Only the owner may delete their cloned voice from the provider.
+  // Only the owner may delete their voice from the provider. Ownership runs
+  // first so the burst guard below can be keyed to the caller.
   const owner = await assertVoiceOwner(parsed.data.voiceId);
   if (!owner.ok) {
     return NextResponse.json(
       { error: owner.status === 401 ? "Unauthorized" : "That voice isn't yours." },
       { status: owner.status },
+    );
+  }
+
+  const limit = await checkRate(
+    { scope: "voice-delete", windowMs: 60 * 60 * 1000, max: 20 },
+    owner.userId,
+  );
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Too many voice delete attempts. Try again later." },
+      { status: 429 },
     );
   }
 
