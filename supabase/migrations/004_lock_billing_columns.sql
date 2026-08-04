@@ -14,9 +14,13 @@
 -- involved.
 --
 -- Billing columns must only ever be written by the service role (the Stripe
--- webhook). There is currently no user-writable column on this table, so the
--- UPDATE grant is revoked outright rather than narrowed; re-grant explicitly
--- per column if a user-editable profile field is added later.
+-- webhook, and the checkout route when it links the Stripe customer id).
+-- There is no user-writable column on this table, so the UPDATE grant is
+-- revoked outright rather than narrowed; re-grant explicitly per column if a
+-- user-editable profile field is ever added.
+--
+-- Reads are unaffected: the account and subscribe pages only SELECT, and the
+-- middleware entitlement check only SELECTs.
 
 revoke update on public.profiles from anon, authenticated;
 
@@ -28,6 +32,3 @@ create policy "Users can update their own profile"
   on public.profiles for update
   using (auth.uid() = id)
   with check (auth.uid() = id);
-
--- data_key_enc is key material; nobody but the service role should read it.
-revoke select (data_key_enc) on public.profiles from anon, authenticated;
