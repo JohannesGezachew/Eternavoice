@@ -33,6 +33,10 @@ export interface ChatTurn {
   content: string;
   createdAt: number;
   feedback?: "more-like-this" | "too-ai" | "too-long" | "wrong-tone";
+  /** Stored ciphertext could not be decrypted (wrong/rotated key, corruption).
+   *  Such turns are never written back — re-encrypting the empty placeholder
+   *  would destroy the original content irrecoverably. */
+  undecryptable?: boolean;
   audio?: Array<{
     sentenceIndex: number;
     mime: string;
@@ -83,6 +87,9 @@ export interface ChatRequestPayload {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   memories?: Array<{ content: string }>;
   subjectId?: string;
+  /** The conversation in progress, so the server can exclude its own rolling
+   *  summary from the "previous sessions" context. */
+  conversationId?: string;
   /** First-ever conversation with this person — the persona gathers memory
    *  by asking to be reminded of the shared life. */
   firstMeeting?: boolean;

@@ -40,5 +40,9 @@ export const env = {
   get STRIPE_WEBHOOK_SECRET() {
     return required("STRIPE_WEBHOOK_SECRET");
   },
-  STRIPE_PRICE_ID: optional("STRIPE_PRICE_ID", ""),
+  // Required: an empty price id makes Stripe reject every checkout session, so
+  // an unset value would break subscriptions in production only.
+  get STRIPE_PRICE_ID() {
+    return required("STRIPE_PRICE_ID");
+  },
 };

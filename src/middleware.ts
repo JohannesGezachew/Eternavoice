@@ -63,31 +63,46 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // API routes: return 401 if not authenticated
-  if (pathname.startsWith("/api/")) {
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return response;
-  }
+  const isApi = pathname.startsWith("/api/");
 
-  // App routes: redirect to login if not authenticated
+  // Unauthenticated: 401 for the API, login redirect for pages.
   if (!user) {
+    if (isApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const loginUrl = new URL("/auth/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Check subscription status for app routes (not account/subscribe pages)
-  // Skipped when SKIP_SUBSCRIPTION_CHECK=true (local dev / pre-Stripe setup)
-  const BILLING_EXEMPT = ["/subscribe", "/account", "/auth"];
+  // Entitlement. This MUST cover /api/* as well as pages: the client talks to
+  // /api/chat, /api/tts and /api/clone directly, so gating only navigations
+  // left every paid endpoint usable indefinitely after a trial lapsed.
+  //
+  // Skipped when SKIP_SUBSCRIPTION_CHECK=true (local dev / pre-Stripe setup).
+  const BILLING_EXEMPT = [
+    "/subscribe",
+    "/account",
+    "/auth",
+    // Billing itself must stay reachable so a lapsed user can pay.
+    "/api/stripe",
+    // Data rights survive cancellation, and the usage read powers the
+    // "you've reached this month's conversations" copy.
+    "/api/user",
+    "/api/usage",
+  ];
   const skipBilling = process.env.SKIP_SUBSCRIPTION_CHECK === "true";
   if (!skipBilling && !BILLING_EXEMPT.some((p) => pathname.startsWith(p))) {
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from("profiles")
       .select("subscription_status, trial_ends_at")
       .eq("id", user.id)
       .single();
+
+    // Distinguish "no access" from "couldn't tell". A Supabase blip must not
+    // dump every paying customer onto the payment page.
+    if (error) {
+      console.error("[middleware] entitlement read failed:", error.message);
+      return response;
+    }
 
     const status = profile?.subscription_status;
     // Trials created in-app carry trial_ends_at; trials managed by Stripe
@@ -97,6 +112,14 @@ export async function middleware(request: NextRequest) {
     const hasAccess = status === "active" || inTrial;
 
     if (!hasAccess) {
+      // 402 lets the client route to /subscribe itself; a redirect would be
+      // parsed as a malformed API response.
+      if (isApi) {
+        return NextResponse.json(
+          { error: "subscription_required" },
+          { status: 402 },
+        );
+      }
       return NextResponse.redirect(new URL("/subscribe", request.url));
     }
   }

@@ -26,7 +26,7 @@ export interface NarrationResult {
   memories: string[];
 }
 
-type Phase = "intro" | "recording" | "processing" | "review" | "write";
+type Phase = "intro" | "recording" | "processing" | "review" | "write" | "retry";
 
 // Recording targets. We never cut anyone off — the ring just fills toward a
 // gentle suggested length, and "Done" becomes the primary action once they've
@@ -64,6 +64,14 @@ export function NarrationStep({
   const [result, setResult] = useState<NarrationResult | null>(null);
 
   const recorderRef = useRef<ActiveRecorder | null>(null);
+  // Generation token: getUserMedia is async, so the component can unmount
+  // while it is still resolving. Without this the recorder lands on a dead
+  // component and the mic stays live for the rest of the session.
+  const armTokenRef = useRef(0);
+  // The captured audio and its transcript survive a failed extraction, so a
+  // backend hiccup never costs someone their two-to-three minute recording.
+  const takeRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
+  const transcriptRef = useRef<string | null>(null);
 
   // Advance the prompt cards on a slow cadence while recording.
   useEffect(() => {
@@ -80,9 +88,11 @@ export function NarrationStep({
     return rec ? rec.stop() : null;
   }, []);
 
-  // Always release the mic on unmount.
+  // Always release the mic on unmount. Bumping the token also discards any
+  // recorder still being acquired, so it can't outlive the component.
   useEffect(() => {
     return () => {
+      armTokenRef.current++;
       recorderRef.current?.cancel();
       recorderRef.current = null;
     };
@@ -109,22 +119,36 @@ export function NarrationStep({
     [name, relationship, mode],
   );
 
-  const finishRecording = useCallback(async () => {
-    if (!recorderRef.current) return;
+  /**
+   * Transcribe (unless already done) and extract. Kept separate from stopping
+   * the recorder so a retry never needs the microphone again — the audio and
+   * transcript are held in refs and reused.
+   */
+  const processTake = useCallback(async () => {
+    setError(null);
     setPhase("processing");
     try {
-      const audio = await stopRecorder();
-      if (!audio) throw new Error("Nothing was recorded.");
+      let transcript = transcriptRef.current;
 
-      const fd = new FormData();
-      const ext = audio.mimeType.includes("mp4") ? "mp4" : audio.mimeType.includes("mpeg") ? "mp3" : "webm";
-      fd.append("audio", audio.blob, `narration.${ext}`);
-      const tRes = await fetch("/api/transcribe", { method: "POST", body: fd });
-      if (!tRes.ok) throw new Error("Could not hear that clearly. You can try again.");
-      const { text } = (await tRes.json()) as { text?: string };
-      const transcript = (text ?? "").trim();
-      if (transcript.length < 12) {
-        throw new Error("That was very short — try saying a little more about them.");
+      if (!transcript) {
+        const audio = takeRef.current;
+        if (!audio) throw new Error("Nothing was recorded.");
+        const fd = new FormData();
+        const ext = audio.mimeType.includes("mp4")
+          ? "mp4"
+          : audio.mimeType.includes("mpeg")
+            ? "mp3"
+            : "webm";
+        fd.append("audio", audio.blob, `narration.${ext}`);
+        const tRes = await fetch("/api/transcribe", { method: "POST", body: fd });
+        if (!tRes.ok) throw new Error("Could not hear that clearly. You can try again.");
+        const { text } = (await tRes.json()) as { text?: string };
+        transcript = (text ?? "").trim();
+        if (transcript.length < 12) {
+          throw new Error("That was very short — try saying a little more about them.");
+        }
+        // Cached so a failure further down never re-spends transcription.
+        transcriptRef.current = transcript;
       }
 
       const extracted = await runExtraction({ transcript });
@@ -133,16 +157,35 @@ export function NarrationStep({
       trackEvent("narration_extracted", { memories: extracted.memories.length });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. You can try again.");
-      setPhase("intro");
+      // "retry" — never back to "intro", which would strand the recording.
+      setPhase("retry");
       trackEvent("narration_failed");
     }
-  }, [stopRecorder, runExtraction]);
+  }, [runExtraction]);
+
+  const finishRecording = useCallback(async () => {
+    if (!recorderRef.current) return;
+    setPhase("processing");
+    try {
+      const audio = await stopRecorder();
+      if (!audio) throw new Error("Nothing was recorded.");
+      takeRef.current = { blob: audio.blob, mimeType: audio.mimeType };
+      transcriptRef.current = null;
+    } catch {
+      setError("We couldn't save that recording. You can try again.");
+      setPhase("intro");
+      trackEvent("narration_failed");
+      return;
+    }
+    await processTake();
+  }, [stopRecorder, processTake]);
 
   const beginRecording = useCallback(async () => {
     setError(null);
     setElapsed(0);
     setRms(0);
     setPromptIndex(0);
+    const myToken = ++armTokenRef.current;
     try {
       const rec = await startRecording({
         onLevel: (level) => setRms(level),
@@ -151,6 +194,12 @@ export function NarrationStep({
           if (ms >= MAX_MS) void finishRecording();
         },
       });
+      // Unmounted (or re-armed) while getUserMedia was resolving — release it
+      // rather than leaving the microphone open on a dead component.
+      if (myToken !== armTokenRef.current) {
+        rec.cancel();
+        return;
+      }
       recorderRef.current = rec;
       setPhase("recording");
       trackEvent("narration_started");
@@ -307,6 +356,57 @@ export function NarrationStep({
             <p className="max-w-sm text-center font-serif text-[19px] leading-[1.4] text-balance text-[var(--color-bone)]/85 sm:text-[22px]">
               Taking in everything you said about {name}…
             </p>
+          </motion.div>
+        ) : null}
+
+        {/* ── Retry — the recording is safe, only the processing failed ── */}
+        {phase === "retry" ? (
+          <motion.div
+            key="retry"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="flex max-w-xl flex-col gap-6"
+          >
+            <div className="flex flex-col gap-3">
+              <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+                Your recording is safe.
+              </h1>
+              <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
+                Something went wrong while I was taking it in — nothing you said
+                was lost. Try again, and you won&rsquo;t have to speak twice.
+              </p>
+            </div>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <Button variant="primary" size="lg" onClick={() => void processTake()}>
+                Try again
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  // The transcript survived; let them fix it by hand.
+                  setTyped(transcriptRef.current ?? "");
+                  setError(null);
+                  setPhase("write");
+                }}
+                className="text-[13px] text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
+              >
+                {transcriptRef.current ? "Edit what I heard instead" : "Write it instead"}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                takeRef.current = null;
+                transcriptRef.current = null;
+                setError(null);
+                setPhase("intro");
+              }}
+              className="self-start text-[12px] text-[var(--color-text-tertiary)] underline-offset-4 transition hover:text-[var(--color-bone-dim)] hover:underline"
+            >
+              Start over
+            </button>
           </motion.div>
         ) : null}
 

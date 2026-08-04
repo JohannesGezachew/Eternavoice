@@ -4,17 +4,18 @@ import { createClient } from "@/lib/supabase/server";
 import { deriveUserKey, encryptField, decryptField } from "@/lib/crypto";
 import type { ConversationRecord, ChatTurn } from "@/lib/types";
 
-export async function getUserDataKey(userId: string): Promise<Buffer> {
-  // Derive key from master key + userId (stable, no DB lookup needed)
-  return deriveUserKey(userId);
-}
+// NOTE: do not export a key-deriving helper from this file. Every exported
+// async function in a "use server" module is a candidate Server Action with a
+// public HTTP endpoint — an exported `getUserDataKey(userId)` would be a
+// caller-controlled, unauthenticated key-disclosure endpoint one client import
+// away. Derive inline from the *authenticated* user instead.
 
 export async function saveConversation(conversation: ConversationRecord): Promise<void> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  const key = await getUserDataKey(user.id);
+  const key = deriveUserKey(user.id);
 
   // Upsert conversation row
   const { error: convErr } = await supabase
@@ -30,9 +31,11 @@ export async function saveConversation(conversation: ConversationRecord): Promis
     });
   if (convErr) throw convErr;
 
-  // Upsert all turns
-  if (conversation.turns.length === 0) return;
-  const turnRows = conversation.turns.map((turn) => ({
+  // Upsert all turns — except any whose plaintext we never recovered. Writing
+  // those back would replace good ciphertext with an encryption of "".
+  const writableTurns = conversation.turns.filter((turn) => !turn.undecryptable);
+  if (writableTurns.length === 0) return;
+  const turnRows = writableTurns.map((turn) => ({
     id: turn.id,
     conversation_id: conversation.id,
     user_id: user.id,
@@ -51,7 +54,7 @@ export async function getConversations(): Promise<ConversationRecord[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const key = await getUserDataKey(user.id);
+  const key = deriveUserKey(user.id);
 
   const { data: convRows, error } = await supabase
     .from("conversations")
@@ -69,8 +72,17 @@ export async function getConversations(): Promise<ConversationRecord[]> {
       .map((t) => ({
         id: t.id,
         role: t.role as "user" | "assistant",
-        content: (() => {
-          try { return decryptField(t.content_enc, key); } catch { return ""; }
+        // A decrypt failure must NOT become an empty string: saveConversation
+        // re-encrypts every turn it is given, so an empty string would be
+        // written back over the original ciphertext and the real content lost
+        // for good. Mark it instead, and let the save path skip it.
+        ...(() => {
+          try {
+            return { content: decryptField(t.content_enc, key) };
+          } catch {
+            console.error("[conversations] turn failed to decrypt", { turnId: t.id });
+            return { content: "", undecryptable: true as const };
+          }
         })(),
         feedback: (t.feedback as ChatTurn["feedback"]) ?? undefined,
         createdAt: new Date(t.created_at).getTime(),
@@ -93,27 +105,36 @@ export async function getConversations(): Promise<ConversationRecord[]> {
 
 export async function deleteConversationDb(id: string): Promise<void> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
   const { error } = await supabase
     .from("conversations")
     .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw error;
 }
 
 export async function renameConversationDb(id: string, title: string): Promise<void> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
   const { error } = await supabase
     .from("conversations")
-    .update({ title, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .update({ title: title.slice(0, 200), updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw error;
 }
 
 export async function pinConversationDb(id: string, pinned: boolean): Promise<void> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
   const { error } = await supabase
     .from("conversations")
     .update({ pinned, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw error;
 }
