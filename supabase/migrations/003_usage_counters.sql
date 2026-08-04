@@ -57,3 +57,12 @@ begin
   return new_count;
 end;
 $$;
+
+-- The function is SECURITY DEFINER so it can write past the select-only RLS
+-- above. Postgres grants EXECUTE to PUBLIC by default and Supabase exposes
+-- every public-schema function at /rest/v1/rpc/, so without this revoke any
+-- signed-in user could call it with someone else's p_user_id and burn through
+-- their monthly allowance — or spam rows with arbitrary period_start values.
+-- Only the service role (used by src/lib/rateLimit.ts) may increment.
+revoke execute on function public.increment_usage(uuid, text, timestamptz)
+  from public, anon, authenticated;

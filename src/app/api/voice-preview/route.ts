@@ -15,14 +15,6 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
-  const limit = await checkRate({ scope: "voice-preview", windowMs: 10 * 60 * 1000, max: 20 });
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: "Please wait a moment before previewing again." },
-      { status: 429 },
-    );
-  }
-
   let parsed: z.infer<typeof Body>;
   try {
     parsed = Body.parse(await request.json());
@@ -30,11 +22,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
 
+  // Ownership first, so the limiter below can be keyed to the caller. Keyed on
+  // nothing, checkRate allows unconditionally — this guard was previously a
+  // no-op.
   const owner = await assertVoiceOwner(parsed.voiceId);
   if (!owner.ok) {
     return NextResponse.json(
       { error: owner.status === 401 ? "Unauthorized" : "That voice isn't yours." },
       { status: owner.status },
+    );
+  }
+
+  const limit = await checkRate(
+    { scope: "voice-preview", windowMs: 10 * 60 * 1000, max: 20 },
+    owner.userId,
+  );
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Please wait a moment before previewing again." },
+      { status: 429 },
     );
   }
 

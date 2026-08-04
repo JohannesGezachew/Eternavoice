@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 
 const exec = promisify(execFile);
 
+const MAX_UPLOAD_BYTES = 150 * 1024 * 1024;
+
 function err(msg: string, status = 500) {
   return NextResponse.json({ error: msg }, { status });
 }
@@ -37,14 +39,24 @@ export async function POST(req: NextRequest) {
     const ext = (filename.split(".").pop()?.replace(/[^a-z0-9]/gi, "") ?? "bin").toLowerCase() || "bin";
 
     // ── 2. Read raw body ───────────────────────────────────────────────────
+    // Reject oversized uploads before buffering them: the whole body is held
+    // in lambda memory, so an unbounded read is a trivial OOM.
+    const declaredLength = Number(req.headers.get("content-length") ?? 0);
+    if (declaredLength > MAX_UPLOAD_BYTES) {
+      return err("That file is larger than we accept (150 MB).", 413);
+    }
+
     let bodyBuf: Buffer;
     try {
       const ab = await req.arrayBuffer();
       if (!ab.byteLength) return err("Empty file received", 400);
+      if (ab.byteLength > MAX_UPLOAD_BYTES) {
+        return err("That file is larger than we accept (150 MB).", 413);
+      }
       bodyBuf = Buffer.from(ab);
     } catch (e) {
       console.error("[convert] body read failed:", e);
-      return err(`Could not read upload: ${e instanceof Error ? e.message : String(e)}`, 400);
+      return err("Could not read that upload.", 400);
     }
 
     if (process.env.NODE_ENV !== "production") {
@@ -63,20 +75,33 @@ export async function POST(req: NextRequest) {
 
     // ── 4. Convert with ffmpeg ─────────────────────────────────────────────
     try {
-      await exec("/usr/bin/ffmpeg", [
-        "-i", inputPath,
-        "-vn",                   // drop video
-        "-acodec", "libmp3lame",
-        "-b:a", "128k",
-        "-ar", "22050",
-        "-y",
-        outputPath,
-      ]);
+      await exec(
+        "/usr/bin/ffmpeg",
+        [
+          // Confine ffmpeg to the local file we just wrote. Without this it
+          // will happily follow references inside the *content* — an HLS
+          // playlist or DASH manifest naming file:///proc/self/environ turns
+          // this endpoint into an env-var (i.e. API key) disclosure primitive.
+          "-protocol_whitelist", "file",
+          "-nostdin",
+          "-i", inputPath,
+          "-vn",                   // drop video
+          "-acodec", "libmp3lame",
+          "-b:a", "128k",
+          "-ar", "22050",
+          "-t", "7200",            // never transcode more than 2 hours
+          "-fs", "200M",           // hard cap on output size
+          "-y",
+          outputPath,
+        ],
+        { timeout: 240_000, maxBuffer: 8 * 1024 * 1024 },
+      );
     } catch (e) {
       const fe = e as { stderr?: string; message?: string };
-      const detail = (fe.stderr ?? fe.message ?? String(e)).trim();
-      console.error("[convert] ffmpeg error:\n" + detail);
-      return err(`FFmpeg error: ${detail.slice(-400)}`, 422);
+      // Logged in full, never returned: ffmpeg's stderr echoes absolute server
+      // paths, the build config, and the content of whatever it tried to open.
+      console.error("[convert] ffmpeg error:\n" + (fe.stderr ?? fe.message ?? String(e)).trim());
+      return err("We couldn't read that file. Try a different recording.", 422);
     }
 
     // ── 5. Read and return MP3 ─────────────────────────────────────────────
@@ -92,7 +117,14 @@ export async function POST(req: NextRequest) {
       console.log(`[convert] done — ${(mp3.length / 1e6).toFixed(1)} MB MP3`);
     }
 
-    const baseName = filename.replace(/\.[^.]+$/, "");
+    // Header-safe: the name came from a request header, so strip quotes,
+    // backslashes and control characters rather than interpolating it raw.
+    const baseName =
+      filename
+        .replace(/\.[^.]+$/, "")
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\u0000-\u001f\u007f"\\]/g, "")
+        .slice(0, 100) || "recording";
     return new NextResponse(mp3 as unknown as BodyInit, {
       headers: {
         "Content-Type": "audio/mpeg",

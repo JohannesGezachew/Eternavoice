@@ -5,6 +5,11 @@ import { deriveUserKey, encryptField, decryptField } from "@/lib/crypto";
 import { openai } from "@/lib/openai";
 import { env } from "@/lib/env";
 
+export const runtime = "nodejs";
+// A long transcript through gpt-4o-mini routinely exceeds the 10s default,
+// and this arrives by unload beacon — a timeout loses the summary AND the
+// memories with no retry and no way to tell the user.
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
@@ -80,43 +85,47 @@ export async function POST(
   } catch {
     // Malformed model output — nothing to store.
   }
-  if (!summary) return NextResponse.json({ ok: true });
-
+  // Facts are stored even when the summary comes back empty — they are the
+  // durable half, and discarding them here silently lost a whole
+  // conversation's memories whenever the model returned a blank summary.
   const key = deriveUserKey(user.id);
 
-  // Upsert by conversation: the client summarises on restart, on switching
-  // conversations, AND on unload — only the newest version should survive.
-  const { data: existing } = await supabase
-    .from("session_summaries")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("conversation_id", conversationId)
-    .limit(1)
-    .maybeSingle();
-
-  if (existing?.id) {
-    await supabase
+  if (summary) {
+    // Upsert by conversation: the client summarises periodically, on restart,
+    // on switching conversations AND on unload — only the newest should
+    // survive, and concurrent calls must not create a second row.
+    const { data: existing } = await supabase
       .from("session_summaries")
-      .update({ summary_enc: encryptField(summary, key) })
-      .eq("id", existing.id);
-  } else {
-    // The summary references the conversation row; on unload the beacon can
-    // outrun the debounced conversation save, so guarantee the row exists.
-    await supabase
-      .from("conversations")
-      .upsert(
-        { id: conversationId, user_id: user.id, subject_id: body.subjectId ?? null },
-        { onConflict: "id", ignoreDuplicates: true },
-      );
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("conversation_id", conversationId)
+      .limit(1)
+      .maybeSingle();
 
-    const { error: insertErr } = await supabase.from("session_summaries").insert({
-      user_id: user.id,
-      subject_id: body.subjectId ?? null,
-      conversation_id: conversationId,
-      summary_enc: encryptField(summary, key),
-    });
-    if (insertErr) {
-      return NextResponse.json({ error: "Could not store summary" }, { status: 500 });
+    if (existing?.id) {
+      await supabase
+        .from("session_summaries")
+        .update({ summary_enc: encryptField(summary, key) })
+        .eq("id", existing.id);
+    } else {
+      // The summary references the conversation row; on unload the beacon can
+      // outrun the debounced conversation save, so guarantee the row exists.
+      await supabase
+        .from("conversations")
+        .upsert(
+          { id: conversationId, user_id: user.id, subject_id: body.subjectId ?? null },
+          { onConflict: "id", ignoreDuplicates: true },
+        );
+
+      await supabase.from("session_summaries").insert({
+        user_id: user.id,
+        subject_id: body.subjectId ?? null,
+        conversation_id: conversationId,
+        summary_enc: encryptField(summary, key),
+      });
+      // A unique violation here means a concurrent request won the race and
+      // already wrote it — not an error worth failing the whole call over,
+      // and the facts below must still be stored.
     }
   }
 

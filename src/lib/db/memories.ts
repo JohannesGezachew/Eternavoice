@@ -23,18 +23,33 @@ export async function getMemories(subjectId?: string): Promise<MemoryItem[]> {
   const { data, error } = await query.limit(80);
   if (error) throw error;
 
-  return (data ?? []).map((row) => ({
-    id: row.id as string,
-    content: (() => {
-      try { return decryptField(row.content_enc as string, key); } catch { return ""; }
-    })(),
-    createdAt: new Date(row.created_at as string).getTime(),
-    updatedAt: new Date(row.updated_at as string).getTime(),
-    subjectId: (row.subject_id as string | null) ?? null,
-    // memory_type is the source discriminator; legacy "general" rows count
-    // as manual so existing hand-written notes are never hidden.
-    source: row.memory_type === "conversation" ? "conversation" : "manual",
-  }));
+  return (data ?? [])
+    .map((row): MemoryItem | null => {
+      let content: string;
+      try {
+        content = decryptField(row.content_enc as string, key);
+      } catch {
+        // Dropped rather than surfaced as an empty memory: an empty string in
+        // the editor invites the user to "save" over it, which would replace
+        // recoverable ciphertext with an encryption of "". Logged so a key
+        // problem is visible instead of silently eroding memories.
+        console.error("[memories] row failed to decrypt", { memoryId: row.id });
+        return null;
+      }
+      return {
+        id: row.id as string,
+        content,
+        createdAt: new Date(row.created_at as string).getTime(),
+        updatedAt: new Date(row.updated_at as string).getTime(),
+        subjectId: (row.subject_id as string | null) ?? null,
+        // memory_type is the source discriminator; legacy "general" rows count
+        // as manual so existing hand-written notes are never hidden.
+        source: (row.memory_type === "conversation" ? "conversation" : "manual") as
+          | "conversation"
+          | "manual",
+      };
+    })
+    .filter((m): m is MemoryItem => m !== null);
 }
 
 export async function addMemoryDb(content: string, subjectId?: string): Promise<MemoryItem> {
@@ -80,15 +95,19 @@ export async function updateMemoryDb(id: string, content: string): Promise<void>
   const { error } = await supabase
     .from("memories")
     .update({ content_enc: encryptField(content, key), updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw error;
 }
 
 export async function deleteMemoryDb(id: string): Promise<void> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
   const { error } = await supabase
     .from("memories")
     .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) throw error;
 }

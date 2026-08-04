@@ -294,7 +294,11 @@ export const useSession = create<SessionState>()(
             voiceCreatedAt:
               s.voices.find((voice) => voice.id === conversation.voiceId)?.createdAt ??
               s.voiceCreatedAt,
-            persona: conversation.persona,
+            // Conversations loaded from the DB carry a stub persona (the
+            // column lives on the subject, not the conversation), so falling
+            // back to the active persona keeps a reopened conversation
+            // sounding like the person instead of a nameless generic voice.
+            persona: conversation.persona?.name?.trim() ? conversation.persona : s.persona,
             turns: conversation.turns,
             currentConversationId: conversation.id,
             status: "idle",

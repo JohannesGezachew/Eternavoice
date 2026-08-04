@@ -65,6 +65,9 @@ const Body = z.object({
     .max(40)
     .optional(),
   subjectId: z.string().uuid().optional(),
+  /** The conversation in progress, so its own running summary is never fed
+   *  back as though it were a past session. */
+  conversationId: z.string().uuid().optional(),
   /** First-ever conversation with this person: the persona gathers memory
    *  by asking to be reminded of the shared life. */
   firstMeeting: z.boolean().optional(),
@@ -129,11 +132,19 @@ export async function POST(request: Request) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const key = deriveUserKey(user.id);
-        const { data } = await supabase
+        // Exclude the live conversation: it is summarised every few turns, so
+        // without this the persona is handed a "Previous session" describing
+        // the last five minutes and talks about the present as if it were a
+        // past visit — eventually evicting all genuine cross-session context.
+        let summaryQuery = supabase
           .from("session_summaries")
           .select("summary_enc, created_at")
           .eq("user_id", user.id)
-          .eq("subject_id", parsed.subjectId)
+          .eq("subject_id", parsed.subjectId);
+        if (parsed.conversationId) {
+          summaryQuery = summaryQuery.neq("conversation_id", parsed.conversationId);
+        }
+        const { data } = await summaryQuery
           .order("created_at", { ascending: false })
           .limit(4);
         sessionSummaries = (data ?? []).map((row) => ({

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { elevenlabs, VOICE_SETTINGS } from "@/lib/elevenlabs";
 import { env } from "@/lib/env";
 import { assertVoiceOwner } from "@/lib/db/voiceOwnership";
+import { checkRate } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -31,6 +32,20 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: owner.status === 401 ? "Unauthorized" : "That voice isn't yours." },
       { status: owner.status },
+    );
+  }
+
+  // Every call synthesizes up to 4000 characters of ElevenLabs audio, so this
+  // needs a ceiling like the other paid endpoints. Replaying saved lines is a
+  // deliberate, low-frequency action, so the window is generous.
+  const limit = await checkRate(
+    { scope: "tts", windowMs: 60 * 60 * 1000, max: 120 },
+    owner.userId,
+  );
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "That's a lot of replays at once — give it a moment." },
+      { status: 429 },
     );
   }
 

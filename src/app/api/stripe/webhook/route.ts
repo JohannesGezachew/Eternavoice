@@ -29,11 +29,12 @@ async function upsertSubscriptionStatus(
     .update({
       subscription_status: status,
       subscription_id: subscriptionId,
-      // Keep the in-app trial window in sync with Stripe so a Stripe-managed
-      // trial is never cut short by a stale signup-time trial_ends_at.
-      ...(trialEnd !== undefined
-        ? { trial_ends_at: trialEnd ? new Date(trialEnd * 1000).toISOString() : null }
-        : {}),
+      // Only ever EXTEND the trial window, never clear it. Checkout creates
+      // no-trial subscriptions, so sub.trial_end is always null — previously
+      // that nulled trial_ends_at on every event, so subscribing on day 2 of
+      // the free week silently forfeited the remaining days (and, for a 3DS
+      // card arriving as `incomplete`, locked the user out entirely).
+      ...(trialEnd ? { trial_ends_at: new Date(trialEnd * 1000).toISOString() } : {}),
     })
     .eq("id", supabaseUserId);
 }

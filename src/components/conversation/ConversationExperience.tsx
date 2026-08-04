@@ -396,6 +396,9 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               .slice(0, MEMORY_CONTEXT_LIMIT)
               .map((memory) => ({ content: memory.content })),
             subjectId: activeSubjectId ?? undefined,
+            // So the server can exclude this conversation's own rolling
+            // summary from the "previous sessions" context.
+            conversationId: currentConversationId ?? undefined,
             // Remember-together mode for roughly the first two minutes of a
             // first-ever conversation, then it falls away naturally.
             firstMeeting: firstEverRef.current && messages.length < 12,
@@ -606,6 +609,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     starterSentRef.current = false;
     if (turns.length >= 2) closingTone();
     resetConversation();
+    // Without this the room stays "opened" with no turns, so BeginGate never
+    // re-renders and nothing ever opens a new session — the user is left
+    // waiting at "A breath, and they speak." forever.
+    setHasBegun(false);
     trackEvent("conversation_new_chat");
   }, [resetConversation, turns.length]);
 

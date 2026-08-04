@@ -50,17 +50,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const allowance = await consumeAllowance("clone", caller.id);
-  if (!allowance.ok) {
-    return NextResponse.json(
-      {
-        error: "monthly_allowance_reached",
-        scope: "clone",
-        resetsAt: allowance.resetsAt,
-      },
-      { status: 429 },
-    );
-  }
+  // NOTE: the monthly allowance is consumed further down, immediately before
+  // the provider call — not here. Charging it up front meant a rejected
+  // upload (too large, wrong type, provider error) still cost the user one of
+  // their twelve voices for the month.
 
   let form: FormData;
   try {
@@ -98,6 +91,16 @@ export async function POST(request: Request) {
   const name = parsedName.success ? parsedName.data : "EternaVoice subject";
 
   const labelledName = `${name} · EV ${new Date().toISOString().slice(0, 10)}`;
+
+  // Everything is validated — this request is now committed to creating a
+  // voice, so it is the right moment to spend one of the month's twelve.
+  const allowance = await consumeAllowance("clone", caller.id);
+  if (!allowance.ok) {
+    return NextResponse.json(
+      { error: "monthly_allowance_reached", scope: "clone", resetsAt: allowance.resetsAt },
+      { status: 429 },
+    );
+  }
 
   try {
     const client = elevenlabs();
