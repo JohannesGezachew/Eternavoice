@@ -183,6 +183,7 @@ export default function AccountPage() {
   const [email, setEmail] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -227,9 +228,20 @@ export default function AccountPage() {
 
   const openPortal = async () => {
     setPortalLoading(true);
-    const res = await fetch("/api/stripe/portal", { method: "POST" });
-    const json = (await res.json()) as { url?: string };
-    if (json.url) window.location.href = json.url;
+    setPortalError(null);
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const json = (await res.json()) as { url?: string; error?: string };
+      if (json.url) {
+        window.location.href = json.url;
+        return; // navigating away; leave the button busy
+      }
+      setPortalError(json.error ?? "Couldn't open billing just now.");
+    } catch {
+      // An unguarded res.json() on an HTML error page threw here, so this
+      // never ran and the button sat disabled on "Opening..." until reload.
+      setPortalError("Couldn't reach billing just now. Try again in a moment.");
+    }
     setPortalLoading(false);
   };
 
@@ -277,19 +289,29 @@ export default function AccountPage() {
   const deleteAccount = async () => {
     setDeleteLoading(true);
     setDeleteError(null);
-    const res = await fetch("/api/user/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirm: "DELETE MY ACCOUNT" }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/user/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "DELETE MY ACCOUNT" }),
+      });
+    } catch {
+      setDeleteError("Couldn't reach your account just now. Nothing was removed.");
+      setDeleteLoading(false);
+      return;
+    }
     if (res.ok) {
       const supabase = createClient();
       await supabase.auth.signOut();
       clearLocalSession();
       window.location.href = "/";
     } else {
-      const json = (await res.json()) as { error?: string };
-      setDeleteError(json.error ?? "Deletion failed");
+      // Unguarded, this threw on any non-JSON error page and left the button
+      // stuck on "Deleting…" — with the user unable to tell whether their
+      // account had just been destroyed.
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      setDeleteError(json?.error ?? "Deletion failed. Nothing was removed — try again.");
       setDeleteLoading(false);
     }
   };
