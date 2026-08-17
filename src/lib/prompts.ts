@@ -108,8 +108,28 @@ function personaPrompt(persona: PersonaConfig): string {
   ].filter(Boolean).join("\n\n");
 }
 
-export function buildSystemPrompt(persona: PersonaConfig): string {
-  return persona.mode === "persona" ? personaPrompt(persona) : selfPrompt(persona);
+/**
+ * How the persona is told who it is speaking to.
+ *
+ * Without this the app never knew the living person's name, so the only way it
+ * ever reached the model was by accident — extracted into a memory as a literal
+ * third-person string. Telling the persona directly means memories no longer
+ * have to carry it, and the name is right from the first word of a first
+ * conversation rather than only after the summariser has noticed it.
+ */
+function speakerLine(speakerName?: string): string | null {
+  const name = speakerName?.trim();
+  if (!name) return null;
+  return [
+    `The person you are speaking with is called ${name}.`,
+    `Use their name the way someone who loves them would — occasionally, when it lands. Not in every line, and never at the start of every reply.`,
+  ].join(" ");
+}
+
+export function buildSystemPrompt(persona: PersonaConfig, speakerName?: string): string {
+  const base = persona.mode === "persona" ? personaPrompt(persona) : selfPrompt(persona);
+  const speaker = speakerLine(speakerName);
+  return speaker ? `${base}\n\n${speaker}` : base;
 }
 
 /** The first conversation doubles as gentle memory-gathering: the persona
@@ -164,13 +184,14 @@ export function buildChatPrompt(
   sessionSummaries: Array<{ summary: string; createdAt: string }> = [],
   firstMeeting = false,
   recentlyInterrupted = false,
+  speakerName?: string,
 ): string {
   const memoryLines = memories
     .map((memory) => memory.content.trim())
     .filter(Boolean)
     .slice(0, 40);
 
-  const parts = [buildSystemPrompt(persona)];
+  const parts = [buildSystemPrompt(persona, speakerName)];
 
   if (firstMeeting) {
     parts.push(firstMeetingDirective(persona, memoryLines.length > 0));
