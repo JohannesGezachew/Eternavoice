@@ -10,6 +10,7 @@ import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
 import { assertVoiceOwner } from "@/lib/db/voiceOwnership";
 import { deriveUserKey, decryptField } from "@/lib/crypto";
+import { rankMemoriesForPrompt, type RankableMemory } from "@/lib/memoryRanking";
 
 export const runtime = "nodejs";
 // Vercel Hobby caps function duration at 60s; replies typically finish in 5–20s.
@@ -17,7 +18,11 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 const MODEL_CONTEXT_TURNS = 30;
+/** How many memories reach the prompt. */
 const MEMORY_CONTEXT_LIMIT = 24;
+/** How many are read before choosing — wide enough that hand-kept notes are
+ *  always in the running, not just the newest rows. */
+const MEMORY_FETCH_LIMIT = 400;
 
 const Body = z.object({
   voiceId: z.string().min(8).max(64),
@@ -125,7 +130,11 @@ export async function POST(request: Request) {
   // depends on the client's local store being fresh — facts extracted from a
   // previous conversation reach the very next one, on any device.
   let sessionSummaries: Array<{ summary: string; createdAt: string }> = [];
-  const memoryPool: string[] = (parsed.memories ?? []).map((m) => m.content.trim()).filter(Boolean);
+  // The client sends what it has locally; the server reads the rest. Both feed
+  // one pool that is ranked before anything reaches the prompt.
+  const candidates: RankableMemory[] = (parsed.memories ?? [])
+    .map((m) => ({ content: m.content.trim(), source: "manual" as const, updatedAt: Date.now() }))
+    .filter((m) => m.content);
   if (parsed.subjectId) {
     try {
       const supabase = await createClient();
@@ -154,20 +163,28 @@ export async function POST(request: Request) {
           createdAt: row.created_at as string,
         })).filter((s) => s.summary);
 
+        // Read wide, then choose. Fetching only the newest rows meant the
+        // summariser's own output crowded out every memory the user kept by
+        // hand — so the notes someone deliberately bookmarked were the ones
+        // least likely to reach the persona.
         const { data: memRows } = await supabase
           .from("memories")
-          .select("content_enc")
+          .select("content_enc, memory_type, updated_at")
           .eq("user_id", user.id)
           .eq("subject_id", parsed.subjectId)
           .is("deleted_at", null)
           .order("updated_at", { ascending: false })
-          .limit(MEMORY_CONTEXT_LIMIT);
+          .limit(MEMORY_FETCH_LIMIT);
+
         for (const row of memRows ?? []) {
           try {
             const content = decryptField(row.content_enc as string, key).trim();
-            if (content && !memoryPool.some((m) => m.toLowerCase() === content.toLowerCase())) {
-              memoryPool.push(content);
-            }
+            if (!content) continue;
+            candidates.push({
+              content,
+              source: row.memory_type === "conversation" ? "conversation" : "manual",
+              updatedAt: new Date(row.updated_at as string).getTime(),
+            });
           } catch {
             // undecryptable row — skip
           }
@@ -177,6 +194,23 @@ export async function POST(request: Request) {
       // Non-fatal — continue without server context
     }
   }
+
+  // Everything the person kept by hand, plus the auto-captured facts that bear
+  // on what is being said right now. De-duped case-insensitively, since the
+  // client's local copy and the server's rows overlap.
+  const seenMemory = new Set<string>();
+  const deduped = candidates.filter((m) => {
+    const key = m.content.toLowerCase();
+    if (seenMemory.has(key)) return false;
+    seenMemory.add(key);
+    return true;
+  });
+  const recentText = parsed.messages.slice(-6).map((m) => m.content).join(" ");
+  const chosenMemories = rankMemoriesForPrompt(
+    deduped,
+    recentText,
+    MEMORY_CONTEXT_LIMIT,
+  ).selected.map((m) => m.content);
 
   // A real UUID — this becomes the assistant turn's id in the client store
   // and, from there, a uuid primary key in the turns table.
@@ -292,7 +326,7 @@ export async function POST(request: Request) {
 
       const systemPrompt = buildChatPrompt(
         parsed.persona,
-        memoryPool.slice(0, MEMORY_CONTEXT_LIMIT).map((content) => ({ content })),
+        chosenMemories.map((content) => ({ content })),
         sessionSummaries,
         Boolean(parsed.firstMeeting),
         Boolean(parsed.recentlyInterrupted),

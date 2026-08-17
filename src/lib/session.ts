@@ -34,6 +34,18 @@ const STORAGE_KEY = "eternavoice-session";
  */
 export const MAX_CONVERSATIONS = 200;
 
+/**
+ * How many memories the store holds.
+ *
+ * Was 80, which the summariser alone could fill inside a few conversations —
+ * it writes up to twenty per pass. Every hand-written note was older, fell out
+ * of the window, and the memories page went blank while still reporting that
+ * 80 more were remembered. The loader now fetches kept and auto-captured rows
+ * separately so one can never crowd out the other, and this ceiling sits above
+ * both of their limits.
+ */
+export const MAX_MEMORIES = 500;
+
 // One-time migration: if a previous build wrote the session to sessionStorage,
 // copy it into localStorage so the user keeps their cloned voice across reloads.
 if (typeof window !== "undefined") {
@@ -391,7 +403,10 @@ export const useSession = create<SessionState>()(
         }),
       addMemoryRecord: (memory) =>
         set((s) => ({
-          memories: [memory, ...s.memories.filter((m) => m.id !== memory.id)].slice(0, 80),
+          memories: [memory, ...s.memories.filter((m) => m.id !== memory.id)].slice(
+            0,
+            MAX_MEMORIES,
+          ),
         })),
       replaceMemory: (localId, memory) =>
         set((s) => ({
