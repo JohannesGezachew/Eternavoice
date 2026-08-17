@@ -1,5 +1,7 @@
 "use client";
 
+import { isSessionExpired } from "./authError";
+
 type ErrorPayload = {
   source: string;
   message: string;
@@ -14,6 +16,11 @@ export function reportError(
   context?: ErrorPayload["context"],
 ) {
   if (typeof window === "undefined") return;
+
+  // An expired session is a normal end to a session, not a fault worth a
+  // report — and /api/events answers 401 to exactly the same lapsed session,
+  // so every one of these would be a failed report about a failed request.
+  if (isSessionExpired(error)) return;
 
   const err = error instanceof Error ? error : new Error(String(error));
   const payload: ErrorPayload = {

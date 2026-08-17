@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatRequestPayload } from "./types";
+import { SessionExpiredError, isUnauthorizedStatus } from "./authError";
 
 /**
  * Warm the chat function ahead of the real request — call when the user starts
@@ -55,6 +56,11 @@ export async function* streamChat(
   });
 
   if (!res.ok || !res.body) {
+    // The session lapsed. Typed apart from a failure for the same reason the
+    // allowance is: the middleware's bare {"error":"Unauthorized"} became
+    // "Something went wrong. Tap retry." — a retry that cannot possibly work,
+    // beside no mention of the one thing that would.
+    if (isUnauthorizedStatus(res.status)) throw new SessionExpiredError();
     const contentType = res.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
       const json = (await res.json().catch(() => null)) as

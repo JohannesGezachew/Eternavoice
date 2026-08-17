@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReadEvent } from "./sse";
+import { SessionExpiredError, isUnauthorizedStatus } from "./authError";
 
 export type { ReadEvent };
 
@@ -31,6 +32,9 @@ export async function* streamReading(
   });
 
   if (!res.ok || !res.body) {
+    // Same as the chat stream: a lapsed session must not read as a reading
+    // that failed, or the reader is offered a retry instead of a sign-in.
+    if (isUnauthorizedStatus(res.status)) throw new SessionExpiredError();
     const json = (await res.json().catch(() => null)) as
       | { error?: string; resetsAt?: string }
       | null;
