@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { openai } from "@/lib/openai";
 import { env } from "@/lib/env";
+import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -111,11 +112,33 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // This route had no limiter of any kind on a gpt-4o call with a 12,000
+  // character input — the only paid endpoint in the app with no cost control,
+  // and enough to sustain hundreds of dollars an hour from one subscription.
+  const limit = await checkRate(
+    { scope: "persona-extract", windowMs: 60 * 60 * 1000, max: 20 },
+    user.id,
+  );
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "That's a lot of narrations at once — give it a moment." },
+      { status: 429 },
+    );
+  }
+
   let body: z.infer<typeof Body>;
   try {
     body = Body.parse(await request.json());
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  const allowance = await consumeAllowance("personaExtract", user.id);
+  if (!allowance.ok) {
+    return NextResponse.json(
+      { error: "monthly_allowance_reached", scope: "personaExtract", resetsAt: allowance.resetsAt },
+      { status: 429 },
+    );
   }
 
   const isSelf = body.mode === "self";

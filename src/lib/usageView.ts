@@ -47,13 +47,17 @@ export interface AllowanceLine {
   resetsAt: string;
 }
 
-const LABELS: Record<AllowanceScope, string> = {
+// Only the scopes worth showing someone. tts, transcribe, personaExtract and
+// summarise are cost controls on machinery — replaying a line, voice input,
+// building a persona — that nobody thinks of as a quota they spend. Metering
+// them on screen would invite counting, which is the opposite of the point.
+const LABELS: Partial<Record<AllowanceScope, string>> = {
   chat: "Spoken replies",
   reading: "Readings",
   clone: "Voices created",
 };
 
-const NOUNS: Record<AllowanceScope, string> = {
+const NOUNS: Partial<Record<AllowanceScope, string>> = {
   chat: "spoken replies",
   reading: "readings",
   clone: "new voices",
@@ -80,6 +84,11 @@ export function usageLines(snapshot: UsageSnapshot | null | undefined): Allowanc
     const limit = allowance.limit;
     if (!Number.isFinite(limit) || limit <= 0) continue;
 
+    // A scope with no label is machinery, not a quota anyone should see.
+    const label = LABELS[scope];
+    const noun = NOUNS[scope];
+    if (!label || !noun) continue;
+
     const used = Number.isFinite(allowance.used) ? Math.max(0, allowance.used) : 0;
     // Recomputed rather than trusted: a stale fraction served against a changed
     // limit would emphasise the wrong scope.
@@ -87,8 +96,8 @@ export function usageLines(snapshot: UsageSnapshot | null | undefined): Allowanc
 
     lines.push({
       scope,
-      label: LABELS[scope],
-      noun: NOUNS[scope],
+      label,
+      noun,
       // The allowance check fails open, so the counter keeps climbing past the
       // ceiling. Showing "612 of 600" would only ever read as a billing error.
       used: Math.min(used, limit),
