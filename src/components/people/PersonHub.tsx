@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { buttonClasses } from "@/components/ui/buttonClasses";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FadeSwap } from "@/components/ui/FadeSwap";
 import { PersonaForm } from "@/components/persona/PersonaForm";
@@ -220,9 +222,22 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                 : `${subject.name} will speak first.`}
             </p>
           </div>
-          <Button variant="primary" size="lg" onClick={talk} className="w-full sm:w-auto">
-            Talk to {subject.name}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {/* A reading is a different intention from a conversation — you
+                already know what you want said. Given its own door rather than
+                buried behind talking. */}
+            {subject.voice_id ? (
+              <Link
+                href={`/people/${subjectId}/reading`}
+                className={buttonClasses({ variant: "outline", size: "lg", className: "w-full sm:w-auto" })}
+              >
+                Have them read something
+              </Link>
+            ) : null}
+            <Button variant="primary" size="lg" onClick={talk} className="w-full sm:w-auto">
+              Talk to {subject.name}
+            </Button>
+          </div>
         </motion.div>
 
         {/* ── Tabs ───────────────────────────────────────────────── */}

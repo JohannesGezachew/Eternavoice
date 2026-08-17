@@ -28,6 +28,10 @@ export const MONTHLY_ALLOWANCE = {
   chat: 600,
   /** New voices created. */
   clone: 12,
+  /** Scripts read aloud. Lower than chat because a single reading can be five
+   *  minutes of speech — roughly what forty conversational replies cost — and
+   *  the provider bills per character. */
+  reading: 40,
 } as const;
 
 export type AllowanceScope = keyof typeof MONTHLY_ALLOWANCE;
