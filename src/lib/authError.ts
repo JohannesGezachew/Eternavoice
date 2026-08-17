@@ -48,3 +48,22 @@ export function isSessionExpired(error: unknown): boolean {
   if (name === "SessionExpiredError") return true;
   return typeof message === "string" && message.trim().toLowerCase() === "unauthorized";
 }
+
+/**
+ * The subscription lapsed. Distinct from a failure and from a spent allowance:
+ * nothing is broken, retrying cannot help, and the only useful control is a
+ * way to subscribe. The middleware returns 402 for exactly this and its
+ * comment says "the client routes to /subscribe itself" — which nothing did,
+ * so a trial ending mid-conversation produced "Something went wrong. Tap
+ * retry." for ever, and the reading room printed the raw string
+ * "subscription_required" to someone who had just lost a parent.
+ */
+export class SubscriptionRequiredError extends Error {
+  constructor() {
+    super("subscription_required");
+    this.name = "SubscriptionRequiredError";
+  }
+}
+
+export const SUBSCRIPTION_ENDED_MESSAGE =
+  "Your free week has ended. Everything you\u2019ve made together is saved.";

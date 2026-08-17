@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatRequestPayload } from "./types";
+import { SubscriptionRequiredError } from "./authError";
 import { SessionExpiredError, isUnauthorizedStatus } from "./authError";
 
 /**
@@ -54,6 +55,9 @@ export async function* streamChat(
     body: JSON.stringify(payload),
     signal,
   });
+
+  // 402 is the middleware's entitlement gate, not a failure.
+  if (res.status === 402) throw new SubscriptionRequiredError();
 
   if (!res.ok || !res.body) {
     // The session lapsed. Typed apart from a failure for the same reason the
