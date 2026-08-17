@@ -122,13 +122,41 @@ export async function getConversations(): Promise<ConversationRecord[]> {
   });
 }
 
+/**
+ * Delete a conversation, and mean it.
+ *
+ * This set `deleted_at` and stopped. The transcript stayed in `turns`, and —
+ * the part that showed — the rolling summary of that conversation stayed in
+ * `session_summaries`, where the chat route reads the four most recent for the
+ * person and feeds them to the persona as previous sessions. So someone would
+ * delete a conversation they could not bear to have again, be told it was
+ * permanently removed, and then be asked about it in their mother's voice.
+ *
+ * Summaries go first and explicitly: the foreign key is `on delete set null`,
+ * so relying on the cascade would leave the summary in place with nothing
+ * connecting it to the conversation it came from — unreachable, unattributable
+ * and still being read aloud. The conversation is then removed outright and
+ * `turns` cascades with it, which is what the confirmation dialog promises.
+ *
+ * Memories are deliberately untouched. Something the user chose to keep is not
+ * part of the transcript it was noticed in, and it has its own list and its own
+ * delete.
+ */
 export async function deleteConversationDb(id: string): Promise<void> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
+
+  const { error: summaryError } = await supabase
+    .from("session_summaries")
+    .delete()
+    .eq("conversation_id", id)
+    .eq("user_id", user.id);
+  if (summaryError) throw summaryError;
+
   const { error } = await supabase
     .from("conversations")
-    .update({ deleted_at: new Date().toISOString() })
+    .delete()
     .eq("id", id)
     .eq("user_id", user.id);
   if (error) throw error;
