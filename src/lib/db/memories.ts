@@ -48,7 +48,7 @@ export async function getMemories(subjectId?: string): Promise<MemoryItem[]> {
     .map((row): MemoryItem | null => {
       let content: string;
       try {
-        content = decryptField(row.content_enc as string, key);
+        content = decryptField(row.content_enc, key);
       } catch {
         // Dropped rather than surfaced as an empty memory: an empty string in
         // the editor invites the user to "save" over it, which would replace
@@ -58,11 +58,11 @@ export async function getMemories(subjectId?: string): Promise<MemoryItem[]> {
         return null;
       }
       return {
-        id: row.id as string,
+        id: row.id,
         content,
-        createdAt: new Date(row.created_at as string).getTime(),
-        updatedAt: new Date(row.updated_at as string).getTime(),
-        subjectId: (row.subject_id as string | null) ?? null,
+        createdAt: new Date(row.created_at).getTime(),
+        updatedAt: new Date(row.updated_at).getTime(),
+        subjectId: row.subject_id,
         // memory_type is the source discriminator; legacy "general" rows count
         // as manual so existing hand-written notes are never hidden.
         source: (row.memory_type === "conversation" ? "conversation" : "manual") as
@@ -98,10 +98,10 @@ export async function addMemoryDb(content: string, subjectId?: string): Promise<
   if (error) throw error;
 
   return {
-    id: data.id as string,
+    id: data.id,
     content,
-    createdAt: new Date(data.created_at as string).getTime(),
-    updatedAt: new Date(data.updated_at as string).getTime(),
+    createdAt: new Date(data.created_at).getTime(),
+    updatedAt: new Date(data.updated_at).getTime(),
     subjectId: subjectId ?? null,
     source: "manual",
   };

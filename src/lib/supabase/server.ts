@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { supabaseUrl, supabaseAnonKey } from "@/lib/env";
+import type { Database } from "./types";
 
 /**
  * There used to be a `createServiceClient` here, unused by anything. It built
@@ -13,7 +14,7 @@ import { supabaseUrl, supabaseAnonKey } from "@/lib/env";
 
 export async function createClient() {
   const cookieStore = await cookies();
-  return createServerClient(
+  return createServerClient<Database>(
     supabaseUrl(),
     supabaseAnonKey(),
     {

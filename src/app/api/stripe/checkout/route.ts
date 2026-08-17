@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .single();
 
-  let customerId = profile?.stripe_customer_id as string | undefined;
+  let customerId = profile?.stripe_customer_id ?? undefined;
   if (!customerId) {
     const customer = await client.customers.create({
       email: user.email,

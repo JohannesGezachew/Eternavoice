@@ -159,7 +159,7 @@ export async function POST(request: Request) {
         .select("display_name")
         .eq("id", userId)
         .maybeSingle();
-      return (data?.display_name as string | null)?.trim() || undefined;
+      return data?.display_name?.trim() || undefined;
     } catch {
       return undefined;
     }
@@ -203,8 +203,8 @@ export async function POST(request: Request) {
 
       for (const row of summaryResult.data ?? []) {
         try {
-          const summary = decryptField(row.summary_enc as string, key);
-          if (summary) summaries.push({ summary, createdAt: row.created_at as string });
+          const summary = decryptField(row.summary_enc, key);
+          if (summary) summaries.push({ summary, createdAt: row.created_at });
         } catch {
           // undecryptable row — skip
         }
@@ -212,12 +212,12 @@ export async function POST(request: Request) {
 
       for (const row of memoryResult.data ?? []) {
         try {
-          const content = decryptField(row.content_enc as string, key).trim();
+          const content = decryptField(row.content_enc, key).trim();
           if (!content) continue;
           memories.push({
             content,
             source: row.memory_type === "conversation" ? "conversation" : "manual",
-            updatedAt: new Date(row.updated_at as string).getTime(),
+            updatedAt: new Date(row.updated_at).getTime(),
           });
         } catch {
           // undecryptable row — skip

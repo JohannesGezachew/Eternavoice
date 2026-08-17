@@ -198,10 +198,10 @@ export async function rememberSpoken(
       ok: true,
       alreadyKnown: false,
       memory: {
-        id: data.id as string,
+        id: data.id,
         content,
-        createdAt: new Date(data.created_at as string).getTime(),
-        updatedAt: new Date(data.updated_at as string).getTime(),
+        createdAt: new Date(data.created_at).getTime(),
+        updatedAt: new Date(data.updated_at).getTime(),
         subjectId: scoped,
         source: "manual",
       },

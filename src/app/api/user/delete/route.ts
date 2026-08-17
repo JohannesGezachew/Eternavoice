@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   }
 
   const voiceIds = (subjects ?? [])
-    .map((s) => s.voice_id as string | null)
+    .map((s) => s.voice_id)
     .filter((id): id is string => Boolean(id));
 
   if (voiceIds.length) {

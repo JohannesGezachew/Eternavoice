@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { PersonaConfig } from "@/lib/types";
+import type { Database, Json } from "@/lib/supabase/types";
 
 export interface SubjectRow {
   id: string;
@@ -26,7 +27,11 @@ export async function getSubjects(): Promise<SubjectRow[]> {
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as SubjectRow[];
+  // persona is jsonb, so the database type can only promise Json; the app's
+  // SubjectRow narrows it to PersonaConfig. Through unknown because those two
+  // genuinely do not overlap — which is the honest description of reading a
+  // shape out of a schemaless column.
+  return (data ?? []) as unknown as SubjectRow[];
 }
 
 // There is deliberately no createSubject here. One existed, took a voiceId
@@ -54,10 +59,16 @@ export async function updateSubject(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  const mapped: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  // Typed as the table's own Update shape rather than Record<string, unknown>,
+  // so a column that does not exist — or one this function is deliberately not
+  // allowed to touch, such as voice_id — is a compile error rather than a
+  // silently ignored key.
+  const mapped: Database["public"]["Tables"]["subjects"]["Update"] = {
+    updated_at: new Date().toISOString(),
+  };
   if (updates.name !== undefined) mapped.name = updates.name.slice(0, 80);
   if (updates.relationship !== undefined) mapped.relationship = updates.relationship.slice(0, 120);
-  if (updates.persona !== undefined) mapped.persona = updates.persona;
+  if (updates.persona !== undefined) mapped.persona = updates.persona as unknown as Json;
 
   const { error } = await supabase
     .from("subjects")
