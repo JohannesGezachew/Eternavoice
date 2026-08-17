@@ -7,7 +7,9 @@ import { buttonClasses } from "@/components/ui/buttonClasses";
 import { useSession } from "@/lib/session";
 import { PlaybackQueue, base64ToArrayBuffer } from "@/lib/audio/playbackQueue";
 import { streamReading, ReadingAllowanceError } from "@/lib/streamReading";
-import { saveReading } from "@/lib/db/readings";
+import { saveReading, getReadings, deleteReading, type ReadingRecord } from "@/lib/db/readings";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { formatRelativeDay } from "@/lib/utils";
 import { MAX_READING_CHARS, readingLength, formatSpokenLength } from "@/lib/readings";
 import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
@@ -42,12 +44,17 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [library, setLibrary] = useState<ReadingRecord[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<ReadingRecord | null>(null);
 
   const queueRef = useRef<PlaybackQueue | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   // Kept so the whole reading can be downloaded as one file afterwards.
   const clipsRef = useRef<ArrayBuffer[]>([]);
-  const savedIdRef = useRef<string | undefined>(undefined);
+  // Which saved reading is being edited, if any. State rather than a ref:
+  // it decides both the highlight in the list and whether a save updates or
+  // inserts, and refs may not be read during render.
+  const [openId, setOpenId] = useState<string | undefined>(undefined);
   const totalRef = useRef(0);
   const spokenTotalRef = useRef(0);
 
@@ -65,6 +72,22 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
     return () => abortRef.current?.abort();
   }, []);
 
+  // Reloaded by bumping the key rather than calling a setter from the effect
+  // body, which would be a synchronous state write inside an effect.
+  const [libraryKey, setLibraryKey] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    getReadings(subjectId)
+      .then((rows) => {
+        if (!cancelled) setLibrary(rows);
+      })
+      .catch((err) => reportError("readings-load", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [subjectId, libraryKey]);
+  const refreshLibrary = useCallback(() => setLibraryKey((n) => n + 1), []);
+
   const length = readingLength(script);
   const overLimit = length > MAX_READING_CHARS;
   const canRead = length > 0 && !overLimit && Boolean(person);
@@ -74,18 +97,44 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
   const persist = useCallback(async () => {
     try {
       const record = await saveReading({
-        id: savedIdRef.current,
+        id: openId,
         content: script,
         subjectId,
       });
       if (record) {
-        savedIdRef.current = record.id;
+        setOpenId(record.id);
         setSaved(true);
+        void refreshLibrary();
       }
     } catch (err) {
       reportError("reading-save", err);
     }
-  }, [script, subjectId]);
+  }, [script, subjectId, openId, refreshLibrary]);
+
+  /** Bring a saved reading back into the field, ready to hear again or edit. */
+  const openSaved = (reading: ReadingRecord) => {
+    abortRef.current?.abort();
+    queueRef.current?.stop();
+    setOpenId(reading.id);
+    setScript(reading.content);
+    setSegments([]);
+    setSpokenIndex(-1);
+    setNotice(null);
+    setError(null);
+    setPhase("writing");
+    trackEvent("reading_reopened");
+  };
+
+  const removeSaved = async (reading: ReadingRecord) => {
+    setLibrary((rows) => rows.filter((r) => r.id !== reading.id));
+    if (openId === reading.id) setOpenId(undefined);
+    try {
+      await deleteReading(reading.id);
+    } catch (err) {
+      reportError("reading-delete", err);
+      void refreshLibrary();
+    }
+  };
 
   const read = useCallback(async () => {
     if (!person || !canRead) return;
@@ -211,7 +260,14 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
           <>
             <textarea
               value={script}
-              onChange={(e) => setScript(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setScript(next);
+                // Emptying the field means a new letter, not a revision of the
+                // last one. Without this, clearing it and writing something
+                // else would save over the reading you just kept.
+                if (!next.trim()) setOpenId(undefined);
+              }}
               rows={14}
               placeholder={`Dear ${personName},\n\n`}
               aria-label="What they should read"
@@ -229,6 +285,54 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
                 {length.toLocaleString()} / {MAX_READING_CHARS.toLocaleString()}
               </span>
             </div>
+
+            {/* Everything written for this person. Kept from the moment a
+                reading starts, so nothing is lost to a closed tab — but that
+                only counts for something if you can find it again. */}
+            {library.length > 0 ? (
+              <section className="mt-10 flex flex-col gap-3">
+                <h2 className="text-micro uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">
+                  Written for {personName}
+                </h2>
+                <div className="flex flex-col gap-1">
+                  {library.map((reading) => (
+                    <div
+                      key={reading.id}
+                      className={cn(
+                        "group flex items-center rounded-xl pr-1 transition-colors",
+                        openId === reading.id
+                          ? "bg-white/[0.045]"
+                          : "hover:bg-white/[0.025]",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => openSaved(reading)}
+                        className="flex min-h-[60px] min-w-0 flex-1 cursor-pointer flex-col justify-center gap-1 py-2.5 pl-3.5 pr-2 text-left"
+                      >
+                        <span className="truncate font-serif text-lead leading-snug text-[var(--color-bone)]">
+                          {reading.title}
+                        </span>
+                        <span className="text-micro text-[var(--color-text-tertiary)]">
+                          {formatRelativeDay(reading.updatedAt)} ·{" "}
+                          {formatSpokenLength(reading.content)}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDelete(reading)}
+                        aria-label={`Delete “${reading.title}”`}
+                        className="flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--color-text-tertiary)] transition hover:text-[var(--color-danger)]"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-.8 14.2a1 1 0 0 1-1 .8H6.8a1 1 0 0 1-1-.8L5 6" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </>
         ) : (
           /* The script, lighting up line by line as it is spoken. Watching your
@@ -347,6 +451,18 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this reading?"
+        body={`"${pendingDelete?.title ?? ""}" will be permanently removed. The recording you kept stays on your device.`}
+        confirmLabel="Delete reading"
+        onConfirm={() => {
+          if (pendingDelete) void removeSaved(pendingDelete);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </AppShell>
   );
 }
