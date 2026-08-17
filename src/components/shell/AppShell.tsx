@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Mark } from "./Mark";
 import { DbHydrator } from "./DbHydrator";
+import { useStorageHealth } from "@/lib/storageQuota";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -35,7 +36,9 @@ const TABS = [
   },
   {
     href: "/conversations",
-    label: "Talks",
+    // "Conversations" everywhere: the page title, the hub tab and the nav all
+    // name the same thing, and "Talks" was mine alone.
+    label: "Conversations",
     match: (p: string) => p.startsWith("/conversations"),
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -79,6 +82,9 @@ export function AppShell({
   showTabs = true,
 }: AppShellProps) {
   const pathname = usePathname();
+  // Lives in the shell rather than on any one screen: the store this concerns
+  // is written from everywhere, so there is no single page it belongs to.
+  const storage = useStorageHealth();
 
   const resolvedBackLabel = backLabel ?? (
     backHref === "/people" ? "People" :
@@ -147,6 +153,20 @@ export function AppShell({
           </div>
         )}
       </header>
+
+      {/* The device ran out of room for the local copy. Deliberately quiet and
+          deliberately not red: nothing is lost, the database is the record,
+          and DbHydrator refills everything on the next load. The only reason
+          to say it at all is that "free up some space" is something a person
+          can act on and silence is not. */}
+      {storage.message ? (
+        <p
+          role="status"
+          className="border-b border-[var(--color-rule)] bg-white/[0.02] px-4 py-2 text-center text-small leading-[1.5] text-[var(--color-text-secondary)] sm:px-6"
+        >
+          {storage.message}
+        </p>
+      ) : null}
 
       {/* Page content */}
       <div className={`flex flex-1 flex-col ${showTabs ? "pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0" : ""}`}>

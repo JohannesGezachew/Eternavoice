@@ -129,88 +129,111 @@ export async function POST(request: Request) {
   // memories for this person. Merging DB memories here means the prompt never
   // depends on the client's local store being fresh — facts extracted from a
   // previous conversation reach the very next one, on any device.
-  let sessionSummaries: Array<{ summary: string; createdAt: string }> = [];
   // The client sends what it has locally; the server reads the rest. Both feed
   // one pool that is ranked before anything reaches the prompt.
   const candidates: RankableMemory[] = (parsed.memories ?? [])
     .map((m) => ({ content: m.content.trim(), source: "manual" as const, updatedAt: Date.now() }))
     .filter((m) => m.content);
-  // What the persona should call them. Read alongside the rest rather than as
-  // its own round trip, so knowing someone's name costs nothing in latency.
-  let speakerName: string | undefined;
-  {
+
+  // One client, one identity, resolved once.
+  //
+  // assertVoiceOwner above already validated the session and handed back the
+  // caller's id; this block used to build a second client and call getUser()
+  // again to learn the same thing — a third auth round trip on the request
+  // whose entire job is to start speaking quickly. The middleware had already
+  // made the first.
+  const userId = owner.userId;
+  const supabase = await createClient();
+
+  /** What the persona should call them. Nameless is the old behaviour, and a
+   *  fine fallback, so every failure here is silent. */
+  const readSpeakerName = async (): Promise<string | undefined> => {
     try {
-      const supabase = await createClient();
       const { data } = await supabase
         .from("profiles")
         .select("display_name")
-        .eq("id", owner.userId)
+        .eq("id", userId)
         .maybeSingle();
-      speakerName = (data?.display_name as string | null)?.trim() || undefined;
+      return (data?.display_name as string | null)?.trim() || undefined;
     } catch {
-      // Nameless is the old behaviour, and a fine fallback.
+      return undefined;
     }
-  }
+  };
 
-  if (parsed.subjectId) {
+  /** Everything this person carries in from before. Non-fatal throughout —
+   *  a reply without continuity beats no reply. */
+  const readSubjectContext = async (subjectId: string) => {
+    const summaries: Array<{ summary: string; createdAt: string }> = [];
+    const memories: RankableMemory[] = [];
     try {
-      const supabase = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const key = deriveUserKey(user.id);
-        // Exclude the live conversation: it is summarised every few turns, so
-        // without this the persona is handed a "Previous session" describing
-        // the last five minutes and talks about the present as if it were a
-        // past visit — eventually evicting all genuine cross-session context.
-        let summaryQuery = supabase
-          .from("session_summaries")
-          .select("summary_enc, created_at")
-          .eq("user_id", user.id)
-          .eq("subject_id", parsed.subjectId);
-        if (parsed.conversationId) {
-          summaryQuery = summaryQuery.neq("conversation_id", parsed.conversationId);
-        }
-        const { data } = await summaryQuery
-          .order("created_at", { ascending: false })
-          .limit(4);
-        sessionSummaries = (data ?? []).map((row) => ({
-          summary: (() => {
-            try { return decryptField(row.summary_enc as string, key); } catch { return ""; }
-          })(),
-          createdAt: row.created_at as string,
-        })).filter((s) => s.summary);
+      const key = deriveUserKey(userId);
+      // Exclude the live conversation: it is summarised every few turns, so
+      // without this the persona is handed a "Previous session" describing
+      // the last five minutes and talks about the present as if it were a
+      // past visit — eventually evicting all genuine cross-session context.
+      let summaryQuery = supabase
+        .from("session_summaries")
+        .select("summary_enc, created_at")
+        .eq("user_id", userId)
+        .eq("subject_id", subjectId);
+      if (parsed.conversationId) {
+        summaryQuery = summaryQuery.neq("conversation_id", parsed.conversationId);
+      }
 
-        // Read wide, then choose. Fetching only the newest rows meant the
-        // summariser's own output crowded out every memory the user kept by
-        // hand — so the notes someone deliberately bookmarked were the ones
-        // least likely to reach the persona.
-        const { data: memRows } = await supabase
+      // Read wide, then choose. Fetching only the newest rows meant the
+      // summariser's own output crowded out every memory the user kept by
+      // hand — so the notes someone deliberately bookmarked were the ones
+      // least likely to reach the persona.
+      const [summaryResult, memoryResult] = await Promise.all([
+        summaryQuery.order("created_at", { ascending: false }).limit(4),
+        supabase
           .from("memories")
           .select("content_enc, memory_type, updated_at")
-          .eq("user_id", user.id)
-          .eq("subject_id", parsed.subjectId)
+          .eq("user_id", userId)
+          .eq("subject_id", subjectId)
           .is("deleted_at", null)
           .order("updated_at", { ascending: false })
-          .limit(MEMORY_FETCH_LIMIT);
+          .limit(MEMORY_FETCH_LIMIT),
+      ]);
 
-        for (const row of memRows ?? []) {
-          try {
-            const content = decryptField(row.content_enc as string, key).trim();
-            if (!content) continue;
-            candidates.push({
-              content,
-              source: row.memory_type === "conversation" ? "conversation" : "manual",
-              updatedAt: new Date(row.updated_at as string).getTime(),
-            });
-          } catch {
-            // undecryptable row — skip
-          }
+      for (const row of summaryResult.data ?? []) {
+        try {
+          const summary = decryptField(row.summary_enc as string, key);
+          if (summary) summaries.push({ summary, createdAt: row.created_at as string });
+        } catch {
+          // undecryptable row — skip
+        }
+      }
+
+      for (const row of memoryResult.data ?? []) {
+        try {
+          const content = decryptField(row.content_enc as string, key).trim();
+          if (!content) continue;
+          memories.push({
+            content,
+            source: row.memory_type === "conversation" ? "conversation" : "manual",
+            updatedAt: new Date(row.updated_at as string).getTime(),
+          });
+        } catch {
+          // undecryptable row — skip
         }
       }
     } catch {
       // Non-fatal — continue without server context
     }
-  }
+    return { summaries, memories };
+  };
+
+  // Fanned out rather than awaited in turn. The name, the past sessions and
+  // the memories have no bearing on one another, and running them in sequence
+  // put three full round trips between the user finishing their sentence and
+  // the model being asked for a first token.
+  const [speakerName, subjectContext] = await Promise.all([
+    readSpeakerName(),
+    parsed.subjectId ? readSubjectContext(parsed.subjectId) : null,
+  ]);
+  const sessionSummaries = subjectContext?.summaries ?? [];
+  candidates.push(...(subjectContext?.memories ?? []));
 
   // Everything the person kept by hand, plus the auto-captured facts that bear
   // on what is being said right now. De-duped case-insensitively, since the

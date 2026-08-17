@@ -16,6 +16,7 @@ import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { trackEvent } from "@/lib/analytics";
 import { formatRelativeDay } from "@/lib/utils";
+import { isArchived, describeCorpusQuality } from "@/lib/peopleView";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { PersonaConfig } from "@/lib/types";
 
@@ -50,6 +51,8 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
   const [deleteNameInput, setDeleteNameInput] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/user/data")
@@ -99,6 +102,31 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
     if (subject?.voice_id) renameVoice(subject.voice_id, next.name);
     if (activeSubjectId === subjectId) setPersona(next.persona);
     trackEvent("persona_saved", { from: "hub" });
+  };
+
+  const toggleArchive = async () => {
+    if (!subject) return;
+    const next = !isArchived(subject);
+    setArchiving(true);
+    setArchiveError(null);
+    try {
+      const res = await fetch(`/api/subjects/${subjectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived: next }),
+      });
+      if (!res.ok) throw new Error("Could not save that.");
+      // Mirrored locally rather than refetched: the exact timestamp doesn't
+      // matter here, only whether one exists.
+      setSubject((prev) =>
+        prev ? { ...prev, archived_at: next ? new Date().toISOString() : null } : prev,
+      );
+      trackEvent(next ? "person_archived" : "person_unarchived");
+    } catch {
+      setArchiveError("Could not save that. Try again in a moment.");
+    } finally {
+      setArchiving(false);
+    }
   };
 
   const deletePerson = async () => {
@@ -168,6 +196,10 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
   }
 
   const persona = (subject.persona ?? { mode: "persona", name: subject.name }) as PersonaConfig;
+  // Captured since the first migration and never once shown to the person it
+  // was captured about.
+  const quality = describeCorpusQuality(subject.corpus_quality_score);
+  const archived = isArchived(subject);
 
   return (
     <FadeSwap swapKey={state} className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pb-16 pt-8 sm:px-8">
@@ -187,6 +219,14 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                 {subject.name}
               </h1>
               <div className="flex flex-wrap items-center gap-2">
+                {/* Said plainly at the top, because an archived person is
+                    reachable by link and by search — without this, "why isn't
+                    she on my people page?" has no answer anywhere. */}
+                {isArchived(subject) ? (
+                  <span className="inline-flex items-center rounded-full border border-[var(--color-rule-strong)] bg-white/[0.04] px-2.5 py-0.5 text-micro text-[var(--color-bone-dim)]">
+                    Archived
+                  </span>
+                ) : null}
                 {subject.relationship ? (
                   <span className="inline-flex items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-micro text-[var(--color-text-secondary)]">
                     {subject.relationship}
@@ -238,6 +278,35 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
               Talk to {subject.name}
             </Button>
           </div>
+        </motion.div>
+
+        {/* ── Their voice ────────────────────────────────────────── */}
+        {/* Re-cloning has always worked — nothing said so. The first sample is
+            usually whatever could be found in the worst week of someone's life,
+            and better audio surfaces months later. Without a door here, using
+            it meant adding the person a second time and walking away from every
+            conversation attached to the first. */}
+        <motion.div
+          variants={fadeUp}
+          className="flex flex-col gap-4 rounded-2xl border border-[var(--color-rule)] bg-white/[0.012] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+        >
+          <div className="flex flex-col gap-1">
+            <p className="text-body text-[var(--color-bone)]">
+              {subject.voice_id ? "Their voice" : "No voice yet"}
+            </p>
+            <p className="text-small leading-[1.6] text-[var(--color-text-secondary)]">
+              {subject.voice_id
+                ? "A longer or cleaner recording usually sounds more like them. A new sample replaces this one; nothing else changes."
+                : `Bring any recording of ${subject.name} and they can speak.`}
+              {quality ? ` Current sample: ${quality.label.toLowerCase()} (${quality.score} out of 100).` : ""}
+            </p>
+          </div>
+          <Link
+            href={`/people/${subjectId}/voice`}
+            className={buttonClasses({ variant: "outline", size: "md", className: "shrink-0" })}
+          >
+            {subject.voice_id ? "Record a better sample" : "Add their voice"}
+          </Link>
         </motion.div>
 
         {/* ── Tabs ───────────────────────────────────────────────── */}
@@ -300,6 +369,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                     subjectId={subjectId}
                     voiceId={subject.voice_id}
                     talkHref={talkHref}
+                    personName={subject.name}
                   />
                 )}
               </motion.div>
@@ -307,8 +377,48 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
           </div>
         </motion.div>
 
+        {/* ── Archive ────────────────────────────────────────────── */}
+        {/* Sits above the delete link and looks nothing like it on purpose.
+            The two get confused precisely when someone is upset, and confusing
+            them costs a voice that cannot be recovered. This one is a plain
+            outline button with a sentence promising nothing is lost; that one
+            is red, underlined, and asks you to type their name. */}
+        <motion.div
+          variants={fadeUp}
+          className="flex flex-col gap-3 border-t border-[var(--color-rule)] pt-6 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex flex-col gap-1">
+            <p className="text-body text-[var(--color-bone)]">
+              {archived ? `${subject.name} is archived` : "Keep them, just not on the shelf"}
+            </p>
+            <p className="text-small leading-[1.6] text-[var(--color-text-secondary)]">
+              {archived
+                ? "Hidden from your people page. Everything — their voice, memories, and every conversation — is exactly as you left it."
+                : "Hides them from your people page. Nothing is deleted, and you can bring them back whenever you want."}
+            </p>
+            {archiveError ? (
+              <p role="alert" className="text-small text-[var(--color-danger)]">
+                {archiveError}
+              </p>
+            ) : null}
+          </div>
+          <Button
+            variant="outline"
+            size="md"
+            onClick={() => void toggleArchive()}
+            disabled={archiving}
+            className="shrink-0"
+          >
+            {archiving
+              ? "Saving…"
+              : archived
+                ? `Bring ${subject.name} back`
+                : `Archive ${subject.name}`}
+          </Button>
+        </motion.div>
+
         {/* ── Remove ─────────────────────────────────────────────── */}
-        <motion.div variants={fadeUp} className="flex flex-col items-start gap-2 border-t border-[var(--color-rule)] pt-6">
+        <motion.div variants={fadeUp} className="flex flex-col items-start gap-2">
           {!confirmDelete ? (
             <button
               type="button"

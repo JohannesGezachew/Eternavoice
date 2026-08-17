@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { autoTitleFromTurns, isAutoTitle } from "./conversations";
+import { quotaAwareStorage, setStorageFull } from "./storageQuota";
 import type {
   ChatTurn,
   ConversationRecord,
@@ -84,6 +85,17 @@ interface SessionState {
   memories: MemoryItem[];
   status: ConversationStatus;
   prefs: ListeningPrefs;
+  /**
+   * Whether DbHydrator's pass has finished — settled, not necessarily
+   * successful.
+   *
+   * The store starts empty on every load and fills from the database a moment
+   * later, so any screen that renders straight off it showed its empty state
+   * first: /conversations said "Nothing here yet" and the reader said "That
+   * conversation isn't here", to people whose whole reason for being here is
+   * that it was kept. Never persisted — a reload is a new pass.
+   */
+  dbSettled: boolean;
 
   setVoice: (voiceId: string, name: string, subjectId?: string) => void;
   setActiveVoice: (voiceId: string, subjectId?: string) => void;
@@ -117,6 +129,9 @@ interface SessionState {
   updateMemory: (id: string, content: string) => void;
   deleteMemory: (id: string) => void;
   setStatus: (status: ConversationStatus) => void;
+  /** Called by DbHydrator however its pass ends, including the failures —
+   *  a screen waiting on this must never wait forever. */
+  markDbSettled: () => void;
   setPrefs: (prefs: Partial<ListeningPrefs>) => void;
   resetConversation: () => void;
   resetAll: () => void;
@@ -230,6 +245,7 @@ export const useSession = create<SessionState>()(
       memories: [],
       status: "idle",
       prefs: { playbackRate: 1, transcriptDefault: false, showRememberedFromTalks: false },
+      dbSettled: false,
 
       setVoice: (voiceId, name, subjectId) =>
         set((s) => {
@@ -427,6 +443,7 @@ export const useSession = create<SessionState>()(
       deleteMemory: (id) =>
         set((s) => ({ memories: s.memories.filter((memory) => memory.id !== id) })),
       setStatus: (status) => set({ status }),
+      markDbSettled: () => set({ dbSettled: true }),
       setPrefs: (prefs) => set((s) => ({ prefs: { ...s.prefs, ...prefs } })),
       resetConversation: () =>
         set({ turns: [], currentConversationId: newId("c"), status: "idle" }),
@@ -483,6 +500,7 @@ export const useSession = create<SessionState>()(
             voiceId,
             voiceName,
             activeSubjectId,
+            dbSettled: true,
           };
         }),
     }),
@@ -490,8 +508,14 @@ export const useSession = create<SessionState>()(
       name: STORAGE_KEY,
       // Voice, persona, and turns persist across reloads/browser sessions.
       // Real cross-device persistence still requires auth + a server database.
+      // Wrapped, because persist catches whatever setItem throws and carries
+      // on. A device that had run out of room went on looking like it was
+      // saving — the writes stopped and nothing said so. The wrapper turns
+      // that into a flag the shell can state plainly.
       storage: createJSONStorage(() =>
-        typeof window !== "undefined" ? localStorage : (undefined as unknown as Storage),
+        typeof window !== "undefined"
+          ? quotaAwareStorage(localStorage, setStorageFull)
+          : (undefined as unknown as Storage),
       ),
       partialize: (state) => ({
         voiceId: state.voiceId,

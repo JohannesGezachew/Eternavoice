@@ -7,9 +7,11 @@ import { formatRelativeDay, cn } from "@/lib/utils";
 import {
   groupConversations,
   searchConversations,
+  sortConversations,
   matchingSnippet,
   lastSpokenLine,
   formatTimeOfDay,
+  type ConversationSort,
 } from "@/lib/conversations";
 import type { ConversationRecord } from "@/lib/types";
 
@@ -31,6 +33,11 @@ export interface ConversationListProps {
   personNameFor?: (conversation: ConversationRecord) => string | null;
   /** Hidden on short lists, where scanning is faster than typing. */
   showSearch?: boolean;
+  /** Offer oldest-first and a total. Off in the in-conversation sheet, where
+   *  the list is a quick switcher rather than an archive. */
+  showControls?: boolean;
+  /** Save a conversation as readable text. Omit to hide the action. */
+  onExport?: (conversation: ConversationRecord) => void;
   emptyTitle?: string;
   emptyBody?: string;
   /** Denser rows for the in-conversation sheet. */
@@ -51,6 +58,8 @@ export function ConversationList({
   playingId,
   personNameFor,
   showSearch = true,
+  showControls = false,
+  onExport,
   emptyTitle = "No conversations yet",
   emptyBody = "They'll appear here after your first exchange — every word saved, ready to pick back up.",
   compact = false,
@@ -75,11 +84,22 @@ export function ConversationList({
     };
   }, [menuId]);
 
+  const [order, setOrder] = useState<ConversationSort>("recent");
+
   const filtered = useMemo(
     () => searchConversations(conversations, query),
     [conversations, query],
   );
-  const groups = useMemo(() => groupConversations(filtered), [filtered]);
+  // Oldest-first is a different act from browsing: reading a relationship
+  // forwards. Time grouping is meaningless there, so it renders as one list.
+  const ordered = useMemo(() => sortConversations(filtered, order), [filtered, order]);
+  const groups = useMemo(
+    () =>
+      order === "oldest"
+        ? [{ bucket: "From the beginning" as const, conversations: ordered }]
+        : groupConversations(ordered),
+    [ordered, order],
+  );
 
   const searchable = showSearch && conversations.length >= SEARCH_THRESHOLD;
 
@@ -92,8 +112,25 @@ export function ConversationList({
 
   return (
     <div className="flex flex-col gap-3">
-      {searchable ? (
-        <SearchField value={query} onChange={setQuery} />
+      {searchable ? <SearchField value={query} onChange={setQuery} /> : null}
+
+      {/* How many there are, and which way round. The count was missing
+          entirely — an archive that never says how much it holds. */}
+      {showControls && conversations.length > 0 ? (
+        <div className="flex items-center justify-between px-1 text-micro text-[var(--color-text-tertiary)]">
+          <span>
+            {query.trim()
+              ? `${filtered.length} of ${conversations.length}`
+              : `${conversations.length} ${conversations.length === 1 ? "conversation" : "conversations"}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => setOrder((o) => (o === "recent" ? "oldest" : "recent"))}
+            className="flex h-11 cursor-pointer items-center text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+          >
+            {order === "recent" ? "Read from the beginning" : "Newest first"}
+          </button>
+        </div>
       ) : null}
 
       {!conversations.length ? (
@@ -271,6 +308,16 @@ export function ConversationList({
                               >
                                 Rename
                               </MenuItem>
+                              {onExport ? (
+                                <MenuItem
+                                  onClick={() => {
+                                    onExport(conversation);
+                                    setMenuId(null);
+                                  }}
+                                >
+                                  Save as text
+                                </MenuItem>
+                              ) : null}
                               <MenuItem
                                 destructive
                                 onClick={() => {

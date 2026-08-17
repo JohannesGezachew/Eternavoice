@@ -14,6 +14,7 @@ import {
   pinConversationDb,
   deleteConversationDb,
 } from "@/lib/db/conversations";
+import { exportConversation } from "@/lib/exportConversation";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { ConversationRecord } from "@/lib/types";
 
@@ -28,6 +29,7 @@ import type { ConversationRecord } from "@/lib/types";
 export default function ConversationsPage() {
   const router = useRouter();
   const conversations = useSession((s) => s.conversations);
+  const dbSettled = useSession((s) => s.dbSettled);
   const openConversation = useSession((s) => s.openConversation);
   const renameConversation = useSession((s) => s.renameConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
@@ -122,9 +124,24 @@ export default function ConversationsPage() {
             </motion.div>
           ) : null}
 
+          {/* The store starts empty and fills from the database a beat later,
+              so this page opened on "Nothing here yet" for someone with a
+              hundred conversations. Skeleton until the load has settled —
+              anything is kinder than telling them it is gone. */}
+          {!dbSettled && conversations.length === 0 ? (
+            <motion.div variants={fadeUp} className="flex flex-col gap-3" role="status" aria-label="Loading">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-20 animate-pulse rounded-2xl bg-white/[0.03]" />
+              ))}
+            </motion.div>
+          ) : (
           <motion.div variants={fadeUp}>
             <ConversationList
               conversations={visible}
+              showControls
+              onExport={(conversation) =>
+                exportConversation(conversation, nameFor(conversation) ?? "Them")
+              }
               personNameFor={personFilter ? undefined : nameFor}
               onOpen={openInRoom}
               onRead={(conversation) => {
@@ -147,6 +164,7 @@ export default function ConversationsPage() {
               emptyBody="Once you've talked with someone, every conversation is kept here."
             />
           </motion.div>
+          )}
         </motion.div>
       </div>
 

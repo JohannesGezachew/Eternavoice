@@ -15,6 +15,7 @@ interface UserDataResponse {
 
 export function DbHydrator() {
   const hydrateFromDb = useSession((s) => s.hydrateFromDb);
+  const markDbSettled = useSession((s) => s.markDbSettled);
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -38,11 +39,16 @@ export function DbHydrator() {
         });
       } catch {
         // Non-fatal — localStorage data remains active
+      } finally {
+        // In a finally, and not only on success: screens hold their skeleton
+        // until this flips, so a signed-out visitor or a failed read must
+        // still end the wait rather than leave them staring at a placeholder.
+        markDbSettled();
       }
     };
 
     void run();
-  }, [hydrateFromDb]);
+  }, [hydrateFromDb, markDbSettled]);
 
   return null;
 }

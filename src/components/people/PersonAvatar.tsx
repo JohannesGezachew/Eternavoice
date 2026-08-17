@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { VoicePrint } from "./VoicePrint";
 import { getPhoto, setPhoto, removePhoto, fileToAvatarDataUrl } from "@/lib/photo";
 import { haptic } from "@/lib/haptics";
@@ -63,21 +64,36 @@ export function PersonAvatar({
   };
 
   const img = photo ? (
-    // A local data-URL avatar — next/image offers no optimisation for these
-    // and would force unoptimized; a plain img is correct here.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    // `unoptimized` is not a shortcut here, it is the only correct setting:
+    // these are localStorage data URLs (see lib/photo), already downscaled to
+    // 256×256. The optimiser cannot fetch a data URL, and routing one through
+    // /_next/image would put the whole base64 string in a query parameter and
+    // 400 on the URL length. Sized eagerly because an avatar is never below
+    // the fold in a list of the people you came here to see.
+    <Image
       src={photo}
       alt=""
+      width={size}
+      height={size}
+      unoptimized
       className="absolute inset-0 h-full w-full rounded-full object-cover"
-      style={{ width: size, height: size }}
     />
   ) : (
     <VoicePrint seed={seed} size={size} initial={initial} animated={animated} />
   );
 
   if (!editable) {
-    return <span className={className}>{img}</span>;
+    // The photo is absolutely positioned, so it needs a positioned box of its
+    // own size to sit in. Without one it anchored to whatever ancestor happened
+    // to be relative — on the people page, the corner of the whole card.
+    return (
+      <span
+        className={`relative inline-block ${className ?? ""}`}
+        style={{ width: size, height: size }}
+      >
+        {img}
+      </span>
+    );
   }
 
   return (

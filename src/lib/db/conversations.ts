@@ -10,10 +10,26 @@ import type { ConversationRecord, ChatTurn } from "@/lib/types";
 // caller-controlled, unauthenticated key-disclosure endpoint one client import
 // away. Derive inline from the *authenticated* user instead.
 
-export async function saveConversation(conversation: ConversationRecord): Promise<void> {
+/**
+ * Why an outcome and not a throw.
+ *
+ * In production Next.js replaces a Server Action's thrown error with an opaque
+ * digest, so the client could not tell "your session ended" from "the database
+ * is unhappy" — and told the user "something went wrong" when the honest
+ * answer was "sign in again". A return value crosses the boundary intact. It
+ * also has to be looked at, which the previous `.catch(console.error)` call
+ * site is proof of the need for.
+ */
+export type SaveOutcome =
+  | { ok: true }
+  | { ok: false; reason: "unauthorized" | "failed"; message?: string };
+
+export async function saveConversation(
+  conversation: ConversationRecord,
+): Promise<SaveOutcome> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user) return { ok: false, reason: "unauthorized" };
 
   const key = deriveUserKey(user.id);
 
@@ -29,12 +45,12 @@ export async function saveConversation(conversation: ConversationRecord): Promis
       updated_at: new Date(conversation.updatedAt).toISOString(),
       created_at: new Date(conversation.createdAt).toISOString(),
     });
-  if (convErr) throw convErr;
+  if (convErr) return { ok: false, reason: "failed", message: convErr.message };
 
   // Upsert all turns — except any whose plaintext we never recovered. Writing
   // those back would replace good ciphertext with an encryption of "".
   const writableTurns = conversation.turns.filter((turn) => !turn.undecryptable);
-  if (writableTurns.length === 0) return;
+  if (writableTurns.length === 0) return { ok: true };
   const turnRows = writableTurns.map((turn) => ({
     id: turn.id,
     conversation_id: conversation.id,
@@ -46,7 +62,9 @@ export async function saveConversation(conversation: ConversationRecord): Promis
   }));
 
   const { error: turnsErr } = await supabase.from("turns").upsert(turnRows);
-  if (turnsErr) throw turnsErr;
+  if (turnsErr) return { ok: false, reason: "failed", message: turnsErr.message };
+
+  return { ok: true };
 }
 
 export async function getConversations(): Promise<ConversationRecord[]> {

@@ -31,6 +31,7 @@ export function ConversationReader({
 }) {
   const router = useRouter();
   const conversations = useSession((s) => s.conversations);
+  const dbSettled = useSession((s) => s.dbSettled);
   const openConversation = useSession((s) => s.openConversation);
   const prefs = useSession((s) => s.prefs);
 
@@ -38,6 +39,23 @@ export function ConversationReader({
     () => conversations.find((c) => c.id === conversationId) ?? null,
     [conversations, conversationId],
   );
+
+  // Where this sits among the others with the same person, so a reader can
+  // move through them without going back to the list each time.
+  const { previous, next, position, total } = useMemo(() => {
+    const theirs = conversations
+      .filter((c) => c.subjectId === subjectId)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const at = theirs.findIndex((c) => c.id === conversationId);
+    return {
+      // "Previous" reads as earlier in time, so it is the older one — the
+      // opposite of the array order, which is newest first.
+      previous: at >= 0 ? (theirs[at + 1] ?? null) : null,
+      next: at > 0 ? (theirs[at - 1] ?? null) : null,
+      position: at >= 0 ? at + 1 : 0,
+      total: theirs.length,
+    };
+  }, [conversations, subjectId, conversationId]);
 
   // Without an explicit label the shell derives one from the last path
   // segment, which here is a uuid — the back link read
@@ -111,13 +129,30 @@ export function ConversationReader({
   if (!conversation) {
     return (
       <AppShell title="Conversation" backHref={`/people/${subjectId}`} backLabel={backLabel} showTabs={false}>
-        <div className="mx-auto w-full max-w-2xl px-6 py-16">
-          <EmptyState
-            variant="conversations"
-            title="That conversation isn't here"
-            body="It may have been deleted, or it belongs to a different person."
-          />
-        </div>
+        {/* "Isn't here" is only true once the load has settled. Said any
+            earlier it is a lie told to someone who followed a link to the
+            last conversation they had with a person who is gone. */}
+        {!dbSettled ? (
+          <div
+            className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-10 sm:px-8"
+            role="status"
+            aria-label="Loading"
+          >
+            <div className="h-9 w-2/3 animate-pulse rounded-lg bg-white/[0.04]" />
+            <div className="h-3 w-32 animate-pulse rounded-md bg-white/[0.03]" />
+            <div className="mt-4 h-24 animate-pulse rounded-2xl bg-white/[0.03]" />
+            <div className="h-16 animate-pulse rounded-2xl bg-white/[0.025]" />
+            <div className="h-24 animate-pulse rounded-2xl bg-white/[0.02]" />
+          </div>
+        ) : (
+          <div className="mx-auto w-full max-w-2xl px-6 py-16">
+            <EmptyState
+              variant="conversations"
+              title="That conversation isn't here"
+              body="It may have been deleted, or it belongs to a different person."
+            />
+          </div>
+        )}
       </AppShell>
     );
   }
@@ -141,8 +176,14 @@ export function ConversationReader({
         ) : null}
 
         <div className="flex flex-col gap-5">
-          {conversation.turns.map((turn) => {
+          {conversation.turns.map((turn, i) => {
             const isUser = turn.role === "user";
+            // A long conversation has gaps in it — someone stepped away, came
+            // back an hour later. Without a marker the transcript reads as one
+            // unbroken sitting, which is not what happened.
+            const previousTurn = conversation.turns[i - 1];
+            const gapMs = previousTurn ? turn.createdAt - previousTurn.createdAt : 0;
+            const showGap = gapMs > 10 * 60 * 1000;
             if (turn.undecryptable) {
               return (
                 <p
@@ -161,6 +202,11 @@ export function ConversationReader({
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                 className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}
               >
+                {showGap ? (
+                  <span className="w-full py-2 text-center text-micro tracking-[0.14em] text-[var(--color-text-tertiary)] uppercase">
+                    {formatTimeOfDay(turn.createdAt)}
+                  </span>
+                ) : null}
                 <div
                   className={cn(
                     "max-w-[88%] rounded-2xl text-pretty sm:max-w-[80%]",
@@ -201,9 +247,37 @@ export function ConversationReader({
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-4 px-6 py-3 sm:px-8">
-          <p className="hidden text-small text-[var(--color-text-tertiary)] sm:block">
-            Reading — nothing is listening.
-          </p>
+          {/* Move between conversations without going back to the list each
+              time — the natural thing to want when reading back through. */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() =>
+                previous && router.push(`/people/${subjectId}/conversations/${previous.id}`)
+              }
+              disabled={!previous}
+              aria-label="Earlier conversation"
+              className="flex h-11 w-10 cursor-pointer items-center justify-center rounded-lg text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone)] disabled:cursor-default disabled:opacity-30"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
+            <span className="min-w-[3.5rem] text-center text-micro text-[var(--color-text-tertiary)]">
+              {total > 1 ? `${position} of ${total}` : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => next && router.push(`/people/${subjectId}/conversations/${next.id}`)}
+              disabled={!next}
+              aria-label="Later conversation"
+              className="flex h-11 w-10 cursor-pointer items-center justify-center rounded-lg text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone)] disabled:cursor-default disabled:opacity-30"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
+          </div>
           <button type="button" onClick={talkAgain} className={buttonClasses({ size: "md" })}>
             Talk again
           </button>

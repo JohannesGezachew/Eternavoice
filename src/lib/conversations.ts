@@ -126,6 +126,68 @@ export function groupConversations(
     }));
 }
 
+// ── Order ───────────────────────────────────────────────────────────────────
+
+export type ConversationSort = "recent" | "oldest";
+
+/**
+ * Newest first is the right default for picking up where you left off. Oldest
+ * first is a different act entirely: reading a relationship forwards, from the
+ * first thing you ever said to them. Both belong here.
+ */
+export function sortConversations(
+  conversations: ConversationRecord[],
+  order: ConversationSort,
+): ConversationRecord[] {
+  return [...conversations].sort((a, b) =>
+    order === "oldest" ? a.updatedAt - b.updatedAt : b.updatedAt - a.updatedAt,
+  );
+}
+
+// ── Export ──────────────────────────────────────────────────────────────────
+
+/**
+ * A conversation as something you can keep outside the app.
+ *
+ * "Download my data" gives JSON, which is a compliance artifact, not a
+ * keepsake. This is the readable version — the one someone might print.
+ */
+export function conversationToText(
+  conversation: ConversationRecord,
+  personName: string,
+): string {
+  const when = new Date(conversation.updatedAt).toLocaleString("en-GB", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+  const lines = [conversation.title, `${personName} · ${when}`, ""];
+  for (const turn of conversation.turns) {
+    if (turn.undecryptable) {
+      lines.push("[one line could not be read back]", "");
+      continue;
+    }
+    if (!turn.content.trim()) continue;
+    lines.push(`${turn.role === "user" ? "You" : personName}: ${turn.content.trim()}`, "");
+  }
+  return lines.join("\n").trimEnd() + "\n";
+}
+
+/** A filename that reads like a keepsake and survives every filesystem. */
+export function conversationFilename(
+  conversation: ConversationRecord,
+  personName: string,
+): string {
+  const date = new Date(conversation.updatedAt).toISOString().slice(0, 10);
+  // Only what filesystems actually reject, plus control codes. Written out as
+  // separate escapes deliberately: a naive [ -<...] class is a RANGE from
+  // space to "<", which silently eats every digit in the title.
+  const clean = (part: string) => part.replace(/[<>:"/\\|?*\x00-\x1f]/g, "").replace(/\s+/g, " ").trim();
+  // Joined from the parts that survive cleaning, so a junk title and a blank
+  // name cannot leave a file called "—".
+  const safe = [personName, conversation.title].map(clean).filter(Boolean).join(" - ").slice(0, 80);
+  return `${safe || "conversation"} (${date}).txt`;
+}
+
 // ── Search ──────────────────────────────────────────────────────────────────
 
 /**

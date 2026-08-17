@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { RecordExperience, type CloneResult } from "@/components/recording/RecordExperience";
 import { NarrationStep, type NarrationResult } from "./NarrationStep";
+import { PersonAvatar } from "./PersonAvatar";
 import { useSession } from "@/lib/session";
 import { addMemoryDb } from "@/lib/db/memories";
 import { trackEvent } from "@/lib/analytics";
@@ -410,6 +411,7 @@ export function NewPersonWizard() {
             <ListenStep
               name={name.trim()}
               voiceId={clone.voiceId}
+              subjectId={clone.subjectId}
               onAccept={beginTalking}
               onRetry={() => {
                 setClone(null);
@@ -428,15 +430,25 @@ export function NewPersonWizard() {
 /**
  * Auto-generates the preview and plays it. The primary action is moving
  * forward; re-recording is the quiet path.
+ *
+ * Exported because the "record a better sample" flow ends in exactly the same
+ * question — is this them? — and answering it twice, differently, would be two
+ * versions of the most important moment in the product.
  */
-function ListenStep({
+export function ListenStep({
   name,
   voiceId,
+  subjectId,
+  acceptLabel = "That’s them — start talking",
   onAccept,
   onRetry,
 }: {
   name: string;
   voiceId: string;
+  /** Enables the photo prompt: photos are stored per person id, which only
+   *  exists once the clone has created (or updated) their row. */
+  subjectId?: string;
+  acceptLabel?: string;
   onAccept: () => void;
   onRetry: () => void;
 }) {
@@ -530,6 +542,32 @@ function ListenStep({
         ) : null}
       </div>
 
+      {/* A face beside the voice.
+          Photos have worked since lib/photo existed, but the only way to find
+          the feature was to hover an avatar somewhere else in the app, so
+          almost nobody did. This is the one moment they are certain to be
+          looking at a circle where the face should go — and the first moment a
+          person id exists to store it against. Skippable by ignoring it. */}
+      {subjectId ? (
+        <div className="mt-6 flex items-center gap-4 rounded-2xl border border-[var(--color-rule)] bg-white/[0.02] p-5">
+          <PersonAvatar
+            id={subjectId}
+            seed={`${voiceId}:${name}`}
+            size={56}
+            initial={name.charAt(0).toUpperCase()}
+            animated={false}
+            editable
+          />
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-body text-[var(--color-bone)]">Add a photo of {name}</p>
+            <p className="text-small leading-[1.6] text-[var(--color-text-secondary)]">
+              Tap the circle to choose one. It stays on this device and is never
+              uploaded. Optional — you can add one later from their page.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
         <Button
           variant="primary"
@@ -538,7 +576,7 @@ function ListenStep({
           onClick={onAccept}
           className="w-full sm:w-auto"
         >
-          That&rsquo;s them — start talking
+          {acceptLabel}
         </Button>
         <Button variant="ghost" size="md" onClick={onRetry}>
           Try a different recording
