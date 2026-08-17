@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { autoTitleFromTurns } from "./conversations";
+import { autoTitleFromTurns, isAutoTitle } from "./conversations";
 import type {
   ChatTurn,
   ConversationRecord,
@@ -109,7 +109,13 @@ interface SessionState {
   resetConversation: () => void;
   resetAll: () => void;
   hydrateFromDb: (data: {
-    subjects: Array<{ id: string; name: string; voice_id: string | null; created_at: string }>;
+    subjects: Array<{
+      id: string;
+      name: string;
+      voice_id: string | null;
+      created_at: string;
+      persona?: PersonaConfig | null;
+    }>;
     memories: MemoryItem[];
     conversations: ConversationRecord[];
   }) => void;
@@ -151,7 +157,16 @@ function upsertConversation(
     subjectId: existing?.subjectId ?? state.activeSubjectId ?? null,
     persona: state.persona,
     turns,
-    title: existing?.title ?? conversationTitle(turns),
+    // Keep refining the title while it is still one we generated.
+    //
+    // The first upsert happens as the persona's *greeting* streams in, before
+    // the user has said anything — so locking the title on that first write
+    // named every conversation after the greeting, and history became a column
+    // of identical "Hey, Safa." A title someone typed themselves is never
+    // touched; isAutoTitle is what tells the two apart.
+    title: isAutoTitle(existing?.title, turns)
+      ? conversationTitle(turns)
+      : existing!.title,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     pinned: existing?.pinned,
@@ -308,18 +323,32 @@ export const useSession = create<SessionState>()(
         set((s) => {
           const conversation = s.conversations.find((c) => c.id === conversationId);
           if (!conversation) return {};
+
+          // Conversations loaded from the database carry a stub voice and a
+          // stub persona — both columns live on the subject, not on the
+          // conversation. So resolve the person from the voice library first:
+          // without this, opening anything from history landed in a room
+          // titled "Untitled voice" speaking as a nameless generic presence,
+          // because the fallback was whatever happened to be active.
+          const subjectId = conversation.subjectId ?? s.activeSubjectId;
+          const voice =
+            (conversation.voiceId
+              ? s.voices.find((v) => v.id === conversation.voiceId)
+              : undefined) ??
+            (subjectId ? s.voices.find((v) => v.subjectId === subjectId) : undefined);
+
+          const persona = conversation.persona?.name?.trim()
+            ? conversation.persona
+            : voice?.persona?.name?.trim()
+              ? voice.persona
+              : s.persona;
+
           return {
-            voiceId: conversation.voiceId || s.voiceId,
-            voiceName: conversation.voiceName || s.voiceName,
-            activeSubjectId: conversation.subjectId ?? s.activeSubjectId,
-            voiceCreatedAt:
-              s.voices.find((voice) => voice.id === conversation.voiceId)?.createdAt ??
-              s.voiceCreatedAt,
-            // Conversations loaded from the DB carry a stub persona (the
-            // column lives on the subject, not the conversation), so falling
-            // back to the active persona keeps a reopened conversation
-            // sounding like the person instead of a nameless generic voice.
-            persona: conversation.persona?.name?.trim() ? conversation.persona : s.persona,
+            voiceId: conversation.voiceId || voice?.id || s.voiceId,
+            voiceName: conversation.voiceName || voice?.name || s.voiceName,
+            activeSubjectId: subjectId ?? voice?.subjectId ?? null,
+            voiceCreatedAt: voice?.createdAt ?? s.voiceCreatedAt,
+            persona,
             turns: conversation.turns,
             currentConversationId: conversation.id,
             status: "idle",
@@ -410,6 +439,9 @@ export const useSession = create<SessionState>()(
               name: sub.name,
               createdAt: new Date(sub.created_at).getTime(),
               subjectId: sub.id,
+              // Carried so openConversation can restore who this person is
+              // from any entry point, not just the person's own page.
+              persona: sub.persona ?? null,
             }));
 
           // Merge: prefer DB voices over localStorage voices

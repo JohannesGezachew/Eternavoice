@@ -68,6 +68,23 @@ describe("isAutoTitle", () => {
     expect(isAutoTitle(null, turns)).toBe(true);
   });
 
+  it("recognises a title taken from the persona's greeting", () => {
+    // The first save happens while only the greeting exists, so conversations
+    // were named after it — and stayed that way once the person replied and
+    // the derived title moved on. Matching any turn lets those recover.
+    const withReply = [turn("assistant", "Hey, Safa."), turn("user", "Hello")];
+    expect(isAutoTitle("Hey, Safa.", withReply)).toBe(true);
+  });
+
+  it("recognises a greeting title even in a long conversation", () => {
+    const long = [
+      turn("assistant", "Hey, Safa."),
+      turn("user", "I was thinking about the garden"),
+      turn("assistant", "The roses did well that year"),
+    ];
+    expect(isAutoTitle("Hey, Safa.", long)).toBe(true);
+  });
+
   it("protects a title a person chose", () => {
     // Renaming is deliberate; no later summarise may overwrite it.
     expect(isAutoTitle("The last good afternoon", turns)).toBe(false);
@@ -75,6 +92,11 @@ describe("isAutoTitle", () => {
 
   it("protects a previously generated title from being rewritten each pass", () => {
     expect(isAutoTitle("The garden, and Dad's tools", turns)).toBe(false);
+  });
+
+  it("does not mistake a chosen title for a turn just because it is similar", () => {
+    const rows = [turn("user", "Hi mum how are you today")];
+    expect(isAutoTitle("Hi mum", rows)).toBe(false);
   });
 });
 

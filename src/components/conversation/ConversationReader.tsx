@@ -39,6 +39,14 @@ export function ConversationReader({
     [conversations, conversationId],
   );
 
+  // Without an explicit label the shell derives one from the last path
+  // segment, which here is a uuid — the back link read
+  // "b6e1b8af f826 45cb 82f8 316c55f5000f".
+  const personName = useSession(
+    (s) => s.voices.find((v) => v.subjectId === subjectId)?.name ?? null,
+  );
+  const backLabel = personName ?? "Back";
+
   const queueRef = useRef<PlaybackQueue | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -102,7 +110,7 @@ export function ConversationReader({
 
   if (!conversation) {
     return (
-      <AppShell title="Conversation" backHref={`/people/${subjectId}`} showTabs={false}>
+      <AppShell title="Conversation" backHref={`/people/${subjectId}`} backLabel={backLabel} showTabs={false}>
         <div className="mx-auto w-full max-w-2xl px-6 py-16">
           <EmptyState
             variant="conversations"
@@ -115,7 +123,7 @@ export function ConversationReader({
   }
 
   return (
-    <AppShell title="Reading" backHref={`/people/${subjectId}`} showTabs={false}>
+    <AppShell title="Reading" backHref={`/people/${subjectId}`} backLabel={backLabel} showTabs={false}>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 pb-32 pt-8 sm:px-8">
         <header className="flex flex-col gap-1.5 pb-6">
           <h1 className="font-serif text-[26px] leading-tight tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[32px]">
