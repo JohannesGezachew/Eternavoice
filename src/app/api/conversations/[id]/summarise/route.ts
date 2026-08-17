@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { deriveUserKey, encryptField, decryptField } from "@/lib/crypto";
+import { isAutoTitle, normaliseTitle } from "@/lib/conversations";
 import { openai } from "@/lib/openai";
 import { env } from "@/lib/env";
 
@@ -58,7 +59,8 @@ export async function POST(
       {
         role: "system",
         content: [
-          "You are a memory assistant for a voice-companion app. The transcript is between the Persona (a recreated voice of someone dear) and the person speaking with them. You are writing notes the Persona will read to itself later, so write from the Persona's point of view: call the person speaking \"you\", and call the Persona \"I\". Never use the words \"the user\" or \"the persona\". Return JSON with exactly two keys:",
+          "You are a memory assistant for a voice-companion app. The transcript is between the Persona (a recreated voice of someone dear) and the person speaking with them. You are writing notes the Persona will read to itself later, so write from the Persona's point of view: call the person speaking \"you\", and call the Persona \"I\". Never use the words \"the user\" or \"the persona\". Return JSON with exactly three keys:",
+          '- "title": three to six words naming what this conversation was actually about, like a chapter heading — "The garden, and Dad\'s tools", "Her first week at school". Concrete and specific to this conversation. No quotation marks, no date, no greeting, and never a generic label like "Catching up".',
           '- "summary": a concise 3-5 sentence summary of what you talked about, the emotional tone, and anything worth following up on next time, written from the Persona\'s point of view (e.g. "You told me about a hard week at work, and I listened."). Specific, never generic.',
           '- "facts": an array of 0-20 short, durable, declarative facts worth remembering across all future conversations. Be thorough — capture every specific, lasting detail that came up: names, relationships, dates, places, events, plans, preferences, shared history, things you asked me to remember, and corrections about who I am or how I speak. Do not stop at a handful; if the conversation was rich, return many. Each fact must be one sentence under 200 characters, written from the Persona\'s point of view (e.g. "Your name is Anna, and I used to call you \'pet\'."). Exclude only pure small talk and fleeting moods, and anything already obvious about me.',
         ].join("\n"),
@@ -69,12 +71,15 @@ export async function POST(
 
   let summary = "";
   let facts: string[] = [];
+  let title: string | null = null;
   try {
     const parsed = JSON.parse(response.choices[0]?.message?.content ?? "{}") as {
       summary?: unknown;
       facts?: unknown;
+      title?: unknown;
     };
     summary = typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+    title = normaliseTitle(typeof parsed.title === "string" ? parsed.title : null);
     facts = Array.isArray(parsed.facts)
       ? parsed.facts
           .filter((f): f is string => typeof f === "string")
@@ -129,6 +134,32 @@ export async function POST(
     }
   }
 
+  // Name the conversation from what it was actually about.
+  //
+  // The fallback title is the opening words of the first thing that was said,
+  // so every conversation with the same person came out as a variant of "Hi mum
+  // how are you" — a history list where nothing is distinguishable from
+  // anything else. A title someone chose themselves is never overwritten: if
+  // the stored title is no longer the derived opener, a human renamed it.
+  let appliedTitle: string | null = null;
+  if (title) {
+    const { data: existingConv } = await supabase
+      .from("conversations")
+      .select("title")
+      .eq("id", conversationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existingConv && isAutoTitle(existingConv.title as string | null, body.turns)) {
+      const { error } = await supabase
+        .from("conversations")
+        .update({ title })
+        .eq("id", conversationId)
+        .eq("user_id", user.id);
+      if (!error) appliedTitle = title;
+    }
+  }
+
   // Store durable facts on EVERY summarise (not just the first), de-duped
   // against what this person already remembers. The client re-summarises as a
   // conversation grows and on leaving, so this is how anything said later in a
@@ -170,7 +201,7 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ ok: true, facts: added });
+  return NextResponse.json({ ok: true, facts: added, title: appliedTitle });
 }
 
 export async function GET(

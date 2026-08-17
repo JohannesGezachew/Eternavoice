@@ -40,7 +40,9 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
 
   const [subject, setSubject] = useState<SubjectRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<HubTab>("about");
+  // null means "not chosen yet", so the default can follow the data without
+  // adjusting state in an effect once conversations hydrate.
+  const [chosenTab, setChosenTab] = useState<HubTab | null>(null);
   const [editingPersona, setEditingPersona] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteNameInput, setDeleteNameInput] = useState("");
@@ -59,9 +61,15 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
 
   const talkHref = `/people/${subjectId}/talk`;
 
-  const lastConversation = conversations
-    .filter((c) => c.subjectId === subjectId || (subject?.voice_id && c.voiceId === subject.voice_id))
-    .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  const theirConversations = conversations.filter(
+    (c) => c.subjectId === subjectId || (subject?.voice_id && c.voiceId === subject.voice_id),
+  );
+  const lastConversation = [...theirConversations].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+
+  // Someone returning to a person they have talked with is far more likely to
+  // want to continue or revisit than to edit who they are, so conversations
+  // lead once there are any. "Who they are" stays the opening for a new person.
+  const tab: HubTab = chosenTab ?? (theirConversations.length ? "conversations" : "about");
 
   const talk = () => {
     if (!subject?.voice_id) return;
@@ -229,7 +237,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                 key={id}
                 role="tab"
                 aria-selected={tab === id}
-                onClick={() => setTab(id)}
+                onClick={() => setChosenTab(id)}
                 className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-[13px] transition-colors duration-200 ${
                   tab === id
                     ? "bg-white/[0.06] text-[var(--color-bone)]"
