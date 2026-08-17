@@ -300,6 +300,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                     subjectId={subjectId}
                     voiceId={subject.voice_id}
                     talkHref={talkHref}
+                    personName={subject.name}
                   />
                 )}
               </motion.div>

@@ -25,3 +25,6 @@ next-env.d.ts
 
 EternaVoice*.docx
 EternaVoice*.pdf
+
+# Agent worktrees are checkouts of this repo living inside it.
+.claude/worktrees/

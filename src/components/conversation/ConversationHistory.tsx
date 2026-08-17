@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ConversationList } from "./ConversationList";
+import { exportConversation } from "@/lib/exportConversation";
 import { useSession } from "@/lib/session";
 import {
   renameConversationDb,
@@ -23,10 +24,12 @@ export function ConversationHistory({
   subjectId,
   voiceId,
   talkHref,
+  personName,
 }: {
   subjectId: string | null;
   voiceId: string | null;
   talkHref: string;
+  personName: string;
 }) {
   const router = useRouter();
   const conversations = useSession((s) => s.conversations);
@@ -44,6 +47,8 @@ export function ConversationHistory({
     <>
       <ConversationList
         conversations={scoped}
+        showControls
+        onExport={(conversation) => exportConversation(conversation, personName)}
         onOpen={(conversation) => {
           openConversation(conversation.id);
           router.push(talkHref);

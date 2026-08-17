@@ -35,7 +35,9 @@ const TABS = [
   },
   {
     href: "/conversations",
-    label: "Talks",
+    // "Conversations" everywhere: the page title, the hub tab and the nav all
+    // name the same thing, and "Talks" was mine alone.
+    label: "Conversations",
     match: (p: string) => p.startsWith("/conversations"),
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"

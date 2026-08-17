@@ -8,6 +8,9 @@ import {
   searchConversations,
   matchingSnippet,
   lastSpokenLine,
+  sortConversations,
+  conversationToText,
+  conversationFilename,
   AUTO_TITLE_FALLBACK,
 } from "./conversations";
 import type { ChatTurn, ConversationRecord } from "./types";
@@ -226,6 +229,96 @@ describe("matchingSnippet", () => {
     const snippet = matchingSnippet(long, "needle");
     expect(snippet).toContain("needle");
     expect(snippet!.startsWith("…")).toBe(true);
+  });
+});
+
+describe("sortConversations", () => {
+  const rows = [
+    conversation({ id: "mid", updatedAt: daysAgo(5) }),
+    conversation({ id: "newest", updatedAt: NOW }),
+    conversation({ id: "oldest", updatedAt: daysAgo(100) }),
+  ];
+
+  it("puts the most recent first by default", () => {
+    expect(sortConversations(rows, "recent").map((c) => c.id)).toEqual([
+      "newest",
+      "mid",
+      "oldest",
+    ]);
+  });
+
+  it("reads a relationship forwards when asked", () => {
+    expect(sortConversations(rows, "oldest").map((c) => c.id)).toEqual([
+      "oldest",
+      "mid",
+      "newest",
+    ]);
+  });
+
+  it("does not mutate the input", () => {
+    const original = rows.map((c) => c.id);
+    sortConversations(rows, "oldest");
+    expect(rows.map((c) => c.id)).toEqual(original);
+  });
+});
+
+describe("conversationToText", () => {
+  const row = conversation({
+    id: "a",
+    title: "The garden",
+    updatedAt: NOW,
+    turns: [turn("user", "Do you remember the roses"), turn("assistant", "They did well")],
+  });
+
+  it("names who said what", () => {
+    const text = conversationToText(row, "Mum");
+    expect(text).toContain("You: Do you remember the roses");
+    expect(text).toContain("Mum: They did well");
+  });
+
+  it("leads with the title and when it was", () => {
+    expect(conversationToText(row, "Mum").startsWith("The garden")).toBe(true);
+  });
+
+  it("marks a line it could not read rather than dropping it silently", () => {
+    const broken = conversation({
+      id: "b",
+      turns: [{ id: "t", role: "assistant", content: "", createdAt: 0, undecryptable: true }],
+    });
+    expect(conversationToText(broken, "Mum")).toContain("could not be read back");
+  });
+
+  it("skips empty turns", () => {
+    const withBlank = conversation({
+      id: "c",
+      turns: [turn("user", "   "), turn("assistant", "Hello")],
+    });
+    const text = conversationToText(withBlank, "Mum");
+    expect(text).not.toContain("You:");
+  });
+});
+
+describe("conversationFilename", () => {
+  it("keeps digits and spaces, which a naive character range would eat", () => {
+    const row = conversation({ id: "a", title: "90th birthday 2024", updatedAt: NOW });
+    const name = conversationFilename(row, "Dad");
+    expect(name).toContain("90th birthday 2024");
+  });
+
+  it("strips characters filesystems reject", () => {
+    const row = conversation({ id: "a", title: 'a/b:c?d*e|f"g<h>i', updatedAt: NOW });
+    const name = conversationFilename(row, "Mum");
+    expect(name).not.toMatch(/[<>:"/\\|?*]/);
+  });
+
+  it("ends in .txt and carries the date", () => {
+    const row = conversation({ id: "a", title: "Anything", updatedAt: NOW });
+    expect(conversationFilename(row, "Mum")).toMatch(/\(\d{4}-\d{2}-\d{2}\)\.txt$/);
+  });
+
+  it("falls back rather than producing a nameless file", () => {
+    const row = conversation({ id: "a", title: "///", updatedAt: NOW });
+    expect(conversationFilename(row, "")).toContain("conversation");
   });
 });
 

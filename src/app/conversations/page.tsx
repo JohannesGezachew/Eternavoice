@@ -14,6 +14,7 @@ import {
   pinConversationDb,
   deleteConversationDb,
 } from "@/lib/db/conversations";
+import { exportConversation } from "@/lib/exportConversation";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { ConversationRecord } from "@/lib/types";
 
@@ -125,6 +126,10 @@ export default function ConversationsPage() {
           <motion.div variants={fadeUp}>
             <ConversationList
               conversations={visible}
+              showControls
+              onExport={(conversation) =>
+                exportConversation(conversation, nameFor(conversation) ?? "Them")
+              }
               personNameFor={personFilter ? undefined : nameFor}
               onOpen={openInRoom}
               onRead={(conversation) => {
