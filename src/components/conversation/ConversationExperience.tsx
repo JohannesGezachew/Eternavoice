@@ -24,7 +24,9 @@ import { saveConversation, deleteConversationDb, renameConversationDb } from "@/
 import { addMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
 import { rememberSpoken } from "@/lib/db/remember";
 import { formatRelativeDay } from "@/lib/utils";
-import { isRememberable } from "@/lib/memoryView";
+import { isRememberable, selectMemories } from "@/lib/memoryView";
+import { useConnectionHealth } from "@/lib/useConnectionHealth";
+import { PresencePanel } from "./PresencePanel";
 import type { ChatTurn, ConversationRecord } from "@/lib/types";
 
 const CHAT_CONTEXT_TURNS = 30;
@@ -104,6 +106,11 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [candle, setCandle] = useState(0);
   // The user just barged in — flag the next reply to acknowledge the cut-off.
   const interruptedRef = useRef(false);
+  // "Hold this thought" — playback suspended, the reply kept intact.
+  const [paused, setPaused] = useState(false);
+  // Set when a reply is outstanding, cleared on the first token. Feeds the
+  // connection read so a slow line says so instead of failing silently.
+  const [awaitingSince, setAwaitingSince] = useState<number | null>(null);
   const opened = hasBegun || turns.length > 0;
   const queueRef = useRef<PlaybackQueue | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -394,13 +401,39 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     return persona.name?.trim() || "Untitled voice";
   }, [persona]);
 
+  const connection = useConnectionHealth(awaitingSince);
+
+  // What this person actually carries into the conversation, and how much of
+  // it reaches the model. The gap between the two was invisible everywhere.
+  const theirMemories = useMemo(
+    () => selectMemories(memories, { subjectId: activeSubjectId, includeAuto: true }),
+    [memories, activeSubjectId],
+  );
+
+  const holdThought = useCallback(async () => {
+    const queue = queueRef.current;
+    if (!queue) return;
+    if (paused) {
+      await queue.resume();
+      setPaused(false);
+      setStatus("speaking");
+    } else {
+      await queue.pause();
+      setPaused(true);
+      setResponseNotice("Held. Their voice is waiting where you left it.");
+    }
+  }, [paused, setStatus]);
+
   const runChatStream = useCallback(
     async (messages: Array<{ role: "user" | "assistant"; content: string }>) => {
       if (!voiceId) return;
 
       abortRef.current?.abort();
       queueRef.current?.stop();
+      setPaused(false);
       setStatus("thinking");
+      // Starts the clock the connection read watches; cleared on first token.
+      setAwaitingSince(Date.now());
       setResponseError(null);
       setResponseNotice(null);
       const requestStartedAt = performance.now();
@@ -451,6 +484,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           interruptedRef.current = false;
           if (event.type === "text") {
             textReceived = true;
+            setAwaitingSince(null);
             if (!assistantId) {
               assistantId = event.turnId;
               setStreamingTurnId(event.turnId);
@@ -524,6 +558,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       } finally {
         window.clearTimeout(timeout);
         abortRef.current = null;
+        setAwaitingSince(null);
         if (streamError) setStatus("idle");
       }
     },
@@ -933,6 +968,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   // assistant turns show with a typewriter cursor; user turns appear briefly
   // after they're transcribed and are then replaced by the assistant's reply.
   const latestTurn: ChatTurn | undefined = turns[turns.length - 1];
+  // Held above the spotlight so the thread stays visible. Never shown while
+  // the current reply is still streaming — two moving lines is noise.
+  const previousTurn: ChatTurn | undefined =
+    latestTurn && latestTurn.id !== streamingTurnId ? turns[turns.length - 2] : undefined;
 
   // Premiere: the very first conversation with this person, until their
   // first words have fully landed. Derived, so it ends itself the moment
@@ -950,11 +989,36 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       {/* The name in the app bar is decorative (and hidden on small screens),
           so the room needs a real heading for screen readers. */}
       <h1 className="sr-only">Conversation with {headerName}</h1>
+
+      {/* Desktop only: the person, and what they're carrying. The room is one
+          orb in a very large empty canvas otherwise. */}
+      <PresencePanel
+        name={headerName}
+        subtitle={headerSubtitle}
+        avatarId={activeSubjectId ?? voiceId}
+        avatarSeed={`${voiceId}:${headerName}`}
+        memoriesInPlay={Math.min(theirMemories.length, MEMORY_CONTEXT_LIMIT)}
+        memoriesTotal={theirMemories.length}
+        memoriesHref={activeSubjectId ? `/people/${activeSubjectId}` : "/memories"}
+        speaking={status === "speaking"}
+        hidden={ambient || premiere || !opened}
+      />
       {/* Candlelight — warm evening dim, deepened further in ambient mode. */}
       <div
         className="candlelight"
         data-flicker={candle > 0.3 ? "true" : "false"}
-        style={{ "--candle-intensity": ambient ? Math.max(0.7, candle) : candle } as React.CSSProperties}
+        style={
+          {
+            // The room warms when they speak. Amplitude feeds a small lift on
+            // top of the hour-of-day base, so the candlelight answers their
+            // voice instead of only the clock — the difference between a
+            // decorative layer and one that's listening. Capped low enough to
+            // stay felt rather than seen.
+            "--candle-intensity":
+              (ambient ? Math.max(0.7, candle) : candle) +
+              (status === "speaking" ? Math.min(0.14, amplitude * 0.5) : 0),
+          } as React.CSSProperties
+        }
         aria-hidden
       />
       {/* Ambient (phone-call) mode: a further dim over the whole room so only
@@ -1146,6 +1210,30 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           </span>
         </div>
 
+        {/* The line before this one, held faintly above the spotlight.
+            The room shows one turn at a time and the transcript is hidden by
+            default, so anything said two exchanges ago was simply gone — you
+            had to open a panel to remember what you were answering. This keeps
+            the thread visible without breaking the single-line focus. */}
+        <div className="flex min-h-[1.75rem] w-full max-w-2xl items-end justify-center">
+          <AnimatePresence mode="wait">
+            {opened && previousTurn ? (
+              <motion.p
+                key={previousTurn.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4 }}
+                aria-hidden
+                className="line-clamp-1 text-center text-small text-[var(--color-text-tertiary)]/70"
+              >
+                {previousTurn.role === "user" ? "you: " : ""}
+                {previousTurn.content}
+              </motion.p>
+            ) : null}
+          </AnimatePresence>
+        </div>
+
         {/* Spotlight: ONE message at a time, fading from one to the next. */}
         <div className="flex min-h-[6.5rem] w-full max-w-2xl items-end justify-center sm:min-h-[7.5rem]">
           <AnimatePresence mode="wait">
@@ -1222,14 +1310,39 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   Retry reply
                 </button>
               </div>
-            ) : status === "speaking" || status === "thinking" ? (
-              <button
-                type="button"
-                onClick={interrupt}
-                className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+            ) : connection.message ? (
+              /* The line, described honestly. "Something went wrong. Tap
+                 retry." was true and useless; being offline, being slow, and
+                 having failed are three different things. */
+              <p
+                role="status"
+                className="max-w-md text-center text-small leading-[1.6] text-[var(--color-text-tertiary)]"
               >
-                Interrupt
-              </button>
+                {connection.message}
+              </p>
+            ) : status === "speaking" || status === "thinking" ? (
+              <div className="flex items-center gap-2">
+                {/* Hold is not Interrupt. Interrupt ends the reply; hold keeps
+                    it exactly where it is, for when a line lands and you need
+                    a moment with it before the next one arrives. */}
+                {status === "speaking" ? (
+                  <button
+                    type="button"
+                    onClick={() => void holdThought()}
+                    aria-pressed={paused}
+                    className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+                  >
+                    {paused ? "Continue" : "Hold this thought"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={interrupt}
+                  className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+                >
+                  Interrupt
+                </button>
+              </div>
             ) : responseNotice ? (
               <p className="max-w-md text-center text-small leading-[1.6] text-[var(--color-bone-dim)]" role="status">
                 {responseNotice}
@@ -1249,10 +1362,20 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               </AnimatePresence>
             ) : null}
           </div>
-          {/* Desktop Space-bar barge-in hint — shown once during first long reply */}
-          {(status === "speaking" || status === "thinking") && hasBegun && (
-            <p className="mb-1 hidden text-center text-micro text-[var(--color-text-tertiary)] sm:block">
-              Press <kbd className="rounded border border-[var(--color-rule-strong)] px-1.5 py-0.5 font-sans text-micro">Space</kbd> to interrupt
+          {/* Barge-in, said every time rather than once.
+              This was a one-off notice that fired on the first long reply and
+              never again — so the single most useful thing about the room was
+              invisible to anyone who missed it or came back a week later. It
+              costs one quiet line while they're speaking. */}
+          {status === "speaking" && hasBegun && !paused && (
+            <p className="mb-1 text-center text-micro text-[var(--color-text-tertiary)]">
+              <span className="sm:hidden">Just speak to interrupt</span>
+              <span className="hidden sm:inline">
+                Just speak to interrupt — or press{" "}
+                <kbd className="rounded border border-[var(--color-rule-strong)] px-1.5 py-0.5 font-sans text-micro">
+                  Space
+                </kbd>
+              </span>
             </p>
           )}
 

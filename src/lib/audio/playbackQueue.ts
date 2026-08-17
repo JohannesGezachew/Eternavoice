@@ -29,6 +29,10 @@ export class PlaybackQueue {
   private opts: PlaybackQueueOptions;
   private destroyed = false;
   private rate = 1;
+  /** Set only by pause(). enqueue() calls unlock(), which would otherwise
+   *  resume the context the moment the next sentence arrived — so a paused
+   *  reply would start speaking again on its own. */
+  private userPaused = false;
 
   constructor(opts: PlaybackQueueOptions = {}) {
     this.opts = opts;
@@ -58,7 +62,7 @@ export class PlaybackQueue {
       this.timeBuffer = new Uint8Array(new ArrayBuffer(this.analyser.fftSize));
       this.startMonitor();
     }
-    if (this.context.state === "suspended") {
+    if (this.context.state === "suspended" && !this.userPaused) {
       await this.context.resume();
     }
   }
@@ -98,6 +102,34 @@ export class PlaybackQueue {
     this.nextStart = startAt + decoded.duration / this.rate + Math.max(0, pauseMs) / 1000;
   }
 
+  /**
+   * Hold this thought — suspend the clock without discarding what's queued.
+   *
+   * Distinct from stop(): muting and interrupting both end the reply, but
+   * "wait, let me sit with that" is a third thing entirely, and this product
+   * is full of moments that deserve it. Suspending the AudioContext freezes
+   * currentTime, so everything already scheduled resumes exactly where it was.
+   */
+  async pause(): Promise<void> {
+    if (this.destroyed || !this.context) return;
+    if (this.context.state !== "running") return;
+    this.userPaused = true;
+    await this.context.suspend();
+    this.opts.onActivityChange?.(false);
+  }
+
+  async resume(): Promise<void> {
+    if (this.destroyed || !this.context) return;
+    this.userPaused = false;
+    if (this.context.state !== "suspended") return;
+    await this.context.resume();
+    if (this.activeSources > 0) this.opts.onActivityChange?.(true);
+  }
+
+  get paused(): boolean {
+    return this.context?.state === "suspended";
+  }
+
   stop(): void {
     for (const source of this.sources) {
       try {
@@ -109,6 +141,10 @@ export class PlaybackQueue {
     this.sources.clear();
     this.nextStart = 0;
     this.activeSources = 0;
+    // A pause that survived being stopped would silently swallow the next
+    // reply, since unlock() honours the flag.
+    this.userPaused = false;
+    void this.context?.resume().catch(() => null);
     this.opts.onActivityChange?.(false);
   }
 
