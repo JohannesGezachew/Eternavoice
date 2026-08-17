@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { isTrialExpired, trialDaysLeft } from "@/lib/entitlement";
 import { fadeUp, stagger } from "@/lib/motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { buttonClasses } from "@/components/ui/buttonClasses";
@@ -142,7 +143,6 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   // Trial countdown — computed when the profile loads, handled graciously,
   // never as an ambush.
-  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const [email, setEmail] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -178,12 +178,6 @@ export default function AccountPage() {
           .eq("id", user.id)
           .single();
         setProfile(data as Profile);
-        const p = data as Profile | null;
-        if (p?.subscription_status === "trialing" && p.trial_ends_at) {
-          setTrialDaysLeft(
-            Math.max(0, Math.ceil((new Date(p.trial_ends_at).getTime() - Date.now()) / 86_400_000)),
-          );
-        }
       }
       setLoading(false);
     };
@@ -256,7 +250,14 @@ export default function AccountPage() {
     }
   };
 
-  const statusKey = profile?.subscription_status ?? "inactive";
+  // Derived, not stored: an expired trial must never keep rendering as a live
+  // one just because the status column still says "trialing".
+  const trialDaysLeftValue = trialDaysLeft(profile?.subscription_status, profile?.trial_ends_at);
+  const trialExpired = isTrialExpired(profile?.subscription_status, profile?.trial_ends_at);
+
+  // A run-out trial wears the lapsed styling, not the warm ember of an active
+  // one — the badge is the first thing read, so it has to tell the truth.
+  const statusKey = trialExpired ? "canceled" : (profile?.subscription_status ?? "inactive");
   const statusCfg = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG["inactive"]!;
 
   if (loading) {
@@ -308,11 +309,13 @@ export default function AccountPage() {
               </h2>
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] ${statusCfg.badge}`}>
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
-                {trialDaysLeft !== null
-                  ? trialDaysLeft === 0
-                    ? "Trial ends today"
-                    : `${trialDaysLeft} ${trialDaysLeft === 1 ? "day" : "days"} left`
-                  : statusCfg.label}
+                {trialExpired
+                  ? "Trial ended"
+                  : trialDaysLeftValue !== null
+                    ? trialDaysLeftValue === 0
+                      ? "Trial ends today"
+                      : `${trialDaysLeftValue} ${trialDaysLeftValue === 1 ? "day" : "days"} left`
+                    : statusCfg.label}
               </span>
             </div>
 
@@ -321,7 +324,7 @@ export default function AccountPage() {
                 <p className="text-[14px] text-[var(--color-bone)]">EternaVoice</p>
                 <p className="text-[12px] text-[var(--color-bone-dim)]/80">
                   $30/month · cancel anytime
-                  {profile?.trial_ends_at && trialDaysLeft !== null && trialDaysLeft > 0 && (
+                  {profile?.trial_ends_at && trialDaysLeftValue !== null && trialDaysLeftValue > 0 && (
                     <span className="block text-[var(--color-ember)]">
                       Ends {formatTrialEnd(profile.trial_ends_at)}
                     </span>

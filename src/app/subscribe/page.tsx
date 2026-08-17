@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { createClient } from "@/lib/supabase/client";
+import { isTrialExpired, isTrialLive } from "@/lib/entitlement";
 import { fadeUp, stagger } from "@/lib/motion";
 
 const FEATURES = [
@@ -28,28 +29,39 @@ export default function SubscribePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
 
   // The sub-line must match reality: "your free week has ended" is only true
   // for lapsed users, not for someone subscribing voluntarily mid-trial.
+  //
+  // trial_ends_at has to be read too. Nothing ever moves an in-app trial off
+  // "trialing" — the Stripe webhook only fires for subscriptions Stripe manages
+  // — so branching on the status alone told everyone whose week had run out
+  // that their trial was still active, on the very page asking them to pay.
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("subscription_status")
+        .select("subscription_status, trial_ends_at")
         .eq("id", user.id)
         .single();
       if (data?.subscription_status) setStatus(data.subscription_status);
+      setTrialEndsAt((data?.trial_ends_at as string | null) ?? null);
     });
   }, []);
 
-  const subline =
-    status === "canceled" || status === "past_due"
-      ? "Your free week has ended. Everything you made — voices, memories, conversations — is saved and waiting."
-      : status === "trialing"
-        ? "Your trial is active. Subscribe now and nothing pauses when it ends."
-        : "Everything you make — voices, memories, conversations — saved across every device.";
+  const lapsed =
+    status === "canceled" ||
+    status === "past_due" ||
+    isTrialExpired(status, trialEndsAt);
+
+  const subline = lapsed
+    ? "Your free week has ended. Everything you made — voices, memories, conversations — is saved and waiting."
+    : isTrialLive(status, trialEndsAt)
+      ? "Your trial is active. Subscribe now and nothing pauses when it ends."
+      : "Everything you make — voices, memories, conversations — saved across every device.";
 
   const startCheckout = async () => {
     setLoading(true);

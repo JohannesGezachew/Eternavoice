@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { hasAccess, isBillingExempt } from "@/lib/entitlement";
 
 const PUBLIC_PATHS = [
   "/",
@@ -78,19 +79,10 @@ export async function middleware(request: NextRequest) {
   // left every paid endpoint usable indefinitely after a trial lapsed.
   //
   // Skipped when SKIP_SUBSCRIPTION_CHECK=true (local dev / pre-Stripe setup).
-  const BILLING_EXEMPT = [
-    "/subscribe",
-    "/account",
-    "/auth",
-    // Billing itself must stay reachable so a lapsed user can pay.
-    "/api/stripe",
-    // Data rights survive cancellation, and the usage read powers the
-    // "you've reached this month's conversations" copy.
-    "/api/user",
-    "/api/usage",
-  ];
+  // The exempt list and the access rule both live in @/lib/entitlement, so the
+  // account and subscribe screens can describe exactly what this gate enforces.
   const skipBilling = process.env.SKIP_SUBSCRIPTION_CHECK === "true";
-  if (!skipBilling && !BILLING_EXEMPT.some((p) => pathname.startsWith(p))) {
+  if (!skipBilling && !isBillingExempt(pathname)) {
     const { data: profile, error } = await supabase
       .from("profiles")
       .select("subscription_status, trial_ends_at")
@@ -104,14 +96,12 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    const status = profile?.subscription_status;
-    // Trials created in-app carry trial_ends_at; trials managed by Stripe
-    // (legacy checkouts) have it null and expire via webhook status changes.
-    const trialEndsAt = profile?.trial_ends_at ? new Date(profile.trial_ends_at as string) : null;
-    const inTrial = status === "trialing" && (!trialEndsAt || trialEndsAt.getTime() > Date.now());
-    const hasAccess = status === "active" || inTrial;
-
-    if (!hasAccess) {
+    if (
+      !hasAccess(
+        profile?.subscription_status as string | undefined,
+        profile?.trial_ends_at as string | null,
+      )
+    ) {
       // 402 lets the client route to /subscribe itself; a redirect would be
       // parsed as a malformed API response.
       if (isApi) {
