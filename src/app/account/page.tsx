@@ -9,12 +9,14 @@ import { isTrialExpired, trialDaysLeft } from "@/lib/entitlement";
 import { fadeUp, stagger } from "@/lib/motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { buttonClasses } from "@/components/ui/buttonClasses";
+import { Input } from "@/components/ui/Field";
 import { useSession } from "@/lib/session";
 
 interface Profile {
   subscription_status: string;
   stripe_customer_id: string | null;
   trial_ends_at: string | null;
+  display_name: string | null;
 }
 
 interface Allowance {
@@ -141,6 +143,29 @@ export default function AccountPage() {
   const memories = useSession((s) => s.memories);
   const [appearance, setAppearance] = useState<Appearance>("system");
   const [textScale, setTextScale] = useState(1);
+  // What the personas call you. Held locally while typing, saved on blur.
+  const [displayName, setDisplayName] = useState("");
+  const [nameSaved, setNameSaved] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const saveDisplayName = async () => {
+    const next = displayName.replace(/\s+/g, " ").trim().slice(0, 60);
+    setDisplayName(next);
+    setNameError(null);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ display_name: next || null })
+      .eq("id", user.id);
+    if (error) {
+      setNameError("Couldn't save that. Try again in a moment.");
+      return;
+    }
+    setNameSaved(true);
+    window.setTimeout(() => setNameSaved(false), 2400);
+  };
 
   const applyTextScale = (scale: number) => {
     setTextScale(scale);
@@ -206,10 +231,11 @@ export default function AccountPage() {
         setEmail(user.email ?? "");
         const { data } = await supabase
           .from("profiles")
-          .select("subscription_status, stripe_customer_id, trial_ends_at")
+          .select("subscription_status, stripe_customer_id, trial_ends_at, display_name")
           .eq("id", user.id)
           .single();
         setProfile(data as Profile);
+        setDisplayName(((data as Profile | null)?.display_name ?? "").trim());
       }
       setLoading(false);
     };
@@ -331,6 +357,44 @@ export default function AccountPage() {
             <p className="text-small text-[var(--color-bone-dim)]/80">Your account</p>
           </div>
         </motion.div>
+
+        {/* What they call you.
+            Until this existed the app never knew, so the personas learned your
+            name only by accident — whatever the summariser happened to extract
+            from a conversation. That is why it ended up written into memories
+            as a third-person string. Told once here, it never has to be. */}
+        <Section>
+          <h2 className="mb-1 text-micro uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
+            Your name
+          </h2>
+          <p className="mb-3 text-small leading-[1.6] text-[var(--color-text-secondary)]">
+            What everyone you speak with should call you.
+          </p>
+          <div className="flex items-center gap-3">
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              onBlur={() => void saveDisplayName()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              maxLength={60}
+              placeholder="Your first name"
+              aria-label="Your name"
+            />
+            <span
+              aria-live="polite"
+              className="w-16 shrink-0 text-small text-[var(--color-verdigris)]"
+            >
+              {nameSaved ? "Saved" : ""}
+            </span>
+          </div>
+          {nameError ? (
+            <p role="alert" className="mt-2 text-small text-[var(--color-danger)]">
+              {nameError}
+            </p>
+          ) : null}
+        </Section>
 
         {/* Subscription */}
         <Section>

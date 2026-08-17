@@ -45,6 +45,20 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  // Told to the summariser so it writes "you" instead of reaching for the name
+  // it can see in the transcript.
+  let speakerName: string | undefined;
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    speakerName = (data?.display_name as string | null)?.trim() || undefined;
+  } catch {
+    // falls back to the nameless instruction below
+  }
+
   const transcript = body.turns
     .map((t) => `${t.role === "user" ? "User" : "Persona"}: ${t.content}`)
     .join("\n");
@@ -59,7 +73,15 @@ export async function POST(
       {
         role: "system",
         content: [
-          "You are a memory assistant for a voice-companion app. The transcript is between the Persona (a recreated voice of someone dear) and the person speaking with them. You are writing notes the Persona will read to itself later, so write from the Persona's point of view: call the person speaking \"you\", and call the Persona \"I\". Never use the words \"the user\" or \"the persona\". Return JSON with exactly three keys:",
+          "You are a memory assistant for a voice-companion app. The transcript is between the Persona (a recreated voice of someone dear) and the person speaking with them. You are writing notes the Persona will read to itself later, so write from the Persona's point of view: call the person speaking \"you\", and call the Persona \"I\". Never use the words \"the user\" or \"the persona\".",
+          // Naming the speaker explicitly is what stops the model writing about
+          // them in the third person. Left to itself it picks their name out of
+          // the transcript and produces "Safa mentioned a topic called X" —
+          // which the Persona then reads back as a note about a stranger.
+          speakerName
+            ? `The person speaking is called ${speakerName}. Never write about them in the third person or by name — "${speakerName} mentioned" is wrong, "You mentioned" is right. Their name belongs in a memory only when the fact is about the name itself.`
+            : "Never write about the person speaking in the third person or by name. \"Anna mentioned\" is wrong, \"You mentioned\" is right.",
+          "Return JSON with exactly three keys:",
           '- "title": three to six words naming what this conversation was actually about, like a chapter heading — "The garden, and Dad\'s tools", "Her first week at school". Concrete and specific to this conversation. No quotation marks, no date, no greeting, and never a generic label like "Catching up".',
           '- "summary": a concise 3-5 sentence summary of what you talked about, the emotional tone, and anything worth following up on next time, written from the Persona\'s point of view (e.g. "You told me about a hard week at work, and I listened."). Specific, never generic.',
           '- "facts": an array of 0-20 short, durable, declarative facts worth remembering across all future conversations. Be thorough — capture every specific, lasting detail that came up: names, relationships, dates, places, events, plans, preferences, shared history, things you asked me to remember, and corrections about who I am or how I speak. Do not stop at a handful; if the conversation was rich, return many. Each fact must be one sentence under 200 characters, written from the Persona\'s point of view (e.g. "Your name is Anna, and I used to call you \'pet\'."). Exclude only pure small talk and fleeting moods, and anything already obvious about me.',

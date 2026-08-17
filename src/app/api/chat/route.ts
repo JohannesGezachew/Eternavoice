@@ -135,6 +135,23 @@ export async function POST(request: Request) {
   const candidates: RankableMemory[] = (parsed.memories ?? [])
     .map((m) => ({ content: m.content.trim(), source: "manual" as const, updatedAt: Date.now() }))
     .filter((m) => m.content);
+  // What the persona should call them. Read alongside the rest rather than as
+  // its own round trip, so knowing someone's name costs nothing in latency.
+  let speakerName: string | undefined;
+  {
+    try {
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", owner.userId)
+        .maybeSingle();
+      speakerName = (data?.display_name as string | null)?.trim() || undefined;
+    } catch {
+      // Nameless is the old behaviour, and a fine fallback.
+    }
+  }
+
   if (parsed.subjectId) {
     try {
       const supabase = await createClient();
@@ -330,6 +347,7 @@ export async function POST(request: Request) {
         sessionSummaries,
         Boolean(parsed.firstMeeting),
         Boolean(parsed.recentlyInterrupted),
+        speakerName,
       );
       const sentences = new SentenceBuffer();
       let rawText = "";
