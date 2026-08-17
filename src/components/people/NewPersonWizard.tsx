@@ -43,7 +43,9 @@ export function NewPersonWizard() {
   const router = useRouter();
   const setVoice = useSession((s) => s.setVoice);
   const setPersona = useSession((s) => s.setPersona);
-  const addMemory = useSession((s) => s.addMemory);
+  const addMemoryRecord = useSession((s) => s.addMemoryRecord);
+  const replaceMemory = useSession((s) => s.replaceMemory);
+  const deleteMemory = useSession((s) => s.deleteMemory);
 
   const [step, setStep] = useState<Step>("who");
   const [name, setName] = useState("");
@@ -166,13 +168,28 @@ export function NewPersonWizard() {
         }).catch(() => null);
 
         for (const content of narration?.memories ?? []) {
-          addMemory(content, result.subjectId);
-          void addMemoryDb(content, result.subjectId).catch(() => null);
+          // Seed optimistically, then reconcile to the row's real primary key.
+          // The store used to mint its own id here while the database minted a
+          // different one, so editing or deleting a narrated memory before the
+          // next reload matched no row and silently did nothing.
+          const localId = crypto.randomUUID();
+          const now = Date.now();
+          addMemoryRecord({
+            id: localId,
+            content,
+            createdAt: now,
+            updatedAt: now,
+            subjectId: result.subjectId,
+            source: "manual",
+          });
+          void addMemoryDb(content, result.subjectId)
+            .then((saved) => replaceMemory(localId, saved))
+            .catch(() => deleteMemory(localId));
         }
       }
       setStep("listen");
     },
-    [resolvedRelationship, narration, buildPersona, addMemory],
+    [resolvedRelationship, narration, buildPersona, addMemoryRecord, replaceMemory, deleteMemory],
   );
 
   const beginTalking = () => {

@@ -6,12 +6,15 @@ import { AppShell } from "@/components/shell/AppShell";
 import { MemoryList } from "@/components/memory/MemoryList";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useSession } from "@/lib/session";
+import { selectMemories, countAutoMemories } from "@/lib/memoryView";
 import { fadeUp, stagger } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import type { SubjectRow } from "@/lib/db/subjects";
 
 export default function MemoriesPage() {
   const memories = useSession((s) => s.memories);
+  const showAuto = useSession((s) => s.prefs.showRememberedFromTalks);
+  const setPrefs = useSession((s) => s.setPrefs);
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,9 +32,11 @@ export default function MemoriesPage() {
     });
   }, []);
 
-  // Only user-added memories are shown; the summariser's auto-extracted ones
-  // are kept for the persona's continuity but hidden from this display.
-  const visibleMemories = memories.filter((m) => m.source !== "conversation");
+  // By default only what the user kept by hand: the summariser's auto-extracted
+  // memories are real and the personas use them, but this list is meant to read
+  // as a record of your own choices. The count below opens them up.
+  const visibleMemories = selectMemories(memories, { includeAuto: showAuto });
+  const heldBack = countAutoMemories(memories);
 
   // Group memories by subjectId
   const grouped = subjects
@@ -55,6 +60,23 @@ export default function MemoriesPage() {
             <p className="text-[14px] leading-[1.7] text-[var(--color-text-secondary)]">
               Notes carried into every conversation — saved from talks, or added by hand.
             </p>
+            {/* The count is the control: it says the other memories exist
+                without turning the page into a settings screen. */}
+            {heldBack > 0 || showAuto ? (
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-text-tertiary)]">
+                {showAuto
+                  ? "Showing everything they remember."
+                  : `${heldBack} more remembered from your conversations.`}
+                <button
+                  type="button"
+                  onClick={() => setPrefs({ showRememberedFromTalks: !showAuto })}
+                  aria-pressed={showAuto}
+                  className="cursor-pointer text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+                >
+                  {showAuto ? "Show only what you saved" : "Show"}
+                </button>
+              </p>
+            ) : null}
           </motion.div>
 
           {loading ? (
