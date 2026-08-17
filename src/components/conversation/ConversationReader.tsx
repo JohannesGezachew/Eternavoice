@@ -31,6 +31,7 @@ export function ConversationReader({
 }) {
   const router = useRouter();
   const conversations = useSession((s) => s.conversations);
+  const dbSettled = useSession((s) => s.dbSettled);
   const openConversation = useSession((s) => s.openConversation);
   const prefs = useSession((s) => s.prefs);
 
@@ -128,13 +129,30 @@ export function ConversationReader({
   if (!conversation) {
     return (
       <AppShell title="Conversation" backHref={`/people/${subjectId}`} backLabel={backLabel} showTabs={false}>
-        <div className="mx-auto w-full max-w-2xl px-6 py-16">
-          <EmptyState
-            variant="conversations"
-            title="That conversation isn't here"
-            body="It may have been deleted, or it belongs to a different person."
-          />
-        </div>
+        {/* "Isn't here" is only true once the load has settled. Said any
+            earlier it is a lie told to someone who followed a link to the
+            last conversation they had with a person who is gone. */}
+        {!dbSettled ? (
+          <div
+            className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-10 sm:px-8"
+            role="status"
+            aria-label="Loading"
+          >
+            <div className="h-9 w-2/3 animate-pulse rounded-lg bg-white/[0.04]" />
+            <div className="h-3 w-32 animate-pulse rounded-md bg-white/[0.03]" />
+            <div className="mt-4 h-24 animate-pulse rounded-2xl bg-white/[0.03]" />
+            <div className="h-16 animate-pulse rounded-2xl bg-white/[0.025]" />
+            <div className="h-24 animate-pulse rounded-2xl bg-white/[0.02]" />
+          </div>
+        ) : (
+          <div className="mx-auto w-full max-w-2xl px-6 py-16">
+            <EmptyState
+              variant="conversations"
+              title="That conversation isn't here"
+              body="It may have been deleted, or it belongs to a different person."
+            />
+          </div>
+        )}
       </AppShell>
     );
   }

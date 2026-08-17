@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/lib/session";
@@ -26,6 +26,12 @@ import { rememberSpoken } from "@/lib/db/remember";
 import { formatRelativeDay } from "@/lib/utils";
 import { isRememberable, selectMemories } from "@/lib/memoryView";
 import { useConnectionHealth } from "@/lib/useConnectionHealth";
+import { withRetry } from "@/lib/retry";
+import {
+  SESSION_ENDED_MESSAGE,
+  isSessionExpired,
+  isUnauthorizedStatus,
+} from "@/lib/authError";
 import { PresencePanel } from "./PresencePanel";
 import type { ChatTurn, ConversationRecord } from "@/lib/types";
 
@@ -52,6 +58,7 @@ interface ConversationExperienceProps {
 
 export function ConversationExperience({ backHref = "/people" }: ConversationExperienceProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const voiceId = useSession((s) => s.voiceId);
   const activeSubjectId = useSession((s) => s.activeSubjectId);
   const persona = useSession((s) => s.persona);
@@ -82,6 +89,13 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [responseNotice, setResponseNotice] = useState<string | null>(null);
   /** Set when this month's conversation allowance is spent; ISO reset date. */
   const [allowanceResetsAt, setAllowanceResetsAt] = useState<string | null>(null);
+  // The session lapsed. Kept apart from responseError because it outranks
+  // everything else in the room: nothing here can work until they sign in, and
+  // every other message would be a distraction from the one that helps.
+  const [sessionEnded, setSessionEnded] = useState(false);
+  // The debounced save exhausted its retries. The conversation is still whole
+  // on screen — this says only that the copy on the server is behind.
+  const [saveFailed, setSaveFailed] = useState(false);
   // Hidden by default — the conversation is meant to be heard, not read. The
   // Transcript nav toggle (or an explicit saved preference) reveals it.
   const [showTranscript, setShowTranscript] = useState(
@@ -344,17 +358,51 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   }, [turns.length, status, currentConversationId, buildSummaryPayload, renameConversation]);
 
   // Persist turns to DB after each assistant reply completes (debounced).
+  //
+  // This was `saveConversation(...).catch(console.error)`. One dropped packet
+  // — a tunnel, a Wi-Fi handover — and that write was simply gone, unmentioned,
+  // until the next reply happened to trigger another save. If the conversation
+  // ended on that turn, the last thing said never reached the server at all.
+  // Now it retries on a bounded backoff and, if it still cannot land, says so.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Which save run is the current one. Retries outlive the debounce, so an
+  // older run finishing late must not report a failure over a newer success.
+  const saveRunRef = useRef(0);
   useEffect(() => {
     if (!currentConversationId || !voiceId || turns.length === 0) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       const conv = conversations.find((c) => c.id === currentConversationId);
       if (!conv) return;
-      void saveConversation({
-        ...conv,
-        subjectId: conv.subjectId ?? activeSubjectId ?? null,
-      }).catch(console.error);
+      const run = ++saveRunRef.current;
+      void (async () => {
+        const result = await withRetry(
+          async () => {
+            const outcome = await saveConversation({
+              ...conv,
+              subjectId: conv.subjectId ?? activeSubjectId ?? null,
+            });
+            if (!outcome.ok) {
+              throw new Error(
+                outcome.reason === "unauthorized"
+                  ? "Unauthorized"
+                  : outcome.message || "The conversation could not be saved.",
+              );
+            }
+          },
+          // A lapsed session fails identically every time. Four rounds of
+          // backoff against it is four rounds of not telling them to sign in.
+          { retryable: (error) => !isSessionExpired(error) },
+        );
+        if (run !== saveRunRef.current) return;
+        if (result.ok) {
+          setSaveFailed(false);
+          return;
+        }
+        if (isSessionExpired(result.error)) setSessionEnded(true);
+        else setSaveFailed(true);
+        reportError("conversation-save", result.error, { attempts: result.attempts });
+      })();
     }, 2000);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -409,6 +457,19 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     () => selectMemories(memories, { subjectId: activeSubjectId, includeAuto: true }),
     [memories, activeSubjectId],
   );
+
+  // Every fetch in the room runs its response through here first.
+  //
+  // A 401 means the session lapsed, not that this particular action failed —
+  // and each call site used to say its own thing about it ("Could not
+  // transcribe that audio", "Couldn't prepare that clip"), all of them wrong
+  // and none of them mentioning signing in. Returns true when it has taken
+  // ownership of the failure, so the caller stops there.
+  const noteAuthFailure = useCallback((status: number): boolean => {
+    if (!isUnauthorizedStatus(status)) return false;
+    setSessionEnded(true);
+    return true;
+  }, []);
 
   const holdThought = useCallback(async () => {
     const queue = queueRef.current;
@@ -542,6 +603,15 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           setStatus("idle");
           return;
         }
+        // The session ended mid-reply. Nothing in the room can work until they
+        // sign in, so it gets the whole status line rather than a retry that
+        // would only 401 again.
+        if (isSessionExpired(err)) {
+          setSessionEnded(true);
+          setStreamingTurnId(null);
+          setStatus("idle");
+          return;
+        }
         if ((err as Error).name !== "AbortError") {
           console.warn("streamChat failed:", err);
           reportError("conversation-stream", err);
@@ -655,6 +725,9 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         fd.append("audio", file);
         const res = await fetch("/api/transcribe", { method: "POST", body: fd });
         if (!res.ok) {
+          // "Try again or type it" is useless advice for a dead session —
+          // typing it would 401 too.
+          if (noteAuthFailure(res.status)) return null;
           const json = (await res.json().catch(() => null)) as { error?: string } | null;
           setResponseError(json?.error || "Could not transcribe that audio. Try again or type it.");
           trackEvent("conversation_transcription_failed", { status: res.status });
@@ -670,7 +743,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         setStatus("idle");
       }
     },
-    [setStatus],
+    [setStatus, noteAuthFailure],
   );
 
   const handleSpeechState = useCallback(
@@ -860,6 +933,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             body: JSON.stringify({ voiceId, text: turn.content }),
           });
           if (res.ok) blob = new Blob([await res.arrayBuffer()], { type: "audio/mpeg" });
+          else if (noteAuthFailure(res.status)) return;
         } catch {
           // fall through to the failure notice below
         }
@@ -882,7 +956,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       haptic("save");
       trackEvent("keepsake_clip_saved", { source: turn.audio?.length ? "memory" : "resynth" });
     },
-    [headerName, voiceId],
+    [headerName, voiceId, noteAuthFailure],
   );
 
   // Replay a reply in their voice. Plays the live audio if still in memory,
@@ -916,6 +990,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           body: JSON.stringify({ voiceId, text: turn.content }),
         });
         if (!res.ok) {
+          if (noteAuthFailure(res.status)) return;
           setResponseNotice("Couldn't play that line in their voice — try again.");
           return;
         }
@@ -926,7 +1001,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         setResponseNotice("Couldn't play that line in their voice — try again.");
       }
     },
-    [ensureUnlocked, voiceId],
+    [ensureUnlocked, voiceId, noteAuthFailure],
   );
 
   // Direct play from the history list: speak that conversation's last reply in
@@ -952,6 +1027,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         if (res.ok) {
           await queueRef.current?.enqueue(await res.arrayBuffer(), 0);
           trackEvent("history_line_played");
+        } else {
+          noteAuthFailure(res.status);
         }
       } catch {
         // non-fatal — the orb simply stays quiet
@@ -959,7 +1036,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         setHistoryPlayingId(null);
       }
     },
-    [voiceId, ensureUnlocked],
+    [voiceId, ensureUnlocked, noteAuthFailure],
   );
 
   if (!voiceId) return null;
@@ -1284,7 +1361,22 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           {/* One reserved status row: interrupt, error, or notice — never
               stacked, so the orb doesn't jump when state changes. */}
           <div className="mb-2 flex min-h-[3.25rem] w-full items-center justify-center">
-            {allowanceResetsAt !== null ? (
+            {sessionEnded ? (
+              /* Outranks everything else: nothing in the room works until
+                 they are signed in, and the sign-in link is the only control
+                 that can help. `next` carries them straight back here. */
+              <div className="flex max-w-md flex-col items-center gap-2 text-center" role="alert">
+                <p className="text-body leading-[1.6] text-[var(--color-bone)]/90">
+                  {SESSION_ENDED_MESSAGE}
+                </p>
+                <Link
+                  href={`/auth/login?next=${encodeURIComponent(pathname)}`}
+                  className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+                >
+                  Sign in again
+                </Link>
+              </div>
+            ) : allowanceResetsAt !== null ? (
               /* Their month's conversations are used up. Everything they made
                  is still here — say so, warmly, and never dress it up as an
                  error or dangle a retry that cannot work. */
@@ -1346,6 +1438,18 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             ) : responseNotice ? (
               <p className="max-w-md text-center text-small leading-[1.6] text-[var(--color-bone-dim)]" role="status">
                 {responseNotice}
+              </p>
+            ) : saveFailed ? (
+              /* Below the live states on purpose — this is about the copy on
+                 the server, not about the conversation, which is right there
+                 on screen and going nowhere. Said once they're idle enough to
+                 read it. */
+              <p
+                role="status"
+                className="max-w-md text-center text-small leading-[1.6] text-[var(--color-text-tertiary)]"
+              >
+                This hasn&rsquo;t reached your account yet — it&rsquo;s all still here, and
+                it&rsquo;ll try again with the next reply.
               </p>
             ) : silenceMessage ? (
               <AnimatePresence>

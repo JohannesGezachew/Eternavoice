@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { buttonClasses } from "@/components/ui/buttonClasses";
@@ -13,6 +14,7 @@ import { formatRelativeDay } from "@/lib/utils";
 import { MAX_READING_CHARS, readingLength, formatSpokenLength } from "@/lib/readings";
 import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
+import { SESSION_ENDED_MESSAGE, isSessionExpired } from "@/lib/authError";
 import { haptic } from "@/lib/haptics";
 import { saveChime } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -42,6 +44,9 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
   const [segments, setSegments] = useState<string[]>([]);
   const [spokenIndex, setSpokenIndex] = useState(-1);
   const [error, setError] = useState<string | null>(null);
+  // Held apart from `error`: what they wrote is safe on screen, and the only
+  // useful control is a way back in — not a Read button that will 401 again.
+  const [sessionEnded, setSessionEnded] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [library, setLibrary] = useState<ReadingRecord[]>([]);
@@ -197,6 +202,14 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
       if ((err as Error).name === "AbortError") return;
       if (err instanceof ReadingAllowanceError) {
         setError("You've reached this month's readings. Everything you wrote is saved.");
+        setPhase("writing");
+        return;
+      }
+      // A lapsed session is not a reading that failed. Without this the reader
+      // was shown the raw "Unauthorized" from the middleware beside a Read
+      // button that could only ever 401 again.
+      if (isSessionExpired(err)) {
+        setSessionEnded(true);
         setPhase("writing");
         return;
       }
@@ -368,7 +381,17 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
           </div>
         )}
 
-        {error ? (
+        {sessionEnded ? (
+          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3">
+            <p className="text-small text-[var(--color-bone)]/90">{SESSION_ENDED_MESSAGE}</p>
+            <Link
+              href={`/auth/login?next=/people/${subjectId}/reading`}
+              className={buttonClasses({ variant: "outline", size: "md", className: "px-4 text-small" })}
+            >
+              Sign in again
+            </Link>
+          </div>
+        ) : error ? (
           <p role="alert" className="mt-4 text-small text-[var(--color-danger)]">
             {error}
           </p>

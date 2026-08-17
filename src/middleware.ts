@@ -28,12 +28,36 @@ function isPublic(pathname: string): boolean {
   return false;
 }
 
+/**
+ * The one public path whose rendering depends on who is asking: an already
+ * signed-in visitor is sent to /voices rather than shown a login form.
+ *
+ * Everything else public — the landing page, the legal pages, the manifest
+ * icons — reads identically signed in or out, so resolving the user for them
+ * was a full auth round trip spent on an answer nobody used.
+ */
+function needsUserWhenPublic(pathname: string): boolean {
+  return pathname === "/auth/login";
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Stripe webhooks must not be intercepted
   if (API_PATHS_SKIP_AUTH.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
+  }
+
+  // Public and indifferent to identity: answer without touching the network.
+  //
+  // supabase.auth.getUser() is a round trip to the auth server on every single
+  // request that reaches here, and this used to run before the public check —
+  // so every icon, every crawler file, and every marketing page paid for a
+  // lookup that was then discarded two lines later. The cost of skipping it is
+  // that a session sitting on a public page is not refreshed in the
+  // background; the next app request refreshes it instead.
+  if (isPublic(pathname) && !needsUserWhenPublic(pathname)) {
+    return NextResponse.next({ request });
   }
 
   let response = NextResponse.next({ request });
@@ -123,6 +147,11 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon|opengraph|site.web|apple|safari|android|browserconfig).*)",
+    // Kept in step with PUBLIC_PREFIXES above: anything listed there is
+    // returned untouched anyway, so invoking middleware for it only costs a
+    // function call on the edge. Widened from `_next/static|_next/image` to
+    // all of `_next/`, and extended to the icon set, the manifest and the
+    // crawler files — the PWA alone requests six of those on a cold start.
+    "/((?!_next/|icons/|favicon|opengraph|site\\.web|apple|safari|android|browserconfig|mstile|robots\\.txt|sitemap\\.xml).*)",
   ],
 };
