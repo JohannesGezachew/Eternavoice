@@ -6,7 +6,8 @@ import { AppShell } from "@/components/shell/AppShell";
 import { MemoryList } from "@/components/memory/MemoryList";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useSession } from "@/lib/session";
-import { selectMemories, countAutoMemories } from "@/lib/memoryView";
+import { selectMemories, countAutoMemories, searchMemories } from "@/lib/memoryView";
+import { Input } from "@/components/ui/Field";
 import { fadeUp, stagger } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import type { SubjectRow } from "@/lib/db/subjects";
@@ -17,6 +18,7 @@ export default function MemoriesPage() {
   const setPrefs = useSession((s) => s.setPrefs);
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -46,16 +48,19 @@ export default function MemoriesPage() {
   const revealed = showAuto || keptCount === 0;
   const visibleMemories = selectMemories(memories, { includeAuto: revealed });
 
-  // Group memories by subjectId
+  // Searched before grouping, so a person with no match drops out of the page
+  // entirely rather than sitting there as an empty heading.
+  const matching = searchMemories(visibleMemories, query);
+
   const grouped = subjects
-    .filter((s) => visibleMemories.some((m) => m.subjectId === s.id))
+    .filter((s) => matching.some((m) => m.subjectId === s.id))
     .map((s) => ({
       subject: s,
-      count: visibleMemories.filter((m) => m.subjectId === s.id).length,
+      count: matching.filter((m) => m.subjectId === s.id).length,
     }))
     .sort((a, b) => b.count - a.count);
 
-  const unscopedCount = visibleMemories.filter((m) => !m.subjectId).length;
+  const unscopedCount = matching.filter((m) => !m.subjectId).length;
 
   return (
     <AppShell title="Memories" showTabs>
@@ -93,6 +98,22 @@ export default function MemoriesPage() {
             ) : null}
           </motion.div>
 
+          {/* A memory list grows without limit — the summariser captures on
+              every conversation — so someone six months in has hundreds, and
+              checking whether they had already written down their father's
+              birthday meant reading the whole page. */}
+          {!loading && visibleMemories.length > 6 ? (
+            <motion.div variants={fadeUp}>
+              <Input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search everything you've kept"
+                aria-label="Search memories"
+              />
+            </motion.div>
+          ) : null}
+
           {loading ? (
             <div className="flex flex-col gap-4">
               {[0, 1].map((i) => (
@@ -103,8 +124,12 @@ export default function MemoriesPage() {
             <motion.div variants={fadeUp}>
               <EmptyState
                 variant="memories"
-                title="Nothing here yet"
-                body="Memories are saved during conversations when something worth keeping comes up — or add your own on a person's page."
+                title={query.trim() ? "Nothing matches that" : "Nothing here yet"}
+                body={
+                  query.trim()
+                    ? "No memory mentions that. Try a single word — a name, a place, a date."
+                    : "Memories are saved during conversations when something worth keeping comes up — or add your own on a person's page."
+                }
               />
             </motion.div>
           ) : (
@@ -120,7 +145,7 @@ export default function MemoriesPage() {
                     )}
                   </div>
                   <div className="rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-5 sm:p-6">
-                    <MemoryList subjectId={subject.id} personName={subject.name} />
+                    <MemoryList subjectId={subject.id} personName={subject.name} query={query} />
                   </div>
                 </motion.section>
               ))}
@@ -129,7 +154,7 @@ export default function MemoriesPage() {
                 <motion.section variants={fadeUp} className="flex flex-col gap-4">
                   <h2 className="font-serif text-title text-[var(--color-bone)]">General</h2>
                   <div className="rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-5 sm:p-6">
-                    <MemoryList subjectId={null} personName="everyone" />
+                    <MemoryList subjectId={null} personName="everyone" query={query} />
                   </div>
                 </motion.section>
               )}

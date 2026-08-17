@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
@@ -8,20 +8,31 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { formatRelativeDay } from "@/lib/utils";
-import { selectMemories } from "@/lib/memoryView";
-import { addMemoryDb, updateMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
+import { selectMemories, searchMemories, findDuplicateGroups } from "@/lib/memoryView";
+import { addMemoryDb, updateMemoryDb, deleteMemoryDb, keepMemoryDb } from "@/lib/db/memories";
 import { persistChange } from "@/lib/db/persistChange";
 
 /**
  * Per-person memory editor. Everything added here is scoped to one subject
  * and only ever sent into that persona's conversations.
  */
-export function MemoryList({ subjectId, personName }: { subjectId: string | null; personName: string }) {
+export function MemoryList({
+  subjectId,
+  personName,
+  query = "",
+}: {
+  subjectId: string | null;
+  personName: string;
+  /** Search text from the page. Passed down rather than owned here so one
+   *  field filters every person's list at once. */
+  query?: string;
+}) {
   const memories = useSession((s) => s.memories);
   const addMemoryRecord = useSession((s) => s.addMemoryRecord);
   const replaceMemory = useSession((s) => s.replaceMemory);
   const updateMemory = useSession((s) => s.updateMemory);
   const deleteMemory = useSession((s) => s.deleteMemory);
+  const keepMemory = useSession((s) => s.keepMemory);
   const showAuto = useSession((s) => s.prefs.showRememberedFromTalks);
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -36,10 +47,24 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
   // empty panel is never more useful than the memories they are actually
   // carrying, and it makes the whole page look broken.
   const kept = selectMemories(memories, { subjectId });
-  const scoped =
+  const all =
     showAuto || kept.length === 0
       ? selectMemories(memories, { subjectId, includeAuto: true })
       : kept;
+  const scoped = searchMemories(all, query);
+
+  // Ids that appear in a group of two or more memories saying the same thing.
+  // Flagged rather than merged: which of two phrasings is the better record of
+  // someone's father is not a decision to make silently.
+  const duplicateIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const group of findDuplicateGroups(scoped)) {
+      // The first is left unmarked — it is the one being duplicated, not a
+      // duplicate — so the badge reads as "this repeats something above".
+      for (const memory of group.slice(1)) ids.add(memory.id);
+    }
+    return ids;
+  }, [scoped]);
 
   const saveDraft = () => {
     const trimmed = draft.trim();
@@ -161,11 +186,37 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                             from a conversation
                           </span>
                         ) : null}
+                        {duplicateIds.has(memory.id) ? (
+                          <span className="rounded-full border border-[var(--color-rule)] px-2 py-0.5 text-[var(--color-bone-dim)]">
+                            says the same as one above
+                          </span>
+                        ) : null}
                       </p>
                     </div>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-1">
+                  {/* Without this, holding onto something the persona noticed
+                      meant retyping it by hand — which made a near-duplicate
+                      of a memory that was already right, and left the original
+                      still hidden behind the toggle. */}
+                  {fromTalk && !editing ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        keepMemory(memory.id);
+                        void persistChange({
+                          source: "memory-keep",
+                          run: () => keepMemoryDb(memory.id),
+                          revert: () => addMemoryRecord(memory),
+                          describe: "keep that",
+                        });
+                      }}
+                      className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-small text-[var(--color-ember)] transition-colors hover:bg-white/[0.04]"
+                    >
+                      Keep
+                    </button>
+                  ) : null}
                   {editing ? (
                     <button
                       type="button"
@@ -212,8 +263,12 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
             <EmptyState
               compact
               variant="memories"
-              title="Nothing here yet"
-              body={`Add a note above and ${personName} will recall it in every conversation.`}
+              title={query.trim() ? "Nothing matches that" : "Nothing here yet"}
+              body={
+                query.trim()
+                  ? `No memory of ${personName}'s mentions that.`
+                  : `Add a note above and ${personName} will recall it in every conversation.`
+              }
             />
           </motion.div>
         )}
