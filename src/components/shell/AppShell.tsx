@@ -34,6 +34,17 @@ const TABS = [
     ),
   },
   {
+    href: "/conversations",
+    label: "Talks",
+    match: (p: string) => p.startsWith("/conversations"),
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.8-5.1A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z" />
+      </svg>
+    ),
+  },
+  {
     href: "/memories",
     label: "Memories",
     match: (p: string) => p === "/memories",

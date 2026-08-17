@@ -12,6 +12,7 @@ import { VoicePrint } from "@/components/people/VoicePrint";
 import { PersonAvatar } from "@/components/people/PersonAvatar";
 import { Message } from "./Message";
 import { RememberMark, type RememberOutcome } from "./RememberMark";
+import { ConversationList } from "./ConversationList";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import { useSmoothText } from "./useSmoothText";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -19,7 +20,7 @@ import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
 import { haptic } from "@/lib/haptics";
 import { openingTone, closingTone, saveChime } from "@/lib/sound";
-import { saveConversation, deleteConversationDb } from "@/lib/db/conversations";
+import { saveConversation, deleteConversationDb, renameConversationDb } from "@/lib/db/conversations";
 import { addMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
 import { rememberSpoken } from "@/lib/db/remember";
 import { formatRelativeDay } from "@/lib/utils";
@@ -65,6 +66,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const openConversation = useSession((s) => s.openConversation);
   const deleteConversation = useSession((s) => s.deleteConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
+  const renameConversation = useSession((s) => s.renameConversation);
   const resetConversation = useSession((s) => s.resetConversation);
   const addMemoryRecord = useSession((s) => s.addMemoryRecord);
   const replaceMemory = useSession((s) => s.replaceMemory);
@@ -317,13 +319,22 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     const payload = buildSummaryPayload();
     if (!payload) return;
     lastSummarisedCountRef.current = turns.length;
-    void fetch(`/api/conversations/${currentConversationId}/summarise`, {
+    const conversationId = currentConversationId;
+    void fetch(`/api/conversations/${conversationId}/summarise`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: payload,
       keepalive: true,
-    }).catch(() => {});
-  }, [turns.length, status, currentConversationId, buildSummaryPayload]);
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { title?: string | null } | null) => {
+        // The summariser names the conversation from what it was about. Adopt
+        // it locally so history stops reading as a column of near-identical
+        // opening lines while this session is still open.
+        if (json?.title) renameConversation(conversationId, json.title);
+      })
+      .catch(() => {});
+  }, [turns.length, status, currentConversationId, buildSummaryPayload, renameConversation]);
 
   // Persist turns to DB after each assistant reply completes (debounced).
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -516,7 +527,20 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         if (streamError) setStatus("idle");
       }
     },
-    [voiceId, persona, memories, activeSubjectId, appendAssistantToken, appendAssistantAudio, setStatus],
+    // currentConversationId belongs here: without it the callback kept a stale
+    // id after resetConversation, so the server excluded the wrong session's
+    // summary — and once the new conversation summarised itself, fed its own
+    // rolling summary back as a "previous session".
+    [
+      voiceId,
+      persona,
+      memories,
+      activeSubjectId,
+      currentConversationId,
+      appendAssistantToken,
+      appendAssistantAudio,
+      setStatus,
+    ],
   );
 
   const ensureUnlocked = useCallback(async () => {
@@ -1314,7 +1338,23 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             setShowHistory(false);
             setHasBegun(false);
           }}
+          readHrefFor={(conversation) =>
+            conversation.subjectId ?? activeSubjectId
+              ? `/people/${conversation.subjectId ?? activeSubjectId}/conversations/${conversation.id}`
+              : null
+          }
+          onRead={(conversation) => {
+            const person = conversation.subjectId ?? activeSubjectId;
+            if (!person) return;
+            summariseRef.current();
+            setShowHistory(false);
+            router.push(`/people/${person}/conversations/${conversation.id}`);
+          }}
           onPin={toggleConversationPin}
+          onRename={(id, title) => {
+            renameConversation(id, title);
+            void renameConversationDb(id, title).catch(console.error);
+          }}
           onDelete={(id, title) => setPendingDelete({ id, title })}
           onPlay={(conversation) => void playConversationLine(conversation)}
           playingId={historyPlayingId}
@@ -1431,10 +1471,13 @@ function HistoryDrawer({
   conversations,
   currentConversationId,
   manageHref,
+  readHrefFor,
   onClose,
   onOpen,
+  onRead,
   onNew,
   onPin,
+  onRename,
   onDelete,
   onPlay,
   playingId,
@@ -1443,10 +1486,13 @@ function HistoryDrawer({
   conversations: ReturnType<typeof useSession.getState>["conversations"];
   currentConversationId: string | null;
   manageHref: string;
+  readHrefFor: (conversation: ConversationRecord) => string | null;
   onClose: () => void;
   onOpen: (id: string) => void;
+  onRead: (conversation: ConversationRecord) => void;
   onNew: () => void;
   onPin: (id: string) => void;
+  onRename: (id: string, title: string) => void;
   onDelete: (id: string, title: string) => void;
   onPlay: (conversation: ConversationRecord) => void;
   playingId: string | null;
@@ -1459,10 +1505,10 @@ function HistoryDrawer({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "Tab") {
-        // Keep Tab cycling inside the dialog — it's modal, the page behind
+        // Keep Tab cycling inside the dialog — it is modal, the page behind
         // is inert to the keyboard.
         const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
-          "button, [href], [tabindex]:not([tabindex='-1'])",
+          "button, [href], input, [tabindex]:not([tabindex='-1'])",
         );
         if (!focusable?.length) return;
         const first = focusable[0]!;
@@ -1510,7 +1556,7 @@ function HistoryDrawer({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
-            className="hairline-strong fixed inset-x-0 bottom-0 z-50 flex max-h-[78dvh] flex-col overflow-hidden rounded-t-3xl bg-[var(--color-ink-2)]/97 shadow-2xl outline-none backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-24 sm:max-h-[min(620px,calc(100dvh-7.5rem))] sm:w-[380px] sm:rounded-2xl"
+            className="hairline-strong fixed inset-x-0 bottom-0 z-50 flex max-h-[78dvh] flex-col overflow-hidden rounded-t-3xl bg-[var(--color-ink-2)]/97 shadow-2xl outline-none backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-24 sm:max-h-[min(620px,calc(100dvh-7.5rem))] sm:w-[400px] sm:rounded-2xl"
           >
             {/* Grab notch — mobile affordance for "this is a sheet" */}
             <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
@@ -1548,87 +1594,24 @@ function HistoryDrawer({
                 New conversation
               </button>
 
-              {conversations.length ? (
-                <div className="space-y-0.5">
-                  {conversations.map((conversation) => {
-                    const current = conversation.id === currentConversationId;
-                    return (
-                      <div
-                        key={conversation.id}
-                        className={`group flex items-center rounded-xl pr-1 transition-colors ${
-                          current ? "bg-white/[0.045]" : "hover:bg-white/[0.025]"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => onOpen(conversation.id)}
-                          className="flex min-h-[56px] min-w-0 flex-1 cursor-pointer flex-col justify-center gap-1 py-2.5 pl-3.5 pr-1 text-left"
-                        >
-                          <span className="flex items-center gap-1.5">
-                            {conversation.pinned ? (
-                              <PinGlyph className="shrink-0 text-[var(--color-ember)]" filled />
-                            ) : null}
-                            <span className="truncate font-serif text-[16px] leading-snug text-[var(--color-bone)]">
-                              {conversation.title}
-                            </span>
-                          </span>
-                          <span className="text-[11px] text-[var(--color-text-tertiary)]">
-                            {formatRelativeDay(conversation.updatedAt)} · {conversation.turns.length}{" "}
-                            {conversation.turns.length === 1 ? "turn" : "turns"}
-                            {current ? (
-                              <span className="text-[var(--color-verdigris)]"> · now</span>
-                            ) : null}
-                          </span>
-                        </button>
-                        {conversation.turns.some((t) => t.role === "assistant" && t.content.trim()) ? (
-                          <button
-                            type="button"
-                            onClick={() => onPlay(conversation)}
-                            disabled={playingId === conversation.id}
-                            aria-label="Play their last reply in this conversation"
-                            className="flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-ember)] disabled:cursor-default"
-                          >
-                            {playingId === conversation.id ? (
-                              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--color-ember)]/30 border-t-[var(--color-ember)]" />
-                            ) : (
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                                <path d="M8 5v14l11-7z" />
-                              </svg>
-                            )}
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => onPin(conversation.id)}
-                          aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"}
-                          aria-pressed={Boolean(conversation.pinned)}
-                          className={`flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg transition ${
-                            conversation.pinned
-                              ? "text-[var(--color-ember)] hover:text-[var(--color-ember-soft)]"
-                              : "text-[var(--color-bone-dim)]/70 hover:text-[var(--color-bone)]"
-                          }`}
-                        >
-                          <PinGlyph filled={Boolean(conversation.pinned)} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(conversation.id, conversation.title)}
-                          aria-label="Delete conversation"
-                          className="flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-danger)]"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-.8 14.2a1 1 0 0 1-1 .8H6.8a1 1 0 0 1-1-.8L5 6" />
-                          </svg>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="px-2 py-4 text-[13px] leading-[1.6] text-[var(--color-text-secondary)]">
-                  Nothing saved yet. Conversations are kept here automatically once you start talking.
-                </p>
-              )}
+              {/* Same list as the person hub and the all-conversations page.
+                  These used to be written separately and offered different
+                  actions for the same conversation — rename only in one, play
+                  only in the other. */}
+              <ConversationList
+                compact
+                conversations={conversations}
+                currentConversationId={currentConversationId}
+                onOpen={(conversation) => onOpen(conversation.id)}
+                onRead={(conversation) => (readHrefFor(conversation) ? onRead(conversation) : undefined)}
+                onPin={(conversation) => onPin(conversation.id)}
+                onRename={(conversation, title) => onRename(conversation.id, title)}
+                onDelete={(conversation) => onDelete(conversation.id, conversation.title)}
+                onPlay={onPlay}
+                playingId={playingId}
+                emptyTitle="Nothing saved yet"
+                emptyBody="Conversations are kept here automatically once you start talking."
+              />
 
               <Link
                 href={manageHref}
@@ -1644,24 +1627,6 @@ function HistoryDrawer({
   );
 }
 
-function PinGlyph({ filled, className }: { filled?: boolean; className?: string }) {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M12 17v5M9 4h6l1 7 2.5 2.5H5.5L8 11l1-7z" />
-    </svg>
-  );
-}
 
 function Transcript({
   turns,

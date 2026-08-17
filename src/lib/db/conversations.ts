@@ -61,7 +61,8 @@ export async function getConversations(): Promise<ConversationRecord[]> {
     .select("*, turns(*)")
     .is("deleted_at", null)
     .order("updated_at", { ascending: false })
-    .limit(40);
+    // In step with MAX_CONVERSATIONS in lib/session.ts.
+    .limit(200);
   if (error) throw error;
 
   return (convRows ?? []).map((row) => {

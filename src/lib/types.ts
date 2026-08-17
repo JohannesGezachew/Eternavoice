@@ -56,7 +56,6 @@ export interface ConversationRecord {
   createdAt: number;
   updatedAt: number;
   pinned?: boolean;
-  archived?: boolean;
 }
 
 export interface VoiceLibraryItem {

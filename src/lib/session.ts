@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { autoTitleFromTurns } from "./conversations";
 import type {
   ChatTurn,
   ConversationRecord,
@@ -21,6 +22,17 @@ export type {
 };
 
 const STORAGE_KEY = "eternavoice-session";
+
+/**
+ * How many conversations the app holds at once.
+ *
+ * This was 40, which quietly dropped the 41st from history with no pagination
+ * and no indication — the rows were still in the database, just unreachable.
+ * For a product whose promise is that everything is kept, that is a trust
+ * problem rather than a performance one. Kept in step with the query limit in
+ * lib/db/conversations.ts.
+ */
+export const MAX_CONVERSATIONS = 200;
 
 // One-time migration: if a previous build wrote the session to sessionStorage,
 // copy it into localStorage so the user keeps their cloned voice across reloads.
@@ -114,13 +126,9 @@ function newId(_prefix: string): string {
   return crypto.randomUUID();
 }
 
-function conversationTitle(turns: ChatTurn[]): string {
-  const firstUser = turns.find((turn) => turn.role === "user" && turn.content.trim());
-  const source = firstUser?.content ?? turns.find((turn) => turn.content.trim())?.content;
-  if (!source) return "New conversation";
-  const clean = source.replace(/\s+/g, " ").trim();
-  return clean.length > 64 ? `${clean.slice(0, 61)}...` : clean;
-}
+// The opening words, used until the summariser has something better. Shared
+// with the server so it can tell a generated title from one a person chose.
+const conversationTitle = autoTitleFromTurns;
 
 function upsertConversation(
   state: SessionState,
@@ -147,7 +155,6 @@ function upsertConversation(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     pinned: existing?.pinned,
-    archived: existing?.archived,
   };
 
   return {
@@ -155,7 +162,7 @@ function upsertConversation(
     conversations: sortConversations([
       next,
       ...state.conversations.filter((conversation) => conversation.id !== id),
-    ]).slice(0, 40),
+    ]).slice(0, MAX_CONVERSATIONS),
   };
 }
 
@@ -456,9 +463,16 @@ export const useSession = create<SessionState>()(
             : [],
         persona: state.persona,
         turns: state.turns.slice(-80).map((t) => ({ ...t, audio: undefined })),
+        // localStorage is a fast-path cache, not the record — DbHydrator
+        // refills full transcripts from the database on every load. So the
+        // conversation in progress keeps its depth, and the rest keep only
+        // enough to render a title and a snippet. That is what makes room for
+        // MAX_CONVERSATIONS entries instead of silently dropping the 41st.
         conversations: state.conversations.map((conversation) => ({
           ...conversation,
-          turns: conversation.turns.slice(-80).map((t) => ({ ...t, audio: undefined })),
+          turns: conversation.turns
+            .slice(conversation.id === state.currentConversationId ? -80 : -8)
+            .map((t) => ({ ...t, audio: undefined })),
         })),
         currentConversationId: state.currentConversationId,
         memories: state.memories,

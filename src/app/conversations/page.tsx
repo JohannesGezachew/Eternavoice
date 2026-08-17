@@ -1,6 +1,195 @@
-import { redirect } from "next/navigation";
+"use client";
 
-// Conversation history is per-person and lives on the person's page now.
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { AppShell } from "@/components/shell/AppShell";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ConversationList } from "@/components/conversation/ConversationList";
+import { useSession } from "@/lib/session";
+import { fadeUp, stagger } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import {
+  renameConversationDb,
+  pinConversationDb,
+  deleteConversationDb,
+} from "@/lib/db/conversations";
+import type { SubjectRow } from "@/lib/db/subjects";
+import type { ConversationRecord } from "@/lib/types";
+
+/**
+ * Every conversation, across everyone.
+ *
+ * This route used to redirect to /people, which meant finding a conversation
+ * required remembering which person it was with, then digging two levels into
+ * their hub. Searching for something someone said is the reason people come
+ * back — it deserves a page.
+ */
 export default function ConversationsPage() {
-  redirect("/people");
+  const router = useRouter();
+  const conversations = useSession((s) => s.conversations);
+  const openConversation = useSession((s) => s.openConversation);
+  const renameConversation = useSession((s) => s.renameConversation);
+  const toggleConversationPin = useSession((s) => s.toggleConversationPin);
+  const deleteConversation = useSession((s) => s.deleteConversation);
+
+  const [subjects, setSubjects] = useState<SubjectRow[]>([]);
+  const [personFilter, setPersonFilter] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/user/data")
+      .then((r) => r.json())
+      .then((d: { subjects?: SubjectRow[] }) => setSubjects(d.subjects ?? []))
+      .catch(() => null);
+  }, []);
+
+  const subjectById = useMemo(() => {
+    const map = new Map<string, SubjectRow>();
+    for (const s of subjects) map.set(s.id, s);
+    return map;
+  }, [subjects]);
+
+  // Only offer the filter for people who actually have conversations — an
+  // empty chip is a dead end.
+  const peopleWithConversations = useMemo(
+    () =>
+      subjects.filter((s) =>
+        conversations.some(
+          (c) => c.subjectId === s.id || (s.voice_id && c.voiceId === s.voice_id),
+        ),
+      ),
+    [subjects, conversations],
+  );
+
+  const belongsTo = (conversation: ConversationRecord, subject: SubjectRow) =>
+    conversation.subjectId === subject.id ||
+    Boolean(subject.voice_id && conversation.voiceId === subject.voice_id);
+
+  const visible = useMemo(() => {
+    if (!personFilter) return conversations;
+    const subject = subjectById.get(personFilter);
+    if (!subject) return conversations;
+    return conversations.filter((c) => belongsTo(c, subject));
+  }, [conversations, personFilter, subjectById]);
+
+  const subjectIdFor = (conversation: ConversationRecord): string | null => {
+    if (conversation.subjectId) return conversation.subjectId;
+    const match = subjects.find(
+      (s) => s.voice_id && conversation.voiceId === s.voice_id,
+    );
+    return match?.id ?? null;
+  };
+
+  const nameFor = (conversation: ConversationRecord): string | null => {
+    const id = subjectIdFor(conversation);
+    return id ? (subjectById.get(id)?.name ?? null) : null;
+  };
+
+  const openInRoom = (conversation: ConversationRecord) => {
+    openConversation(conversation.id);
+    const id = subjectIdFor(conversation);
+    router.push(id ? `/people/${id}/talk` : "/people/current/talk");
+  };
+
+  return (
+    <AppShell title="Conversations" showTabs>
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pb-16 pt-8 sm:px-8">
+        <motion.div initial="hidden" animate="enter" variants={stagger(0.07)} className="flex flex-col gap-6">
+          <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
+            <h1 className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[34px]">
+              Conversations
+            </h1>
+            <p className="text-[14px] leading-[1.7] text-[var(--color-text-secondary)]">
+              Everything you&rsquo;ve said, with everyone — searchable, and kept.
+            </p>
+          </motion.div>
+
+          {peopleWithConversations.length > 1 ? (
+            <motion.div variants={fadeUp} className="flex flex-wrap gap-2" role="group" aria-label="Filter by person">
+              <FilterChip active={personFilter === null} onClick={() => setPersonFilter(null)}>
+                Everyone
+              </FilterChip>
+              {peopleWithConversations.map((subject) => (
+                <FilterChip
+                  key={subject.id}
+                  active={personFilter === subject.id}
+                  onClick={() => setPersonFilter(subject.id)}
+                >
+                  {subject.name}
+                </FilterChip>
+              ))}
+            </motion.div>
+          ) : null}
+
+          <motion.div variants={fadeUp}>
+            <ConversationList
+              conversations={visible}
+              personNameFor={personFilter ? undefined : nameFor}
+              onOpen={openInRoom}
+              onRead={(conversation) => {
+                const id = subjectIdFor(conversation);
+                if (id) router.push(`/people/${id}/conversations/${conversation.id}`);
+                else openInRoom(conversation);
+              }}
+              onPin={(conversation) => {
+                toggleConversationPin(conversation.id);
+                void pinConversationDb(conversation.id, !conversation.pinned).catch(console.error);
+              }}
+              onRename={(conversation, title) => {
+                renameConversation(conversation.id, title);
+                void renameConversationDb(conversation.id, title).catch(console.error);
+              }}
+              onDelete={(conversation) =>
+                setPendingDelete({ id: conversation.id, title: conversation.title })
+              }
+              emptyTitle="Nothing here yet"
+              emptyBody="Once you've talked with someone, every conversation is kept here."
+            />
+          </motion.div>
+        </motion.div>
+      </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this conversation?"
+        body={`"${pendingDelete?.title ?? ""}" and its transcript will be permanently removed.`}
+        confirmLabel="Delete conversation"
+        onConfirm={() => {
+          if (pendingDelete) {
+            deleteConversation(pendingDelete.id);
+            void deleteConversationDb(pendingDelete.id).catch(console.error);
+          }
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </AppShell>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex h-9 cursor-pointer items-center rounded-full border px-3.5 text-[13px] transition-colors duration-200",
+        active
+          ? "border-[var(--color-ember)]/40 bg-[var(--color-ember)]/[0.08] text-[var(--color-bone)]"
+          : "border-[var(--color-rule-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]",
+      )}
+    >
+      {children}
+    </button>
+  );
 }
