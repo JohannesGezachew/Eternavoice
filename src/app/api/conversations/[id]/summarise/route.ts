@@ -69,7 +69,7 @@ export async function POST(
       .select("display_name")
       .eq("id", user.id)
       .maybeSingle();
-    speakerName = (data?.display_name as string | null)?.trim() || undefined;
+    speakerName = data?.display_name?.trim() || undefined;
   } catch {
     // falls back to the nameless instruction below
   }
@@ -196,7 +196,7 @@ export async function POST(
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (existingConv && isAutoTitle(existingConv.title as string | null, body.turns)) {
+    if (existingConv && isAutoTitle(existingConv.title, body.turns)) {
       const { error } = await supabase
         .from("conversations")
         .update({ title })
@@ -223,7 +223,7 @@ export async function POST(
     const seen = new Set(
       (existingMems ?? [])
         .map((row) => {
-          try { return decryptField(row.content_enc as string, key).trim().toLowerCase(); } catch { return ""; }
+          try { return decryptField(row.content_enc, key).trim().toLowerCase(); } catch { return ""; }
         })
         .filter(Boolean),
     );
@@ -284,9 +284,9 @@ export async function GET(
 
   const summaries = (data ?? []).map((row) => ({
     summary: (() => {
-      try { return decryptField(row.summary_enc as string, key); } catch { return ""; }
+      try { return decryptField(row.summary_enc, key); } catch { return ""; }
     })(),
-    createdAt: row.created_at as string,
+    createdAt: row.created_at,
   }));
 
   return NextResponse.json({ summaries });

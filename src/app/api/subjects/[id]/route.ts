@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import type { Database, Json } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +30,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  // The table's own Update type, so a column that does not exist — or one this
+  // route must never write, like voice_id — fails to compile instead of being
+  // quietly dropped by PostgREST.
+  const updates: Database["public"]["Tables"]["subjects"]["Update"] = {
+    updated_at: new Date().toISOString(),
+  };
   if (body.name !== undefined) updates.name = body.name;
   if (body.relationship !== undefined) updates.relationship = body.relationship;
-  if (body.persona !== undefined) updates.persona = body.persona;
+  if (body.persona !== undefined) updates.persona = body.persona as unknown as Json;
   if (body.archived !== undefined) {
     updates.archived_at = body.archived ? new Date().toISOString() : null;
   }

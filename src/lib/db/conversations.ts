@@ -84,13 +84,13 @@ export async function getConversations(): Promise<ConversationRecord[]> {
   if (error) throw error;
 
   return (convRows ?? []).map((row) => {
-    const turns: ChatTurn[] = ((row.turns as Array<{
-      id: string; role: string; content_enc: string; feedback: string | null; created_at: string;
-    }>) ?? [])
+    // The shape of a turn used to be restated here as an inline cast — a
+    // hand-copy of the schema that nothing checked against the schema.
+    const turns: ChatTurn[] = (row.turns ?? [])
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       .map((t) => ({
         id: t.id,
-        role: t.role as "user" | "assistant",
+        role: t.role,
         // A decrypt failure must NOT become an empty string: saveConversation
         // re-encrypts every turn it is given, so an empty string would be
         // written back over the original ciphertext and the real content lost
@@ -108,16 +108,16 @@ export async function getConversations(): Promise<ConversationRecord[]> {
       }));
 
     return {
-      id: row.id as string,
+      id: row.id,
       voiceId: "",
       voiceName: "",
-      subjectId: (row.subject_id as string | null) ?? null,
-      title: row.title as string,
+      subjectId: row.subject_id,
+      title: row.title,
       persona: { mode: "self" as const, name: "" },
       turns,
-      createdAt: new Date(row.created_at as string).getTime(),
-      updatedAt: new Date(row.updated_at as string).getTime(),
-      pinned: row.pinned as boolean,
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime(),
+      pinned: row.pinned,
     } as ConversationRecord;
   });
 }

@@ -165,7 +165,7 @@ export async function POST(request: Request) {
             .maybeSingle();
 
           if (owned) {
-            subjectId = owned.id as string;
+            subjectId = owned.id;
             // The name is left alone: it may have been edited since, and the
             // form carries whatever the recording screen was showing.
             //
@@ -203,7 +203,7 @@ export async function POST(request: Request) {
             .maybeSingle();
 
           if (existing) {
-            subjectId = existing.id as string;
+            subjectId = existing.id;
             // voice_name is revoked alongside voice_id — both name the voice
             // this row is allowed to speak in, so neither is user-writable.
             await adminSupabase()
@@ -226,7 +226,7 @@ export async function POST(request: Request) {
               })
               .select("id")
               .single();
-            subjectId = inserted?.id as string | undefined;
+            subjectId = inserted?.id;
           }
         }
       }

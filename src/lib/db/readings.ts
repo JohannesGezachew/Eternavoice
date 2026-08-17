@@ -64,11 +64,11 @@ export async function saveReading(params: {
   if (error || !data) throw error ?? new Error("Could not save the reading.");
 
   return {
-    id: data.id as string,
-    title: data.title as string,
+    id: data.id,
+    title: data.title,
     content,
-    subjectId: (data.subject_id as string | null) ?? null,
-    updatedAt: new Date(data.updated_at as string).getTime(),
+    subjectId: data.subject_id,
+    updatedAt: new Date(data.updated_at).getTime(),
   };
 }
 
@@ -93,11 +93,11 @@ export async function getReadings(subjectId?: string): Promise<ReadingRecord[]> 
     .map((row): ReadingRecord | null => {
       try {
         return {
-          id: row.id as string,
-          title: row.title as string,
-          content: decryptField(row.content_enc as string, key),
-          subjectId: (row.subject_id as string | null) ?? null,
-          updatedAt: new Date(row.updated_at as string).getTime(),
+          id: row.id,
+          title: row.title,
+          content: decryptField(row.content_enc, key),
+          subjectId: row.subject_id,
+          updatedAt: new Date(row.updated_at).getTime(),
         };
       } catch {
         // Same rule as memories: dropped rather than shown empty, so nobody
