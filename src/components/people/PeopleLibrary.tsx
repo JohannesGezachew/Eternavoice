@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { LOAD_FAILED_TITLE, LOAD_FAILED_BODY } from "@/lib/loadState";
 import { PersonAvatar } from "./PersonAvatar";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
@@ -49,6 +50,8 @@ export function PeopleLibrary() {
 
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Distinct from empty: a blip must never read as "they were removed".
+  const [loadFailed, setLoadFailed] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
   const [sort, setSort] = useState<SortKey>("recent");
   const [showArchived, setShowArchived] = useState(false);
@@ -64,7 +67,7 @@ export function PeopleLibrary() {
           .then((d: { subjects?: SubjectRow[] }) => {
             if (d.subjects) setSubjects(d.subjects);
           })
-          .catch(() => null)
+          .catch(() => setLoadFailed(true))
           .finally(() => setLoading(false));
       } else {
         setLoading(false);
@@ -247,12 +250,22 @@ export function PeopleLibrary() {
             <motion.div variants={fadeUp} className="sm:col-span-2">
               <EmptyState
                 variant="people"
-                title="No one here yet"
-                body="Start with any recording of their voice — a voicemail, a video, a voice note — and you'll be talking in a few minutes."
+                title={loadFailed ? LOAD_FAILED_TITLE : "No one here yet"}
+                body={
+                  loadFailed
+                    ? LOAD_FAILED_BODY
+                    : "Start with any recording of their voice — a voicemail, a video, a voice note — and you'll be talking in a few minutes."
+                }
                 action={
                   <div className="flex flex-col items-center gap-3">
-                    <Button variant="primary" size="md" onClick={() => router.push("/people/new")}>
-                      Begin with someone
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={() =>
+                        loadFailed ? window.location.reload() : router.push("/people/new")
+                      }
+                    >
+                      {loadFailed ? "Try again" : "Begin with someone"}
                     </Button>
                     <Link
                       href="/demo"

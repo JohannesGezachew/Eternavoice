@@ -110,17 +110,22 @@ export function RememberMark({ turn, personName, onRemember, onUndo }: RememberM
             </button>
           </motion.div>
         ) : phase === "failed" ? (
-          <motion.p
+          /* A button, because it says to tap it. This was a paragraph: the
+             user followed the instruction, nothing happened, and eight seconds
+             later the message vanished along with the memory they wanted their
+             dead parent to carry. */
+          <motion.button
             key="failed"
+            type="button"
+            onClick={() => void save()}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
-            role="alert"
-            className="text-small text-[var(--color-danger)]"
+            className="flex h-11 cursor-pointer items-center rounded-full px-3 text-small text-[var(--color-danger)] underline underline-offset-4 transition hover:opacity-80"
           >
             That didn&rsquo;t save. Tap to try again.
-          </motion.p>
+          </motion.button>
         ) : (
           <motion.button
             key="mark"

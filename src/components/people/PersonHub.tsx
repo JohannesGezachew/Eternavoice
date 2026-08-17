@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { LOAD_FAILED_TITLE, LOAD_FAILED_BODY } from "@/lib/loadState";
 import { FadeSwap } from "@/components/ui/FadeSwap";
 import { PersonaForm } from "@/components/persona/PersonaForm";
 import { MemoryList } from "@/components/memory/MemoryList";
@@ -43,6 +44,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
 
   const [subject, setSubject] = useState<SubjectRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   // null means "not chosen yet", so the default can follow the data without
   // adjusting state in an effect once conversations hydrate.
   const [chosenTab, setChosenTab] = useState<HubTab | null>(null);
@@ -60,7 +62,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
       .then((d: { subjects?: SubjectRow[] }) => {
         setSubject(d.subjects?.find((s) => s.id === subjectId) ?? null);
       })
-      .catch(() => null)
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, [subjectId]);
 
@@ -155,7 +157,14 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
     }
   };
 
-  const state = loading ? "loading" : !subject ? "missing" : "ready";
+  const state = loading
+    ? "loading"
+    // A failed fetch is not a missing person.
+    : loadFailed && !subject
+      ? "failed"
+      : !subject
+        ? "missing"
+        : "ready";
 
   if (loading || !subject) {
     return (
@@ -181,11 +190,19 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
           <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-24">
             <EmptyState
               variant="people"
-              title="Person not found"
-              body="They may have been removed, or the link may be old. Everyone you've preserved is on your people page."
+              title={loadFailed ? LOAD_FAILED_TITLE : "Person not found"}
+              body={
+                loadFailed
+                  ? LOAD_FAILED_BODY
+                  : "They may have been removed, or the link may be old. Everyone you've preserved is on your people page."
+              }
               action={
-                <Button variant="primary" size="md" onClick={() => router.push("/people")}>
-                  Back to your people
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => (loadFailed ? window.location.reload() : router.push("/people"))}
+                >
+                  {loadFailed ? "Try again" : "Back to your people"}
                 </Button>
               }
             />
