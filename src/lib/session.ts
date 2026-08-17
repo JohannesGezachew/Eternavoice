@@ -41,6 +41,10 @@ export interface ListeningPrefs {
   playbackRate: number;
   /** Open the talk page with the transcript already visible. */
   transcriptDefault: boolean;
+  /** Reveal the memories the summariser captured on its own alongside the
+   *  ones the user kept by hand. Off by default: the memory list is meant to
+   *  read as a record of what *you* chose to keep. */
+  showRememberedFromTalks: boolean;
 }
 
 interface SessionState {
@@ -75,7 +79,17 @@ interface SessionState {
   renameConversation: (conversationId: string, title: string) => void;
   toggleConversationPin: (conversationId: string) => void;
   deleteConversation: (conversationId: string) => void;
-  addMemory: (content: string, subjectId?: string | null) => void;
+  /** Insert a memory whose database row already exists, so the store holds the
+   *  real primary key.
+   *
+   *  There is deliberately no "add by content" action: one used to mint a local
+   *  id while the database minted a different one for the same note, so any
+   *  later edit or delete matched no row and silently did nothing. Callers save
+   *  first (or optimistically insert and then replaceMemory) so the store and
+   *  the database always agree on the id. */
+  addMemoryRecord: (memory: MemoryItem) => void;
+  /** Swap an optimistic memory for the saved row once the id is known. */
+  replaceMemory: (localId: string, memory: MemoryItem) => void;
   updateMemory: (id: string, content: string) => void;
   deleteMemory: (id: string) => void;
   setStatus: (status: ConversationStatus) => void;
@@ -181,7 +195,7 @@ export const useSession = create<SessionState>()(
       currentConversationId: null,
       memories: [],
       status: "idle",
-      prefs: { playbackRate: 1, transcriptDefault: false },
+      prefs: { playbackRate: 1, transcriptDefault: false, showRememberedFromTalks: false },
 
       setVoice: (voiceId, name, subjectId) =>
         set((s) => {
@@ -339,27 +353,14 @@ export const useSession = create<SessionState>()(
             status: "idle",
           };
         }),
-      addMemory: (content, subjectId) =>
-        set((s) => {
-          const clean = content.replace(/\s+/g, " ").trim();
-          if (!clean) return {};
-          const now = Date.now();
-          return {
-            memories: [
-              {
-                id: newId("m"),
-                content: clean,
-                createdAt: now,
-                updatedAt: now,
-                subjectId: subjectId ?? s.activeSubjectId ?? null,
-                // Everything added through the store is user-initiated (a note,
-                // a "remember this", a reflection) — never the auto-extractor.
-                source: "manual" as const,
-              },
-              ...s.memories,
-            ].slice(0, 80),
-          };
-        }),
+      addMemoryRecord: (memory) =>
+        set((s) => ({
+          memories: [memory, ...s.memories.filter((m) => m.id !== memory.id)].slice(0, 80),
+        })),
+      replaceMemory: (localId, memory) =>
+        set((s) => ({
+          memories: s.memories.map((m) => (m.id === localId ? memory : m)),
+        })),
       updateMemory: (id, content) =>
         set((s) => {
           const clean = content.replace(/\s+/g, " ").trim();

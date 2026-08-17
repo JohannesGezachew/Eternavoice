@@ -11,6 +11,7 @@ import { Composer, VoiceOrb } from "./Composer";
 import { VoicePrint } from "@/components/people/VoicePrint";
 import { PersonAvatar } from "@/components/people/PersonAvatar";
 import { Message } from "./Message";
+import { RememberMark, type RememberOutcome } from "./RememberMark";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import { useSmoothText } from "./useSmoothText";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -19,8 +20,10 @@ import { reportError } from "@/lib/reportError";
 import { haptic } from "@/lib/haptics";
 import { openingTone, closingTone, saveChime } from "@/lib/sound";
 import { saveConversation, deleteConversationDb } from "@/lib/db/conversations";
-import { addMemoryDb } from "@/lib/db/memories";
+import { addMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
+import { rememberSpoken } from "@/lib/db/remember";
 import { formatRelativeDay } from "@/lib/utils";
+import { isRememberable } from "@/lib/memoryView";
 import type { ChatTurn, ConversationRecord } from "@/lib/types";
 
 const CHAT_CONTEXT_TURNS = 30;
@@ -63,7 +66,9 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const deleteConversation = useSession((s) => s.deleteConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
   const resetConversation = useSession((s) => s.resetConversation);
-  const addMemory = useSession((s) => s.addMemory);
+  const addMemoryRecord = useSession((s) => s.addMemoryRecord);
+  const replaceMemory = useSession((s) => s.replaceMemory);
+  const deleteMemory = useSession((s) => s.deleteMemory);
   const prefs = useSession((s) => s.prefs);
 
   const [amplitude, setAmplitude] = useState(0);
@@ -223,6 +228,30 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     }, 4000);
     return () => window.clearTimeout(t);
   }, [status]);
+
+  // One-time hint: the bookmark beside the composer is deliberately quiet, so
+  // it needs telling about once. Waits until they're a few turns in — offering
+  // it before there's anything worth keeping would just be noise.
+  useEffect(() => {
+    if (status !== "idle") return;
+    if (turns.filter((t) => t.role === "user").length < 2) return;
+    let flagged = false;
+    try {
+      flagged = localStorage.getItem("ev-hint-remember") === "1";
+    } catch {
+      flagged = true;
+    }
+    if (flagged) return;
+    const t = window.setTimeout(() => {
+      setResponseNotice("Anything you want kept, tap the bookmark — they'll carry it forward.");
+      try {
+        localStorage.setItem("ev-hint-remember", "1");
+      } catch {
+        // fine — they'll discover it themselves
+      }
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, [status, turns]);
 
   // Fire-and-forget summarisation: the conversation is summarised (and its
   // durable facts extracted into memories) whenever the user leaves it — by
@@ -662,17 +691,95 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
 
   // "She should remember this" — capture a memory at the moment it happens,
   // not later from a settings form.
+  //
+  // The single save path: the bookmark beside the composer and the pill in the
+  // transcript both land here, so a memory is shaped identically however it was
+  // kept. The server rewrites it into the persona's own voice before storing —
+  // saving the raw utterance would have the persona read "I want you to
+  // remember..." back as its own words.
+  const lastKeptMemoryRef = useRef<string | null>(null);
   const rememberTurn = useCallback(
-    (turn: ChatTurn) => {
-      addMemory(turn.content, activeSubjectId ?? null);
-      void addMemoryDb(turn.content, activeSubjectId ?? undefined).catch(console.error);
-      setResponseNotice("Saved — they'll carry that into every conversation.");
+    async (turn: ChatTurn): Promise<RememberOutcome> => {
+      const result = await rememberSpoken(turn.content, activeSubjectId ?? undefined).catch(
+        () => null,
+      );
+      if (result === null || result.ok === false) {
+        // Never claim it was kept when it wasn't — this is the one promise the
+        // product cannot quietly break.
+        const reason = result === null ? "network" : result.reason;
+        reportError("remember-turn", new Error(reason));
+        trackEvent("memory_kept_failed", { reason });
+        return "failed";
+      }
+      lastKeptMemoryRef.current = result.memory.id;
+      addMemoryRecord(result.memory);
       saveChime();
       haptic("save");
-      trackEvent("memory_added_from_talk");
+      trackEvent("memory_added_from_talk", { alreadyKnown: result.alreadyKnown });
+      return result.alreadyKnown ? "known" : "saved";
     },
-    [addMemory, activeSubjectId],
+    [activeSubjectId, addMemoryRecord],
   );
+
+  // Undo the keep. Deletes outright even when the summariser had already
+  // captured it: after "they already carry that", Undo can only mean "then
+  // don't".
+  const undoRemember = useCallback(async () => {
+    const id = lastKeptMemoryRef.current;
+    if (!id) return;
+    lastKeptMemoryRef.current = null;
+    deleteMemory(id);
+    await deleteMemoryDb(id).catch(console.error);
+    trackEvent("memory_kept_undone");
+  }, [deleteMemory]);
+
+  // The transcript pill has no confirmation surface of its own, so it borrows
+  // the status line. The bookmark confirms inline and skips this.
+  const rememberFromTranscript = useCallback(
+    async (turn: ChatTurn) => {
+      const outcome = await rememberTurn(turn);
+      setResponseNotice(
+        outcome === "failed"
+          ? "That didn't save. Try again in a moment."
+          : outcome === "known"
+            ? "They already carry that."
+            : "Saved — they'll carry that into every conversation.",
+      );
+    },
+    [rememberTurn],
+  );
+
+  // The parting reflection is a note they typed about the conversation, kept
+  // in their own words — not a "remember that…", so it skips the rewrite.
+  // Optimistic, then reconciled to the row's real id.
+  const saveTypedNote = useCallback(
+    (content: string) => {
+      const localId = crypto.randomUUID();
+      const now = Date.now();
+      addMemoryRecord({
+        id: localId,
+        content,
+        createdAt: now,
+        updatedAt: now,
+        subjectId: activeSubjectId ?? null,
+        source: "manual",
+      });
+      void addMemoryDb(content, activeSubjectId ?? undefined)
+        .then((saved) => replaceMemory(localId, saved))
+        .catch(() => deleteMemory(localId));
+    },
+    [activeSubjectId, addMemoryRecord, replaceMemory, deleteMemory],
+  );
+
+  // The last thing they said, if there's enough in it to be worth keeping —
+  // what the bookmark beside the composer acts on.
+  const lastUserTurn = useMemo(() => {
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const turn = turns[i];
+      if (turn?.role === "user") return isRememberable(turn.content) ? turn : null;
+    }
+    return null;
+  }, [turns]);
 
   // Keepsake: a reply in their voice, saved as an audio file. Uses the live
   // audio if it's still in memory, otherwise regenerates it from the saved text
@@ -1126,16 +1233,28 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           )}
 
           {opened ? (
-            <Composer
-              disabled={status === "thinking"}
-              personaBusy={status === "thinking" || status === "speaking"}
-              playbackAmplitude={amplitude}
-              onSend={(t) => void send(t)}
-              onTranscribe={transcribe}
-              onSpeechStateChange={handleSpeechState}
-              onActivate={ensureUnlocked}
-              onBargeIn={bargeIn}
-            />
+            <>
+              <Composer
+                disabled={status === "thinking"}
+                personaBusy={status === "thinking" || status === "speaking"}
+                playbackAmplitude={amplitude}
+                onSend={(t) => void send(t)}
+                onTranscribe={transcribe}
+                onSpeechStateChange={handleSpeechState}
+                onActivate={ensureUnlocked}
+                onBargeIn={bargeIn}
+              />
+              {/* Keeping something lives here, beside the composer, rather than
+                  in the transcript: the transcript is hidden by default and
+                  gone entirely in ambient mode, which is exactly where the
+                  conversations worth keeping happen. */}
+              <RememberMark
+                turn={lastUserTurn}
+                personName={headerName}
+                onRemember={rememberTurn}
+                onUndo={undoRemember}
+              />
+            </>
           ) : (
             <BeginGate
               name={headerName}
@@ -1152,7 +1271,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             streamingTurnId={streamingTurnId}
             onReplay={(turn) => void replayTurn(turn)}
             onSaveClip={saveClip}
-            onRemember={rememberTurn}
+            onRemember={(turn) => void rememberFromTranscript(turn)}
             onFeedback={(turnId, feedback) => {
               setTurnFeedback(turnId, feedback);
               trackEvent("conversation_turn_feedback", { feedback });
@@ -1259,10 +1378,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   <button
                     type="button"
                     onClick={() => {
-                      if (reflectionText.trim()) {
-                        addMemory(reflectionText.trim(), activeSubjectId ?? null);
-                        void addMemoryDb(reflectionText.trim(), activeSubjectId ?? undefined).catch(console.error);
-                      }
+                      if (reflectionText.trim()) saveTypedNote(reflectionText.trim());
                       setShowReflection(false);
                       restartActionRef.current?.();
                       restartActionRef.current = null;
