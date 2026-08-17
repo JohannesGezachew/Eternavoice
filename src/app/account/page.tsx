@@ -184,6 +184,8 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -284,6 +286,38 @@ export default function AccountPage() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  /**
+   * The export, as a file rather than a promise on a page.
+   *
+   * The blob URL points at a decrypted copy of everything the account holds,
+   * so it is revoked the moment the download starts — leaving one alive is the
+   * one place this data would sit around unprotected for the rest of the
+   * session.
+   */
+  const downloadEverything = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch("/api/user/export");
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { error?: string } | null;
+        setExportError(json?.error ?? "We couldn't build your file just now. Try again.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "eternavoice-export.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("We couldn't reach your account just now. Try again.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const deleteAccount = async () => {
@@ -459,6 +493,14 @@ export default function AccountPage() {
                   Subscribe
                 </Link>
               )}
+              {/* An HTML error page used to throw on res.json() before the
+                  loading flag cleared, so the button sat disabled on
+                  "Opening…" until reload, with nothing said about why. */}
+              {portalError ? (
+                <p role="alert" className="basis-full text-small text-[var(--color-danger)]">
+                  {portalError}
+                </p>
+              ) : null}
             </div>
 
             {/* What cancelling actually costs you.
@@ -692,6 +734,31 @@ export default function AccountPage() {
           >
             Sign out of all devices
           </button>
+        </motion.div>
+
+        {/* Your data.
+            There was no way to get any of this out. Everything a person writes
+            here — the people, the transcripts, the readings — was reachable
+            only through the app itself, which is a bad answer to "what happens
+            to my mother's voice if you shut down?". */}
+        <motion.div variants={fadeUp} className="flex flex-col gap-2.5">
+          <button
+            onClick={() => void downloadEverything()}
+            disabled={exporting}
+            className={buttonClasses({ variant: "outline", size: "md", className: "w-full" })}
+          >
+            {exporting ? "Preparing…" : "Download everything"}
+          </button>
+          <p className="text-center text-small leading-[1.6] text-[var(--color-text-tertiary)]">
+            One file with your people, every conversation and its transcript,
+            everything you&rsquo;ve kept, and every reading &mdash; readable,
+            and yours whatever happens to us.
+          </p>
+          {exportError ? (
+            <p role="alert" className="text-center text-small text-[var(--color-danger)]">
+              {exportError}
+            </p>
+          ) : null}
         </motion.div>
 
         {/* Danger zone */}
