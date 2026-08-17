@@ -35,8 +35,16 @@ export default function MemoriesPage() {
   // By default only what the user kept by hand: the summariser's auto-extracted
   // memories are real and the personas use them, but this list is meant to read
   // as a record of your own choices. The count below opens them up.
-  const visibleMemories = selectMemories(memories, { includeAuto: showAuto });
+  //
+  // Except when there is nothing of your own yet — which is most people, since
+  // the summariser captures constantly and the bookmark is opt-in. An empty
+  // page sitting beside "80 more remembered from your conversations" reads as
+  // broken, and is the single worst thing to show someone who has been talking
+  // for weeks. So with no kept notes, theirs are shown instead.
   const heldBack = countAutoMemories(memories);
+  const keptCount = memories.length - heldBack;
+  const revealed = showAuto || keptCount === 0;
+  const visibleMemories = selectMemories(memories, { includeAuto: revealed });
 
   // Group memories by subjectId
   const grouped = subjects
@@ -62,19 +70,25 @@ export default function MemoriesPage() {
             </p>
             {/* The count is the control: it says the other memories exist
                 without turning the page into a settings screen. */}
-            {heldBack > 0 || showAuto ? (
+            {heldBack > 0 ? (
               <p className="mt-1 flex flex-wrap items-center gap-2 text-small text-[var(--color-text-tertiary)]">
-                {showAuto
-                  ? "Showing everything they remember."
-                  : `${heldBack} more remembered from your conversations.`}
-                <button
-                  type="button"
-                  onClick={() => setPrefs({ showRememberedFromTalks: !showAuto })}
-                  aria-pressed={showAuto}
-                  className="cursor-pointer text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
-                >
-                  {showAuto ? "Show only what you saved" : "Show"}
-                </button>
+                {keptCount === 0
+                  ? "You haven't kept any by hand yet — showing what they remembered from your conversations."
+                  : showAuto
+                    ? "Showing everything they remember."
+                    : `${heldBack} more remembered from your conversations.`}
+                {/* No toggle when there is nothing of your own to toggle back
+                    to — it would only ever reveal an empty page. */}
+                {keptCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setPrefs({ showRememberedFromTalks: !showAuto })}
+                    aria-pressed={showAuto}
+                    className="cursor-pointer text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+                  >
+                    {showAuto ? "Show only what you saved" : "Show"}
+                  </button>
+                ) : null}
               </p>
             ) : null}
           </motion.div>
