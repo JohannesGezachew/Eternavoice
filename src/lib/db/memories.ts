@@ -4,26 +4,47 @@ import { createClient } from "@/lib/supabase/server";
 import { deriveUserKey, encryptField, decryptField } from "@/lib/crypto";
 import type { MemoryItem } from "@/lib/types";
 
+/**
+ * Hand-written notes and auto-captured facts are fetched separately, and this
+ * is not an optimisation.
+ *
+ * A single `order by created_at desc limit 80` looks fair and isn't: the
+ * summariser writes up to twenty memories every eight turns, so auto-captured
+ * rows saturate any recency window almost immediately. Every memory the user
+ * actually wrote is older by definition, fell outside the window, and simply
+ * stopped existing as far as the app was concerned — the memories page showed
+ * "Nothing here yet" beside a note saying 80 more were remembered.
+ */
+const KEPT_LIMIT = 300;
+const AUTO_LIMIT = 200;
+
 export async function getMemories(subjectId?: string): Promise<MemoryItem[]> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
   const key = deriveUserKey(user.id);
-  let query = supabase
-    .from("memories")
-    .select("id, subject_id, content_enc, created_at, updated_at, memory_type")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+  const base = () => {
+    const q = supabase
+      .from("memories")
+      .select("id, subject_id, content_enc, created_at, updated_at, memory_type")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    return subjectId ? q.eq("subject_id", subjectId) : q;
+  };
 
-  if (subjectId) {
-    query = query.eq("subject_id", subjectId);
-  }
+  const [keptRes, autoRes] = await Promise.all([
+    // Legacy rows predate memory_type and were all hand-written, so "not
+    // conversation" is the correct test rather than "equals manual".
+    base().neq("memory_type", "conversation").limit(KEPT_LIMIT),
+    base().eq("memory_type", "conversation").limit(AUTO_LIMIT),
+  ]);
+  if (keptRes.error) throw keptRes.error;
+  if (autoRes.error) throw autoRes.error;
 
-  const { data, error } = await query.limit(80);
-  if (error) throw error;
+  const data = [...(keptRes.data ?? []), ...(autoRes.data ?? [])];
 
-  return (data ?? [])
+  return data
     .map((row): MemoryItem | null => {
       let content: string;
       try {
