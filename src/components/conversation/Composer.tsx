@@ -6,7 +6,14 @@ import {
   AnimatePresence,
   useMotionValue,
   useTransform,
+  type MotionValue,
 } from "framer-motion";
+
+/** Either form the orb accepts. */
+type AmplitudeSource = MotionValue<number> | number;
+
+const readAmplitude = (source: AmplitudeSource | undefined): number =>
+  typeof source === "number" ? source : (source?.get() ?? 0);
 import { startRecording, type ActiveRecorder } from "@/lib/audio/recorder";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +22,13 @@ interface ComposerProps {
   personaBusy?: boolean;
   /** RMS amplitude of the persona's TTS playback. Used to drive the
    *  "responding" animation in the composer area. */
-  playbackAmplitude?: number;
+  /** The persona's playback level.
+   *
+   *  Accepts a motion value from the talk room, where a plain number prop meant
+   *  every animation frame of speech re-rendered the whole conversation tree,
+   *  and a plain number from the narration screens, where it changes rarely.
+   *  Both readers below are imperative, so neither costs a render. */
+  playbackAmplitude?: AmplitudeSource;
   onSend: (text: string) => void;
   onTranscribe: (audio: Blob, mimeType: string) => Promise<string | null>;
   onSpeechStateChange?: (state: "idle" | "recording" | "transcribing") => void;
@@ -43,7 +56,7 @@ const BARGE_IN_SUSTAIN_MS = 190;
 export function Composer({
   disabled,
   personaBusy = false,
-  playbackAmplitude = 0,
+  playbackAmplitude,
   onSend,
   onTranscribe,
   onSpeechStateChange,
@@ -73,7 +86,6 @@ export function Composer({
   const armingRef = useRef(false);
   const armTokenRef = useRef(0);
   const personaBusyRef = useRef(personaBusy);
-  const playbackAmplitudeRef = useRef(playbackAmplitude);
   const bargingInRef = useRef(false);
   const bargeCandidateAtRef = useRef<number | null>(null);
   const turnRef = useRef<{
@@ -112,10 +124,6 @@ export function Composer({
     recorderRef.current?.cancel();
     recorderRef.current = null;
   }, [micEnabled]);
-
-  useEffect(() => {
-    playbackAmplitudeRef.current = playbackAmplitude;
-  }, [playbackAmplitude]);
 
   useEffect(() => {
     onSpeechStateChangeRef.current?.(
@@ -211,7 +219,7 @@ export function Composer({
             const playbackAwareThreshold = Math.max(
               BARGE_IN_MIN_RMS,
               t.noiseFloor * 4.5,
-              playbackAmplitudeRef.current * 0.45,
+              readAmplitude(playbackAmplitude) * 0.45,
             );
             const looksLikeUserSpeech = rms > playbackAwareThreshold && peak > BARGE_IN_MIN_PEAK;
             if (looksLikeUserSpeech) {
@@ -286,7 +294,7 @@ export function Composer({
     } finally {
       armingRef.current = false;
     }
-  }, [closeAndSendTurn]);
+  }, [playbackAmplitude, closeAndSendTurn]);
 
   // Once the parent transitions to personaBusy, our send is officially in
   // flight; release the close-lock so re-arming proceeds normally.
@@ -545,7 +553,7 @@ export function Composer({
 
 interface VoiceOrbProps {
   state: "responding" | "processing" | "hearing" | "listening";
-  playbackAmplitude: number;
+  playbackAmplitude?: AmplitudeSource;
   /** "lg" is the centerpiece; "sm" keeps the identity alive beside text UI. */
   size?: "lg" | "sm";
 }
@@ -585,7 +593,7 @@ export function VoiceOrb({ state, playbackAmplitude, size = "lg" }: VoiceOrbProp
       let targetSpecular = 0.55;
 
       if (isResponding) {
-        const amp = Math.min(0.5, playbackAmplitude * 5);
+        const amp = Math.min(0.5, readAmplitude(playbackAmplitude) * 5);
         if (amp < 0.02) {
           // The thinking gap — no audio yet. Inhale: gather and brighten,
           // a presence preparing to speak rather than a stalled spinner.

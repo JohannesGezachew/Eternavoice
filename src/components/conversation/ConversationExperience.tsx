@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue } from "framer-motion";
 import { useSession } from "@/lib/session";
 import { streamChat, prewarmChat, AllowanceReachedError } from "@/lib/streamChat";
 import { PlaybackQueue, base64ToArrayBuffer } from "@/lib/audio/playbackQueue";
@@ -84,7 +84,12 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const deleteMemory = useSession((s) => s.deleteMemory);
   const prefs = useSession((s) => s.prefs);
 
-  const [amplitude, setAmplitude] = useState(0);
+  // A motion value, not state. This drove a setState at animation-frame rate,
+  // re-rendering a two-thousand-line component and every unmemoized child
+  // beneath it sixty times a second while the persona spoke. Both consumers —
+  // the orb's own rAF tick and the composer's barge-in threshold — read it
+  // imperatively, so nothing ever needed React to re-render for it.
+  const amplitude = useMotionValue(0);
   const [hasUnlocked, setHasUnlocked] = useState(false);
   const [streamingTurnId, setStreamingTurnId] = useState<string | null>(null);
   const [responseError, setResponseError] = useState<string | null>(null);
@@ -448,7 +453,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       onAmplitude: (rms) => {
         if (Math.abs(rms - lastAmpRef.current) < 0.004) return;
         lastAmpRef.current = rms;
-        setAmplitude(rms);
+        amplitude.set(rms);
       },
       onActivityChange: (active) => {
         if (active) setStatus("speaking");
@@ -461,7 +466,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       queue.destroy();
       queueRef.current = null;
     };
-  }, [setStatus]);
+  }, [amplitude, setStatus]);
 
   // Listening preference: their voice at the pace the user chose.
   useEffect(() => {
@@ -1123,14 +1128,15 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         data-flicker={candle > 0.3 ? "true" : "false"}
         style={
           {
-            // The room warms when they speak. Amplitude feeds a small lift on
-            // top of the hour-of-day base, so the candlelight answers their
-            // voice instead of only the clock — the difference between a
-            // decorative layer and one that's listening. Capped low enough to
-            // stay felt rather than seen.
+            // A steady lift while they speak, not a per-frame one. Feeding
+            // amplitude in here restarted the layer's 1.6s opacity transition
+            // on every animation frame, so it never settled and the compositor
+            // never idled — on a full-viewport element holding two radial
+            // gradients. The room still warms when they talk; it just does it
+            // once, and the orb carries the moment-to-moment response.
             "--candle-intensity":
               (ambient ? Math.max(0.7, candle) : candle) +
-              (status === "speaking" ? Math.min(0.14, amplitude * 0.5) : 0),
+              (status === "speaking" ? 0.08 : 0),
           } as React.CSSProperties
         }
         aria-hidden
