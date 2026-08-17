@@ -81,19 +81,19 @@ function LegalPage({
         </Link>
         <Link
           href={sibling.href}
-          className="text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+          className="text-small text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
         >
           {sibling.label}
         </Link>
       </header>
       <main className="py-14">
-        <p className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
+        <p className="text-small tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
           Last updated {updated}
         </p>
-        <h1 className="font-serif mt-4 text-[30px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[54px]">
+        <h1 className="font-serif mt-4 text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[54px]">
           {title}
         </h1>
-        <div className="mt-10 space-y-8 border-t border-[var(--color-rule)] pt-10 text-[15px] leading-[1.85] text-[var(--color-bone)]/65 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-[22px] [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.01em] [&_h2]:text-[var(--color-bone)] [&_p]:mt-0">
+        <div className="mt-10 space-y-8 border-t border-[var(--color-rule)] pt-10 text-body leading-[1.85] text-[var(--color-bone)]/65 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-title [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.01em] [&_h2]:text-[var(--color-bone)] [&_p]:mt-0">
           {children}
         </div>
       </main>

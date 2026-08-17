@@ -61,11 +61,11 @@ export function ConversationDemo() {
             style={{ background: "radial-gradient(closest-side, rgba(194,120,74,0.8), rgba(194,120,74,0.2))" }}
             aria-hidden
           />
-          <span className="text-[12px] tracking-[0.06em] text-[var(--color-bone-dim)]">
+          <span className="text-small tracking-[0.06em] text-[var(--color-bone-dim)]">
             Dad <span className="opacity-40">·</span> His voice
           </span>
         </div>
-        <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-rule-strong)] bg-white/[0.025] px-2.5 py-0.5 text-[10px] tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">
+        <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-rule-strong)] bg-white/[0.025] px-2.5 py-0.5 text-micro tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">
           <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-ember)]" aria-hidden />
           Example
         </span>
@@ -85,7 +85,7 @@ export function ConversationDemo() {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-[13px] leading-[1.6] ${
+                className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-small leading-[1.6] ${
                   msg.role === "user"
                     ? "rounded-br-sm border border-white/[0.06] bg-white/[0.07] text-[var(--color-bone)]/90"
                     : "rounded-bl-sm border border-[var(--color-ember)]/15 bg-[var(--color-ember)]/[0.13] text-[var(--color-bone)]/90"
@@ -134,10 +134,10 @@ export function ConversationDemo() {
             />
           ))}
         </div>
-        <span className="text-[11px] tracking-[0.06em] text-[var(--color-bone-dim)]/80">
+        <span className="text-micro tracking-[0.06em] text-[var(--color-bone-dim)]/80">
           {lastIsAi ? "Speaking…" : "Listening"}
         </span>
-        <div className="ml-auto text-[10px] tracking-[0.06em] text-[var(--color-bone-dim)]/80">
+        <div className="ml-auto text-micro tracking-[0.06em] text-[var(--color-bone-dim)]/80">
           End-to-end encrypted
         </div>
       </div>

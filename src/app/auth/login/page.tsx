@@ -161,7 +161,7 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
           aria-label={`Digit ${i + 1}`}
-          className="h-12 w-10 flex-1 rounded-xl bg-white/[0.025] text-center text-[18px] tracking-tight text-[var(--color-bone)] transition-[border-color,background] duration-200 hairline focus:bg-white/[0.04] focus:border-[var(--color-ember)]/40 focus:outline-none sm:w-12 sm:h-14"
+          className="h-12 w-10 flex-1 rounded-xl bg-white/[0.025] text-center text-lead tracking-tight text-[var(--color-bone)] transition-[border-color,background] duration-200 hairline focus:bg-white/[0.04] focus:border-[var(--color-ember)]/40 focus:outline-none sm:w-12 sm:h-14"
         />
       ))}
     </div>
@@ -414,7 +414,7 @@ function AuthForm() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.25 }}
-            className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[32px]"
+            className="font-serif text-display leading-tight tracking-[-0.02em] text-[var(--color-bone)]"
           >
             {heading[view]}
           </motion.h1>
@@ -426,7 +426,7 @@ function AuthForm() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="text-[14px] leading-relaxed text-[var(--color-bone-dim)]"
+            className="text-body leading-relaxed text-[var(--color-bone-dim)]"
           >
             {subtext[view]}
           </motion.p>
@@ -452,7 +452,7 @@ function AuthForm() {
               className={buttonClasses({ variant: "outline", size: "md", className: "h-12 w-full" })}
             >
               {loadingGoogle ? (
-                <><Spinner /><span className="text-[13px] text-[var(--color-bone-dim)]">Redirecting…</span></>
+                <><Spinner /><span className="text-small text-[var(--color-bone-dim)]">Redirecting…</span></>
               ) : (
                 <><GoogleIcon />Continue with Google</>
               )}
@@ -475,7 +475,7 @@ function AuthForm() {
             {/* Divider */}
             <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-[var(--color-rule-strong)]" />
-              <span className="text-[11px] tracking-[0.12em] text-[var(--color-bone-dim)]/80 uppercase">or</span>
+              <span className="text-micro tracking-[0.12em] text-[var(--color-bone-dim)]/80 uppercase">or</span>
               <div className="h-px flex-1 bg-[var(--color-rule-strong)]" />
             </div>
 
@@ -485,7 +485,7 @@ function AuthForm() {
               <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="email"
-                  className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                  className="text-micro tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
                 >
                   Email
                 </label>
@@ -515,7 +515,7 @@ function AuthForm() {
                 <div className="flex items-center justify-between">
                   <label
                     htmlFor="password"
-                    className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                    className="text-micro tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
                   >
                     Password
                   </label>
@@ -523,7 +523,7 @@ function AuthForm() {
                     <button
                       type="button"
                       onClick={() => { setError(null); setView("forgot"); }}
-                      className="text-[11px] text-[var(--color-ember)]/80 transition hover:text-[var(--color-ember)]"
+                      className="text-micro text-[var(--color-ember)]/80 transition hover:text-[var(--color-ember)]"
                     >
                       Forgot password?
                     </button>
@@ -548,7 +548,7 @@ function AuthForm() {
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     tabIndex={-1}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-bone-dim)]/40 transition hover:text-[var(--color-bone-dim)]"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone-dim)]"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOffIcon /> : <EyeIcon />}
@@ -563,7 +563,7 @@ function AuthForm() {
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="overflow-hidden text-[11px] text-[var(--color-text-tertiary)]"
+                      className="overflow-hidden text-micro text-[var(--color-text-tertiary)]"
                     >
                       At least 8 characters. A mix of letters, numbers, and symbols makes it stronger.
                     </motion.p>
@@ -592,7 +592,7 @@ function AuthForm() {
                           />
                         ))}
                       </div>
-                      <span className="text-[11px] text-[var(--color-bone-dim)]/60">
+                      <span className="text-micro text-[var(--color-bone-dim)]/60">
                         {strength.label}
                       </span>
                     </motion.div>
@@ -612,7 +612,7 @@ function AuthForm() {
                   >
                     <label
                       htmlFor="confirm-password"
-                      className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                      className="text-micro tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
                     >
                       Confirm password
                     </label>
@@ -633,7 +633,7 @@ function AuthForm() {
                         type="button"
                         onClick={() => setShowConfirmPassword((v) => !v)}
                         tabIndex={-1}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-bone-dim)]/40 transition hover:text-[var(--color-bone-dim)]"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone-dim)]"
                         aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                       >
                         {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
@@ -644,7 +644,7 @@ function AuthForm() {
               </AnimatePresence>
 
               {error && (
-                <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+                <p className="text-small text-[var(--color-danger)]" role="alert">
                   {error}
                 </p>
               )}
@@ -672,14 +672,14 @@ function AuthForm() {
                 type="button"
                 onClick={() => void submitMagicLink()}
                 disabled={loading || !email.trim()}
-                className="text-[12px] text-[var(--color-bone-dim)]/55 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)] disabled:opacity-40"
+                className="text-small text-[var(--color-text-tertiary)] underline underline-offset-4 transition hover:text-[var(--color-bone-dim)] disabled:opacity-40"
               >
                 Sign in with a one-time email code
               </button>
             </div>
 
             {/* Mode toggle */}
-            <p className="text-center text-[13px] text-[var(--color-text-secondary)]">
+            <p className="text-center text-small text-[var(--color-text-secondary)]">
               {mode === "sign-in" ? (
                 <>
                   Don&apos;t have an account?{" "}
@@ -716,7 +716,7 @@ function AuthForm() {
             </p>
 
             {/* Terms */}
-            <p className="text-center text-[11px] leading-relaxed text-[var(--color-text-tertiary)]">
+            <p className="text-center text-micro leading-relaxed text-[var(--color-text-tertiary)]">
               By continuing you agree to our{" "}
               <a
                 href="/terms"
@@ -746,7 +746,7 @@ function AuthForm() {
             transition={{ duration: 0.3 }}
             className="flex flex-col gap-5"
           >
-            <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
+            <p className="text-small leading-relaxed text-[var(--color-bone-dim)]">
               Click the link in the email to activate your account. It expires in 1 hour.
               Check spam if nothing arrives within a minute.
             </p>
@@ -759,7 +759,7 @@ function AuthForm() {
                 className={buttonClasses({
                   variant: "outline",
                   size: "md",
-                  className: "w-full text-[13px]",
+                  className: "w-full text-small",
                 })}
               >
                 {provider.label} →
@@ -767,14 +767,14 @@ function AuthForm() {
             )}
 
             {error && (
-              <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+              <p className="text-small text-[var(--color-danger)]" role="alert">{error}</p>
             )}
 
             <div className="mt-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.02] px-4 py-3.5">
-              <p className="text-[11px] tracking-[0.14em] text-[var(--color-ember)] uppercase">
+              <p className="text-micro tracking-[0.14em] text-[var(--color-ember)] uppercase">
                 While you wait
               </p>
-              <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+              <p className="mt-1.5 text-small leading-[1.65] text-[var(--color-text-secondary)]">
                 Find a recording of their voice — a voicemail, a video, a voice note.
                 Ninety seconds of them speaking clearly is enough to begin.
               </p>
@@ -784,7 +784,7 @@ function AuthForm() {
               <button
                 onClick={() => void resendConfirmation()}
                 disabled={resendCooldown > 0}
-                className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
+                className="text-small text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
               >
                 {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend email"}
               </button>
@@ -796,7 +796,7 @@ function AuthForm() {
                   setConfirmPassword("");
                   setError(null);
                 }}
-                className="text-[13px] text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+                className="text-small text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
               >
                 Different email
               </button>
@@ -815,7 +815,7 @@ function AuthForm() {
             className="flex flex-col gap-5"
           >
             <form onSubmit={(e) => void verifyCode(e)} className="flex flex-col gap-3">
-              <label className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)] uppercase">
+              <label className="text-micro tracking-[0.1em] text-[var(--color-bone-dim)] uppercase">
                 Enter the 6-digit code
               </label>
               <OtpInput value={code} onChange={setCode} />
@@ -832,7 +832,7 @@ function AuthForm() {
               </button>
             </form>
 
-            <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
+            <p className="text-small leading-relaxed text-[var(--color-bone-dim)]">
               Check spam if nothing arrives within a minute. The code expires in 1 hour.
             </p>
 
@@ -844,7 +844,7 @@ function AuthForm() {
                 className={buttonClasses({
                   variant: "outline",
                   size: "md",
-                  className: "w-full text-[13px]",
+                  className: "w-full text-small",
                 })}
               >
                 {provider.label} →
@@ -852,14 +852,14 @@ function AuthForm() {
             )}
 
             {error && (
-              <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+              <p className="text-small text-[var(--color-danger)]" role="alert">{error}</p>
             )}
 
             <div className="mt-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.02] px-4 py-3.5">
-              <p className="text-[11px] tracking-[0.14em] text-[var(--color-ember)] uppercase">
+              <p className="text-micro tracking-[0.14em] text-[var(--color-ember)] uppercase">
                 While you wait
               </p>
-              <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+              <p className="mt-1.5 text-small leading-[1.65] text-[var(--color-text-secondary)]">
                 Find a recording of their voice — a voicemail, a video, a voice note.
                 Ninety seconds of them speaking clearly is enough to begin.
               </p>
@@ -869,13 +869,13 @@ function AuthForm() {
               <button
                 onClick={() => void resendMagicLink()}
                 disabled={resendCooldown > 0}
-                className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
+                className="text-small text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
               >
                 {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend email"}
               </button>
               <button
                 onClick={() => { setView("auth"); setEmail(""); setCode(""); setError(null); }}
-                className="text-[13px] text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+                className="text-small text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
               >
                 Different email
               </button>
@@ -897,7 +897,7 @@ function AuthForm() {
               <div className="flex flex-col gap-1.5">
                 <label
                   htmlFor="forgot-email"
-                  className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                  className="text-micro tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
                 >
                   Email address
                 </label>
@@ -916,7 +916,7 @@ function AuthForm() {
               </div>
 
               {error && (
-                <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+                <p className="text-small text-[var(--color-danger)]" role="alert">{error}</p>
               )}
 
               <button
@@ -935,7 +935,7 @@ function AuthForm() {
             <button
               type="button"
               onClick={() => { setView("auth"); setError(null); }}
-              className="text-[13px] text-[var(--color-bone-dim)]/70 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+              className="text-small text-[var(--color-bone-dim)]/70 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
             >
               ← Back to sign in
             </button>
@@ -952,7 +952,7 @@ function AuthForm() {
             transition={{ duration: 0.3 }}
             className="flex flex-col gap-5"
           >
-            <p className="text-[13px] leading-relaxed text-[var(--color-bone-dim)]">
+            <p className="text-small leading-relaxed text-[var(--color-bone-dim)]">
               Click the link in the email to set a new password. The link expires in 1 hour.
               Check spam if nothing arrives within a minute.
             </p>
@@ -965,7 +965,7 @@ function AuthForm() {
                 className={buttonClasses({
                   variant: "outline",
                   size: "md",
-                  className: "w-full text-[13px]",
+                  className: "w-full text-small",
                 })}
               >
                 {provider.label} →
@@ -973,20 +973,20 @@ function AuthForm() {
             )}
 
             {error && (
-              <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+              <p className="text-small text-[var(--color-danger)]" role="alert">{error}</p>
             )}
 
             <div className="flex items-center gap-5">
               <button
                 onClick={() => void resendForgot()}
                 disabled={resendCooldown > 0}
-                className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
+                className="text-small text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-70 disabled:cursor-default disabled:opacity-50"
               >
                 {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}
               </button>
               <button
                 onClick={() => { setView("auth"); setError(null); }}
-                className="text-[13px] text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
+                className="text-small text-[var(--color-bone-dim)]/80 underline underline-offset-4 transition hover:text-[var(--color-bone-dim)]"
               >
                 Back to sign in
               </button>
@@ -1020,10 +1020,10 @@ function RotatingTestimonial() {
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col gap-3"
         >
-          <p className="font-serif text-[18px] italic leading-[1.7] text-[var(--color-bone)]/80 xl:text-[21px]">
+          <p className="font-serif text-lead italic leading-[1.7] text-[var(--color-bone)]/80 xl:text-title">
             {t.quote}
           </p>
-          <p className="text-[11px] tracking-[0.18em] text-[var(--color-ember)]/70 uppercase">
+          <p className="text-micro tracking-[0.18em] text-[var(--color-ember)]/70 uppercase">
             {t.label}
           </p>
         </motion.div>
@@ -1077,7 +1077,7 @@ export default function LoginPage() {
           <BrandOrb />
           <div className="flex max-w-sm flex-col gap-4">
             <h2
-              className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em] text-[var(--color-bone)] xl:text-[52px]"
+              className="font-serif text-hero leading-[1.05] tracking-[-0.02em] text-[var(--color-bone)] xl:text-[52px]"
               style={{ fontVariationSettings: "'SOFT' 60, 'opsz' 144" }}
             >
               Speak with them<br />
@@ -1088,7 +1088,7 @@ export default function LoginPage() {
                 again.
               </span>
             </h2>
-            <p className="text-[15px] leading-[1.7] text-[var(--color-bone-dim)]">
+            <p className="text-body leading-[1.7] text-[var(--color-bone-dim)]">
               Voice conversations with someone you&apos;ve lost, built from their own recordings.
               Private, careful, and entirely yours.
             </p>
@@ -1105,7 +1105,7 @@ export default function LoginPage() {
       <div className="flex w-full flex-col items-center justify-center px-6 py-16 lg:w-[480px] lg:shrink-0 xl:w-[520px]">
         <div className="mb-6 flex items-center gap-2 rounded-full border border-[var(--color-rule-strong)] bg-[var(--color-ember)]/[0.06] px-3.5 py-1.5 lg:hidden">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-ember)]" aria-hidden />
-          <span className="text-[11px] tracking-[0.1em] text-[var(--color-ember)] uppercase">
+          <span className="text-micro tracking-[0.1em] text-[var(--color-ember)] uppercase">
             Speak with them again
           </span>
         </div>

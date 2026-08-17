@@ -81,7 +81,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.42, ease: [0.16, 1, 0.3, 1] }}
-              className="mt-7 max-w-md text-[16px] leading-[1.7] text-[var(--color-bone)]/60 sm:text-[18px]"
+              className="mt-7 max-w-md text-lead leading-[1.7] text-[var(--color-bone)]/60"
             >
               Real conversations in the voice of someone you&rsquo;ve lost, built from recordings you already have.
             </motion.p>
@@ -122,7 +122,7 @@ export function Hero() {
                     onClick={() => {
                       document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
                     }}
-                    className="flex items-center gap-1.5 text-[14px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                    className="flex items-center gap-1.5 text-body text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
                   >
                     See how it works
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -133,14 +133,14 @@ export function Hero() {
               </div>
               <div className="flex flex-col gap-1">
                 {!hasVoice && (
-                  <p className="flex items-center gap-2 text-[12px] text-[var(--color-text-tertiary)]">
+                  <p className="flex items-center gap-2 text-small text-[var(--color-text-tertiary)]">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                     7 days free · No card required
                   </p>
                 )}
-                <p className="text-[12px] tracking-[0.02em] text-[var(--color-text-secondary)]">
+                <p className="text-small tracking-[0.02em] text-[var(--color-text-secondary)]">
                   Their voice never leaves your account, and is never shared.
                 </p>
               </div>

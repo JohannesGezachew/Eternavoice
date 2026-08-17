@@ -77,7 +77,7 @@ export function Nav() {
             <Mark />
           </Link>
 
-          <nav className="flex items-center gap-6 text-[13px] text-[var(--color-bone-dim)]">
+          <nav className="flex items-center gap-6 text-small text-[var(--color-bone-dim)]">
             {user ? (
               <>
                 <Link href="/account" className="hidden transition duration-200 hover:text-[var(--color-bone)] sm:inline">
@@ -93,7 +93,7 @@ export function Nav() {
                 {/* Desktop CTA — the one route into the app */}
                 <Link
                   href="/people"
-                  className="hidden sm:inline-flex h-9 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-4 text-[12px] tracking-[0.03em] text-[var(--color-bone)]/80 transition duration-300 hover:border-[var(--color-ember)]/50 hover:text-[var(--color-bone)]"
+                  className="hidden sm:inline-flex h-9 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-4 text-small tracking-[0.03em] text-[var(--color-bone)]/80 transition duration-300 hover:border-[var(--color-ember)]/50 hover:text-[var(--color-bone)]"
                 >
                   Open the app
                 </Link>
@@ -118,7 +118,7 @@ export function Nav() {
                 </Link>
                 <Link
                   href="/auth/login"
-                  className="hidden h-9 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-4 text-[12px] tracking-[0.03em] text-[var(--color-bone)]/80 transition duration-300 hover:border-[var(--color-ember)]/50 hover:text-[var(--color-bone)] sm:inline-flex"
+                  className="hidden h-9 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-4 text-small tracking-[0.03em] text-[var(--color-bone)]/80 transition duration-300 hover:border-[var(--color-ember)]/50 hover:text-[var(--color-bone)] sm:inline-flex"
                 >
                   Sign in
                 </Link>
@@ -191,7 +191,7 @@ export function Nav() {
                     key={item.href}
                     href={item.href}
                     onClick={() => setMenuOpen(false)}
-                    className="py-3.5 font-serif text-[26px] leading-tight tracking-[-0.01em] text-[var(--color-bone)]/80 transition hover:text-[var(--color-bone)]"
+                    className="py-3.5 font-serif text-display leading-tight tracking-[-0.01em] text-[var(--color-bone)]/80 transition hover:text-[var(--color-bone)]"
                   >
                     {item.label}
                   </Link>
@@ -204,7 +204,7 @@ export function Nav() {
                   <button
                     onClick={() => { setMenuOpen(false); void signOut(); }}
                     disabled={signingOut}
-                    className="flex h-12 w-full items-center justify-center rounded-xl border border-[var(--color-rule-strong)] text-[14px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] disabled:opacity-50"
+                    className="flex h-12 w-full items-center justify-center rounded-xl border border-[var(--color-rule-strong)] text-body text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)] disabled:opacity-50"
                   >
                     {signingOut ? "Signing out…" : "Sign out"}
                   </button>

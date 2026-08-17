@@ -34,13 +34,13 @@ export default function NotFound() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <p className="text-[11px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
+          <p className="text-micro tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
             404
           </p>
-          <h1 className="font-serif text-[38px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+          <h1 className="font-serif text-hero leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)]">
             Nothing here.
           </h1>
-          <p className="text-[15px] leading-[1.7] text-[var(--color-bone)]/70">
+          <p className="text-body leading-[1.7] text-[var(--color-bone)]/70">
             The page you were after doesn&apos;t exist, or it has gone quiet.
           </p>
         </div>

@@ -16,11 +16,11 @@ export default function AboutPage() {
       <Nav />
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-16 sm:px-8 sm:py-24">
         <p className="eyebrow">Why we built this</p>
-        <h1 className="font-serif mt-5 text-[34px] leading-[1.08] tracking-[-0.02em] text-balance sm:text-[48px]">
+        <h1 className="font-serif mt-5 text-display leading-[1.08] tracking-[-0.02em] text-balance sm:text-[48px]">
           A voice is the part of a person you forget first.
         </h1>
 
-        <div className="mt-10 space-y-7 border-t border-[var(--color-rule)] pt-10 text-[16px] leading-[1.85] text-[var(--color-bone)]/80">
+        <div className="mt-10 space-y-7 border-t border-[var(--color-rule)] pt-10 text-lead leading-[1.85] text-[var(--color-bone)]/80">
           <p>
             Photographs keep faces. Letters keep words. But the sound of
             someone — how they said your name, the pause before they laughed —
@@ -33,7 +33,7 @@ export default function AboutPage() {
             — it preserves how they sounded, and lets you keep talking.
           </p>
 
-          <h2 className="font-serif pt-4 text-[24px] leading-tight text-[var(--color-bone)]">
+          <h2 className="font-serif pt-4 text-title leading-tight text-[var(--color-bone)]">
             What we will not do
           </h2>
           <ul className="list-none space-y-4 pl-0">
@@ -50,7 +50,7 @@ export default function AboutPage() {
             ))}
           </ul>
 
-          <h2 className="font-serif pt-4 text-[24px] leading-tight text-[var(--color-bone)]">
+          <h2 className="font-serif pt-4 text-title leading-tight text-[var(--color-bone)]">
             Alongside grief, not instead of it
           </h2>
           <p>
@@ -69,7 +69,7 @@ export default function AboutPage() {
             . EternaVoice works best beside that, never in place of it.
           </p>
 
-          <p className="border-t border-[var(--color-rule)] pt-7 text-[14px] leading-[1.8] text-[var(--color-text-secondary)]">
+          <p className="border-t border-[var(--color-rule)] pt-7 text-body leading-[1.8] text-[var(--color-text-secondary)]">
             EternaVoice is built by a small team that has lost people too.
             Questions, doubts, or something we should hear?{" "}
             <a href="mailto:dev@eternavoice.com" className="underline underline-offset-4">

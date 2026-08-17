@@ -23,9 +23,18 @@ const localNetworkOrigins = Object.values(os.networkInterfaces())
 // the browser may send data to this origin plus Supabase — the AI providers
 // (OpenAI, ElevenLabs, Stripe) are only ever called server-side, so they are
 // deliberately absent.
+// React's development build uses eval() for debugging features (reconstructing
+// callstacks across environments). Without this the dev server logs "eval() is
+// not supported in this environment" and parts of the page fail to render —
+// production is unaffected and never gets 'unsafe-eval'.
+const scriptSrc =
+  process.env.NODE_ENV === "development"
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'";
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   // Recorded takes and synthesized replies are played back from object URLs.

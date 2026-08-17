@@ -38,17 +38,17 @@ export function Message({
           "max-w-[88%] rounded-2xl px-5 py-4 text-pretty sm:max-w-[78%]",
           isUser
             ? "bg-white/[0.04] text-[var(--color-bone)]/90 hairline rounded-tr-sm"
-            : "font-serif rounded-tl-sm bg-transparent text-[20px] leading-[1.55] tracking-[-0.005em] text-[var(--color-bone)] sm:text-[22px]",
+            : "font-serif rounded-tl-sm bg-transparent text-title leading-[1.55] tracking-[-0.005em] text-[var(--color-bone)]",
         )}
       >
         {isUser ? (
           <div className="space-y-2">
-            <p className="text-[15px] leading-[1.6]">{turn.content}</p>
+            <p className="text-body leading-[1.6]">{turn.content}</p>
             {onRemember ? (
               <button
                 type="button"
                 onClick={onRemember}
-                className="rounded-full border border-[var(--color-rule-strong)] px-2.5 py-1 text-[11px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/40 hover:text-[var(--color-bone)]"
+                className="rounded-full border border-[var(--color-rule-strong)] px-2.5 py-1 text-micro text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/40 hover:text-[var(--color-bone)]"
               >
                 Remember this
               </button>
@@ -63,7 +63,7 @@ export function Message({
               ) : null}
             </p>
             {!streaming && (onReplay || onSaveClip || onFeedback) ? (
-              <div className="flex flex-col gap-2.5 font-sans text-[11px]">
+              <div className="flex flex-col gap-2.5 font-sans text-micro">
                 {/* Voice actions — hearing & keeping the voice. Kept distinct
                     from the calibration feedback below. */}
                 {onReplay || onSaveClip ? (
@@ -94,7 +94,7 @@ export function Message({
                 {/* Calibration feedback — tunes future replies. */}
                 {onFeedback ? (
                   <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-rule)]/60 pt-2.5">
-                    <span className="text-[10px] tracking-[0.12em] text-[var(--color-bone-dim)]/45 uppercase">
+                    <span className="text-micro tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">
                       Feedback
                     </span>
                     {[

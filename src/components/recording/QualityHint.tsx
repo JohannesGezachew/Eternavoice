@@ -20,7 +20,7 @@ export function QualityHint({ verdict }: { verdict: QualityVerdict }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="flex items-center gap-3 text-[13px]"
+        className="flex items-center gap-3 text-small"
       >
         <span
           className={`relative inline-flex h-1.5 w-1.5 rounded-full ${dotTone[copy.tone]}`}

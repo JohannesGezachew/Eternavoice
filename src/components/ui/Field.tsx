@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 // 16px minimum: anything smaller makes iOS Safari zoom-jump on focus.
 const baseField =
-  "w-full rounded-xl bg-white/[0.025] px-4 py-3 text-[16px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/80 transition-[background,border-color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hairline focus:bg-white/[0.04] focus:border-[var(--color-ember)]/40 focus:outline-none";
+  "w-full rounded-xl bg-white/[0.025] px-4 py-3 text-lead text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/80 transition-[background,border-color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hairline focus:bg-white/[0.04] focus:border-[var(--color-ember)]/40 focus:outline-none";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...rest }, ref) {
@@ -39,10 +39,10 @@ export function Label({
   return (
     <label
       htmlFor={htmlFor}
-      className="flex items-baseline justify-between gap-3 pb-2 text-[12px] tracking-[0.14em] text-[var(--color-bone-dim)] uppercase"
+      className="flex items-baseline justify-between gap-3 pb-2 text-small tracking-[0.14em] text-[var(--color-bone-dim)] uppercase"
     >
       <span>{children}</span>
-      {hint ? <span className="text-[11px] tracking-normal normal-case opacity-60">{hint}</span> : null}
+      {hint ? <span className="text-micro tracking-normal normal-case opacity-60">{hint}</span> : null}
     </label>
   );
 }

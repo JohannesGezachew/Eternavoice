@@ -54,16 +54,16 @@ export default function MemoriesPage() {
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pb-16 pt-8 sm:px-8">
         <motion.div initial="hidden" animate="enter" variants={stagger(0.07)} className="flex flex-col gap-8">
           <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
-            <h1 className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[34px]">
+            <h1 className="font-serif text-display leading-tight tracking-[-0.02em] text-[var(--color-bone)]">
               Memories
             </h1>
-            <p className="text-[14px] leading-[1.7] text-[var(--color-text-secondary)]">
+            <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
               Notes carried into every conversation — saved from talks, or added by hand.
             </p>
             {/* The count is the control: it says the other memories exist
                 without turning the page into a settings screen. */}
             {heldBack > 0 || showAuto ? (
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-text-tertiary)]">
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-small text-[var(--color-text-tertiary)]">
                 {showAuto
                   ? "Showing everything they remember."
                   : `${heldBack} more remembered from your conversations.`}
@@ -98,9 +98,9 @@ export default function MemoriesPage() {
               {grouped.map(({ subject }) => (
                 <motion.section key={subject.id} variants={fadeUp} className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
-                    <h2 className="font-serif text-[20px] text-[var(--color-bone)]">{subject.name}</h2>
+                    <h2 className="font-serif text-title text-[var(--color-bone)]">{subject.name}</h2>
                     {subject.relationship && (
-                      <span className="rounded-full border border-[var(--color-rule)] px-2.5 py-0.5 text-[11px] text-[var(--color-text-secondary)]">
+                      <span className="rounded-full border border-[var(--color-rule)] px-2.5 py-0.5 text-micro text-[var(--color-text-secondary)]">
                         {subject.relationship}
                       </span>
                     )}
@@ -113,7 +113,7 @@ export default function MemoriesPage() {
 
               {unscopedCount > 0 && (
                 <motion.section variants={fadeUp} className="flex flex-col gap-4">
-                  <h2 className="font-serif text-[20px] text-[var(--color-bone)]">General</h2>
+                  <h2 className="font-serif text-title text-[var(--color-bone)]">General</h2>
                   <div className="rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-5 sm:p-6">
                     <MemoryList subjectId={null} personName="everyone" />
                   </div>

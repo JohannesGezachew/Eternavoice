@@ -92,7 +92,7 @@ export function AppShell({
         strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M19 12H5M11 6l-6 6 6 6" />
       </svg>
-      <span className="text-[13px]">{resolvedBackLabel}</span>
+      <span className="text-small">{resolvedBackLabel}</span>
     </span>
   );
 
@@ -119,13 +119,13 @@ export function AppShell({
             </Link>
           )}
           {title && (
-            <span className="text-[14px] font-medium text-[var(--color-bone)]">{title}</span>
+            <span className="text-body font-medium text-[var(--color-bone)]">{title}</span>
           )}
         </div>
 
         {/* Desktop nav links */}
         {showTabs && (
-          <nav className="hidden items-center gap-6 px-6 text-[12px] text-[var(--color-bone-dim)] sm:flex">
+          <nav className="hidden items-center gap-6 px-6 text-small text-[var(--color-bone-dim)] sm:flex">
             {TABS.map(({ href, label, match }) => {
               const active = match(pathname);
               return (
@@ -173,7 +173,7 @@ export function AppShell({
                 }`}
               >
                 {icon(active)}
-                <span className="text-[10px] tracking-[0.03em]">{label}</span>
+                <span className="text-micro tracking-[0.03em]">{label}</span>
               </Link>
             );
           })}

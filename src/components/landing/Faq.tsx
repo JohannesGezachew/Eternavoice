@@ -44,7 +44,7 @@ export function Faq() {
           <p className="eyebrow">
             FAQ
           </p>
-          <h2 className="font-serif text-[30px] leading-[1.1] tracking-[-0.02em] text-[var(--color-bone)] sm:text-[42px]">
+          <h2 className="font-serif text-display leading-[1.1] tracking-[-0.02em] text-[var(--color-bone)] sm:text-hero">
             Questions we hear a lot.
           </h2>
         </motion.div>
@@ -58,7 +58,7 @@ export function Faq() {
                 className="flex w-full items-center justify-between gap-6 py-5 text-left transition-colors duration-200 hover:text-[var(--color-bone)]"
                 aria-expanded={open === i}
               >
-                <span className="font-serif text-[17px] leading-snug text-[var(--color-bone)] sm:text-[19px]">
+                <span className="font-serif text-lead leading-snug text-[var(--color-bone)]">
                   {item.q}
                 </span>
                 <span
@@ -82,7 +82,7 @@ export function Faq() {
                     transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                     className="overflow-hidden"
                   >
-                    <p className="pb-6 pl-0 text-[14px] leading-[1.8] text-[var(--color-bone-dim)] sm:pl-2">
+                    <p className="pb-6 pl-0 text-body leading-[1.8] text-[var(--color-bone-dim)] sm:pl-2">
                       {item.a}
                     </p>
                   </motion.div>

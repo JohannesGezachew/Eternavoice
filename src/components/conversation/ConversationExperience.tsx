@@ -1031,15 +1031,15 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           )}
 
           <div className="hidden flex-col items-center text-center sm:flex">
-            <span className="font-serif text-[15px] tracking-[-0.005em] text-[var(--color-bone)]">
+            <span className="font-serif text-body tracking-[-0.005em] text-[var(--color-bone)]">
               {headerName}
             </span>
-            <span className="text-[11px] tracking-[0.04em] text-[var(--color-text-secondary)]">
+            <span className="text-micro tracking-[0.04em] text-[var(--color-text-secondary)]">
               {headerSubtitle}
             </span>
           </div>
 
-          <div className="flex items-center justify-end gap-x-1 text-[12px]">
+          <div className="flex items-center justify-end gap-x-1 text-small">
             {/* Mobile: two icon buttons with 44px touch targets */}
             <button
               type="button"
@@ -1138,10 +1138,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             initial={headerName.trim().charAt(0).toUpperCase() || "·"}
             className="mb-2"
           />
-          <span className="font-serif text-[18px] tracking-[-0.005em] text-[var(--color-bone)]">
+          <span className="font-serif text-lead tracking-[-0.005em] text-[var(--color-bone)]">
             {headerName}
           </span>
-          <span className="text-[11px] tracking-[0.04em] text-[var(--color-bone-dim)]">
+          <span className="text-micro tracking-[0.04em] text-[var(--color-bone-dim)]">
             {headerSubtitle}
           </span>
         </div>
@@ -1160,8 +1160,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   // Clamped so a long reply never shoves the orb off-screen —
                   // the full text always lives in the transcript.
                   latestTurn.role === "assistant"
-                    ? "line-clamp-4 font-serif text-balance text-[22px] leading-[1.45] text-[var(--color-bone)] sm:text-[28px]"
-                    : "line-clamp-3 text-balance text-[15px] leading-[1.55] text-[var(--color-bone-dim)] italic sm:text-[17px]"
+                    ? "line-clamp-4 font-serif text-balance text-title leading-[1.45] text-[var(--color-bone)] sm:text-display"
+                    : "line-clamp-3 text-balance text-body leading-[1.55] text-[var(--color-bone-dim)] italic sm:text-lead"
                 }
               >
                 {latestTurn.role === "user" ? "“" : null}
@@ -1183,7 +1183,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="text-center text-[14px] text-[var(--color-bone-dim)]"
+                className="text-center text-body text-[var(--color-bone-dim)]"
               >
                 A breath, and they speak.
               </motion.p>
@@ -1201,23 +1201,23 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                  is still here — say so, warmly, and never dress it up as an
                  error or dangle a retry that cannot work. */
               <div className="flex max-w-md flex-col items-center gap-2 text-center" role="status">
-                <p className="text-[14px] leading-[1.6] text-[var(--color-bone)]/90">
+                <p className="text-body leading-[1.6] text-[var(--color-bone)]/90">
                   You&rsquo;ve reached this month&rsquo;s conversations with {headerName}.
                 </p>
-                <p className="text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+                <p className="text-small leading-[1.6] text-[var(--color-bone-dim)]">
                   Everything you&rsquo;ve made together is saved.{" "}
                   {formatAllowanceReset(allowanceResetsAt)}
                 </p>
               </div>
             ) : responseError ? (
               <div className="flex flex-wrap items-center justify-center gap-3 text-center" role="alert">
-                <p className="text-[13px] text-[var(--color-danger)]">
+                <p className="text-small text-[var(--color-danger)]">
                   {responseError}
                 </p>
                 <button
                   type="button"
                   onClick={() => void retryLast()}
-                  className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+                  className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
                 >
                   Retry reply
                 </button>
@@ -1226,12 +1226,12 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               <button
                 type="button"
                 onClick={interrupt}
-                className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+                className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
               >
                 Interrupt
               </button>
             ) : responseNotice ? (
-              <p className="max-w-md text-center text-[12px] leading-[1.6] text-[var(--color-bone-dim)]" role="status">
+              <p className="max-w-md text-center text-small leading-[1.6] text-[var(--color-bone-dim)]" role="status">
                 {responseNotice}
               </p>
             ) : silenceMessage ? (
@@ -1242,7 +1242,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="max-w-xs text-center text-[12px] italic leading-[1.6] text-[var(--color-bone-dim)]/60"
+                  className="max-w-xs text-center text-small italic leading-[1.6] text-[var(--color-bone-dim)]/60"
                 >
                   {silenceMessage}
                 </motion.p>
@@ -1251,8 +1251,8 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           </div>
           {/* Desktop Space-bar barge-in hint — shown once during first long reply */}
           {(status === "speaking" || status === "thinking") && hasBegun && (
-            <p className="mb-1 hidden text-center text-[11px] text-[var(--color-bone-dim)]/40 sm:block">
-              Press <kbd className="rounded border border-[var(--color-rule-strong)] px-1.5 py-0.5 font-sans text-[10px]">Space</kbd> to interrupt
+            <p className="mb-1 hidden text-center text-micro text-[var(--color-text-tertiary)] sm:block">
+              Press <kbd className="rounded border border-[var(--color-rule-strong)] px-1.5 py-0.5 font-sans text-micro">Space</kbd> to interrupt
             </p>
           )}
 
@@ -1313,7 +1313,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
               onClick={() => setAmbient(false)}
-              className="fixed inset-x-0 bottom-10 z-[40] mx-auto w-max cursor-pointer text-[11px] tracking-[0.22em] text-[var(--color-bone-dim)]/50 uppercase transition hover:text-[var(--color-bone-dim)]"
+              className="fixed inset-x-0 bottom-10 z-[40] mx-auto w-max cursor-pointer text-micro tracking-[0.22em] text-[var(--color-text-tertiary)] uppercase transition hover:text-[var(--color-bone-dim)]"
               style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             >
               Tap to leave · A
@@ -1398,10 +1398,10 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                 transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                 className="hairline fixed inset-x-4 bottom-8 z-50 mx-auto max-w-md rounded-2xl bg-[var(--color-ink-2)]/97 p-6 shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2"
               >
-                <h2 className="font-serif text-[20px] leading-snug text-[var(--color-bone)]">
+                <h2 className="font-serif text-title leading-snug text-[var(--color-bone)]">
                   Before you go…
                 </h2>
-                <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                <p className="mt-1.5 text-small leading-[1.65] text-[var(--color-bone-dim)]">
                   Was there a moment from this conversation worth holding onto?
                 </p>
 
@@ -1410,7 +1410,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   onChange={(e) => setReflectionText(e.target.value)}
                   placeholder="A thought, a feeling, something they said…"
                   rows={3}
-                  className="mt-4 w-full resize-none rounded-xl bg-white/[0.035] px-4 py-3 text-[14px] leading-[1.6] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/50 focus:outline-none focus:ring-1 focus:ring-[var(--color-ember)]/40"
+                  className="mt-4 w-full resize-none rounded-xl bg-white/[0.035] px-4 py-3 text-body leading-[1.6] text-[var(--color-bone)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-ember)]/40"
                 />
 
                 <div className="mt-4 flex flex-col gap-2.5">
@@ -1423,7 +1423,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                       restartActionRef.current?.();
                       restartActionRef.current = null;
                     }}
-                    className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-[13px] text-white transition hover:opacity-90"
+                    className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-small text-white transition hover:opacity-90"
                   >
                     {reflectionText.trim() ? "Save note & start new" : "Start new conversation"}
                   </button>
@@ -1437,7 +1437,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                         restartActionRef.current?.();
                         restartActionRef.current = null;
                       }}
-                      className="flex h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-6 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]"
+                      className="flex h-11 cursor-pointer items-center justify-center rounded-full border border-[var(--color-rule-strong)] px-6 text-small text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]"
                     >
                       Start new without saving
                     </button>
@@ -1450,7 +1450,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                       setShowReflection(false);
                       restartActionRef.current = null;
                     }}
-                    className="mt-0.5 flex h-9 cursor-pointer items-center justify-center text-[12px] text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-bone-dim)]"
+                    className="mt-0.5 flex h-9 cursor-pointer items-center justify-center text-small text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-bone-dim)]"
                   >
                     Keep talking
                   </button>
@@ -1564,7 +1564,7 @@ function HistoryDrawer({
             </div>
 
             <div className="flex items-center justify-between py-1 pl-5 pr-2 sm:border-b sm:border-[var(--color-rule)] sm:py-2">
-              <p className="text-[12px] tracking-[0.18em] text-[var(--color-text-secondary)] uppercase">
+              <p className="text-small tracking-[0.18em] text-[var(--color-text-secondary)] uppercase">
                 Conversations
               </p>
               <button
@@ -1586,7 +1586,7 @@ function HistoryDrawer({
               <button
                 type="button"
                 onClick={onNew}
-                className="mb-2 flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-[var(--color-rule-strong)] px-3.5 text-left text-[13px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/35 hover:bg-white/[0.02]"
+                className="mb-2 flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-[var(--color-rule-strong)] px-3.5 text-left text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/35 hover:bg-white/[0.02]"
               >
                 <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
                   <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -1615,7 +1615,7 @@ function HistoryDrawer({
 
               <Link
                 href={manageHref}
-                className="mt-3 flex min-h-[44px] items-center px-2 text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                className="mt-3 flex min-h-[44px] items-center px-2 text-small text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
               >
                 {manageHref === "/people" ? "Your people →" : "Manage on their page →"}
               </Link>
@@ -1700,7 +1700,7 @@ function Transcript({
             ))}
           </div>
         ) : (
-          <p className="text-[13px] text-[var(--color-bone-dim)]">
+          <p className="text-small text-[var(--color-bone-dim)]">
             The transcript will appear here once the conversation starts.
           </p>
         )}
@@ -1745,7 +1745,7 @@ function BeginGate({
       <button
         type="button"
         onClick={onBegin}
-        className="hairline-strong group inline-flex cursor-pointer items-center gap-3 rounded-full bg-[var(--color-ink-2)]/85 px-7 py-4 text-[15px] text-[var(--color-bone)] backdrop-blur-xl transition-[transform,background] duration-300 hover:bg-[var(--color-ink-2)] active:scale-[0.99]"
+        className="hairline-strong group inline-flex cursor-pointer items-center gap-3 rounded-full bg-[var(--color-ink-2)]/85 px-7 py-4 text-body text-[var(--color-bone)] backdrop-blur-xl transition-[transform,background] duration-300 hover:bg-[var(--color-ink-2)] active:scale-[0.99]"
       >
         <span className="relative grid h-2.5 w-2.5 place-items-center">
           <span className="absolute inset-0 animate-ping rounded-full bg-[var(--color-ember)]/50" />
@@ -1753,13 +1753,13 @@ function BeginGate({
         </span>
         Begin
       </button>
-      <p className="text-[11px] tracking-[0.18em] text-[var(--color-bone-dim)]/85 uppercase">
+      <p className="text-micro tracking-[0.18em] text-[var(--color-bone-dim)]/85 uppercase">
         They will speak first
       </p>
 
       {/* Conversation starters — tap to begin and queue your first message */}
       <div className="mt-3 flex flex-col items-center gap-2.5">
-        <p className="text-[10px] tracking-[0.14em] text-[var(--color-bone-dim)]/50 uppercase">
+        <p className="text-micro tracking-[0.14em] text-[var(--color-text-tertiary)] uppercase">
           Or start with…
         </p>
         <div className="flex flex-wrap justify-center gap-2">
@@ -1771,7 +1771,7 @@ function BeginGate({
                 onBegin();
                 onBeginWithStarter(starter);
               }}
-              className="hairline cursor-pointer rounded-full px-4 py-2 text-[12px] leading-snug text-[var(--color-bone-dim)] transition-[border-color,color] duration-200 hover:border-[var(--color-ember)]/40 hover:text-[var(--color-bone)]"
+              className="hairline cursor-pointer rounded-full px-4 py-2 text-small leading-snug text-[var(--color-bone-dim)] transition-[border-color,color] duration-200 hover:border-[var(--color-ember)]/40 hover:text-[var(--color-bone)]"
             >
               {starter}
             </button>
@@ -1780,7 +1780,7 @@ function BeginGate({
       </div>
 
       {/* Honest framing — never pretend this is anything other than what it is */}
-      <p className="mt-2 max-w-[260px] text-center text-[11px] leading-[1.6] text-[var(--color-text-tertiary)]">
+      <p className="mt-2 max-w-[260px] text-center text-micro leading-[1.6] text-[var(--color-text-tertiary)]">
         An AI voice built from recordings of {name}.
       </p>
     </motion.div>

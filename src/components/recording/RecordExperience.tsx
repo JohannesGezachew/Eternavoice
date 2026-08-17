@@ -400,7 +400,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
       >
         <motion.p
           variants={fadeUp}
-          className="max-w-xl text-[15px] leading-[1.7] text-[var(--color-text-secondary)] break-words"
+          className="max-w-xl text-body leading-[1.7] text-[var(--color-text-secondary)] break-words"
         >
           {mode === "upload"
             ? "A voicemail, voice note, or video clip — thirty seconds of clear, natural speech is enough."
@@ -419,7 +419,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
             aria-selected={mode === "upload"}
             onClick={() => switchMode("upload")}
             className={cn(
-              "cursor-pointer rounded-lg px-4 py-2 text-[13px] transition-colors duration-200",
+              "cursor-pointer rounded-lg px-4 py-2 text-small transition-colors duration-200",
               mode === "upload"
                 ? "bg-white/[0.06] text-[var(--color-bone)]"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]",
@@ -433,7 +433,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
             aria-selected={mode === "record"}
             onClick={() => switchMode("record")}
             className={cn(
-              "cursor-pointer rounded-lg px-4 py-2 text-[13px] transition-colors duration-200",
+              "cursor-pointer rounded-lg px-4 py-2 text-small transition-colors duration-200",
               mode === "record"
                 ? "bg-white/[0.06] text-[var(--color-bone)]"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]",
@@ -493,13 +493,13 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                         : "border-[var(--color-rule-strong)] hover:border-[var(--color-ember)]/25 hover:bg-white/[0.015]",
                     )}
                   >
-                    <p className="text-[16px] text-[var(--color-bone)]/80">
+                    <p className="text-lead text-[var(--color-bone)]/80">
                       Drop a voice file here
                     </p>
-                    <p className="max-w-[260px] text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                    <p className="max-w-[260px] text-small leading-[1.65] text-[var(--color-bone-dim)]">
                       Voicemails, voice notes, videos — any recording with their voice
                     </p>
-                    <p className="max-w-[260px] text-[11px] leading-[1.7] tracking-[0.14em] break-words text-[var(--color-bone-dim)]/80 uppercase">
+                    <p className="max-w-[260px] text-micro leading-[1.7] tracking-[0.14em] break-words text-[var(--color-bone-dim)]/80 uppercase">
                       mp3 · mp4 · m4a · wav · mov · ogg · and more
                     </p>
                     <button
@@ -508,7 +508,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                         e.stopPropagation();
                         fileInputRef.current?.click();
                       }}
-                      className="mt-1 rounded-xl border border-[var(--color-rule-strong)] px-5 py-2 text-[13px] text-[var(--color-bone)]/60 transition-colors hover:text-[var(--color-bone)]"
+                      className="mt-1 rounded-xl border border-[var(--color-rule-strong)] px-5 py-2 text-small text-[var(--color-bone)]/60 transition-colors hover:text-[var(--color-bone)]"
                     >
                       Browse files
                     </button>
@@ -531,10 +531,10 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                       <span className="relative h-2.5 w-2.5 rounded-full bg-[var(--color-ember)]" />
                     </span>
                     <div className="space-y-1">
-                      <p className="text-[15px] text-[var(--color-bone)]/85">
+                      <p className="text-body text-[var(--color-bone)]/85">
                         Converting to audio…
                       </p>
-                      <p className="text-[13px] text-[var(--color-bone-dim)]">
+                      <p className="text-small text-[var(--color-bone-dim)]">
                         Extracting the voice from your file.
                       </p>
                     </div>
@@ -546,7 +546,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                             style={{ width: `${conversionProgress}%` }}
                           />
                         </div>
-                        <p className="text-[11px] text-[var(--color-bone-dim)]/80">
+                        <p className="text-micro text-[var(--color-bone-dim)]/80">
                           {conversionProgress}%
                         </p>
                       </div>
@@ -572,19 +572,19 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                     onRegionChange={(r) => setSelectedRegion(r)}
                   />
                   {clipCoach ? (
-                    <p className="flex items-start gap-2 px-1 text-[13px] leading-[1.6] text-[var(--color-text-secondary)]" role="status">
+                    <p className="flex items-start gap-2 px-1 text-small leading-[1.6] text-[var(--color-text-secondary)]" role="status">
                       <span className="mt-[5px] inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-verdigris)]" aria-hidden />
                       {clipCoach}
                     </p>
                   ) : null}
                   <div className="flex items-center justify-between px-1">
-                    <p className="text-[12px] text-[var(--color-bone-dim)]/80 truncate max-w-[180px]">
+                    <p className="text-small text-[var(--color-bone-dim)]/80 truncate max-w-[180px]">
                       {uploadFile?.name}
                     </p>
                     <button
                       type="button"
                       onClick={retakeUpload}
-                      className="text-[12px] text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)] shrink-0"
+                      className="text-small text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)] shrink-0"
                     >
                       Choose different
                     </button>
@@ -608,7 +608,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                 data={data}
                 className="block h-28 w-full"
               />
-              <div className="mt-5 flex items-center justify-between text-[12px] tracking-[0.18em] text-[var(--color-bone-dim)] uppercase">
+              <div className="mt-5 flex items-center justify-between text-small tracking-[0.18em] text-[var(--color-bone-dim)] uppercase">
                 <span>{phase === "recording" ? "Recording" : "Microphone"}</span>
                 <span
                   className={
@@ -637,7 +637,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                 exit="exit"
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
-                <p className="text-[13px] text-[var(--color-text-secondary)]">
+                <p className="text-small text-[var(--color-text-secondary)]">
                   Hold on — converting your file to audio. Nothing leaves this
                   device until you choose to recreate the voice.
                 </p>
@@ -655,15 +655,15 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
-                  <p className="text-[12px] tracking-[0.14em] text-[var(--color-text-tertiary)] uppercase">
+                  <p className="text-small tracking-[0.14em] text-[var(--color-text-tertiary)] uppercase">
                     What works best
                   </p>
                   {uploadError ? (
-                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+                    <p className="text-small text-[var(--color-danger)]" role="alert">
                       {uploadError}
                     </p>
                   ) : (
-                    <ul className="space-y-2.5 text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+                    <ul className="space-y-2.5 text-small leading-[1.65] text-[var(--color-text-secondary)]">
                       <li className="flex gap-2.5">
                         <HintDot />
                         30–90 seconds of clear, natural speech.
@@ -693,11 +693,11 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
-                  <p className="text-[14px] leading-[1.65] text-[var(--color-bone)]/90">
+                  <p className="text-body leading-[1.65] text-[var(--color-bone)]/90">
                     Listen once if you like, then make {subjectName}&rsquo;s voice.
                   </p>
                   {selectedRegion ? (
-                    <p className="text-[12px] text-[var(--color-text-secondary)]">
+                    <p className="text-small text-[var(--color-text-secondary)]">
                       Selected clip: {fmt(selectedRegion.start)} – {fmt(selectedRegion.end)}
                     </p>
                   ) : null}
@@ -705,7 +705,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                     {selectedRegion ? "Use this clip" : "Create the voice"}
                   </Button>
                   {uploadError ? (
-                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+                    <p className="text-small text-[var(--color-danger)]" role="alert">
                       {uploadError}
                     </p>
                   ) : null}
@@ -726,13 +726,13 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                 <div className="space-y-5">
                   <div className="flex items-center justify-between gap-6">
                     <RecordControl state="idle" onClick={start} label="Tap to begin" />
-                    <div className="max-w-[220px] text-right text-[12px] leading-[1.6] text-[var(--color-text-secondary)]">
+                    <div className="max-w-[220px] text-right text-small leading-[1.6] text-[var(--color-text-secondary)]">
                       <p>We&apos;ll ask the browser for the microphone, then you can read.</p>
                       <p className="mt-2">Stay close to the mic and keep the room quiet.</p>
                     </div>
                   </div>
                   {permissionError ? (
-                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+                    <p className="text-small text-[var(--color-danger)]" role="alert">
                       {permissionError}
                     </p>
                   ) : null}
@@ -756,7 +756,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                     onClick={stop}
                     label={overshoot ? "Wrap up" : "Tap to stop"}
                   />
-                  <p className="max-w-[220px] text-right text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+                  <p className="max-w-[220px] text-right text-small leading-[1.6] text-[var(--color-bone-dim)]">
                     Read at a natural pace. Pauses are fine — they help.
                   </p>
                 </div>
@@ -774,11 +774,11 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                 className="hairline rounded-2xl bg-white/[0.015] p-7 sm:p-9"
               >
                 <div className="space-y-5">
-                  <p className="text-[14px] text-[var(--color-bone)]/85">
+                  <p className="text-body text-[var(--color-bone)]/85">
                     Listen back before we create the voice.
                     {undershoot ? " A touch short — another twenty seconds will help realism." : ""}
                   </p>
-                  <p className="text-[13px] leading-[1.65] text-[var(--color-bone-dim)]">
+                  <p className="text-small leading-[1.65] text-[var(--color-bone-dim)]">
                     {qualitySummary(verdict)}
                   </p>
                   <audio
@@ -796,7 +796,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                     </Button>
                   </div>
                   {uploadError ? (
-                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+                    <p className="text-small text-[var(--color-danger)]" role="alert">
                       {uploadError}
                     </p>
                   ) : null}
@@ -821,10 +821,10 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-ember)]" />
                     </span>
                     <div>
-                      <p className="text-[14px] text-[var(--color-bone)]/85">
+                      <p className="text-body text-[var(--color-bone)]/85">
                         Creating the voice{cloneElapsed ? ` · ${cloneElapsed}s` : ""}
                       </p>
-                      <p className="mt-1 text-[12px] text-[var(--color-bone-dim)]">
+                      <p className="mt-1 text-small text-[var(--color-bone-dim)]">
                         Voice creation can take a few seconds, and longer for larger clips.
                       </p>
                     </div>
@@ -845,7 +845,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
                         />
                         <span
                           className={cn(
-                            "text-[12px]",
+                            "text-small",
                             step.state === "pending"
                               ? "text-[var(--color-bone-dim)]/80"
                               : "text-[var(--color-bone)]/78",
@@ -872,7 +872,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
               >
                 <div className="flex items-center gap-4">
                   <span className="inline-flex h-2 w-2 rounded-full bg-[var(--color-ember)]" />
-                  <p className="text-[14px] text-[var(--color-bone)]/90">
+                  <p className="text-body text-[var(--color-bone)]/90">
                     {subjectName}&rsquo;s voice is ready.
                   </p>
                 </div>

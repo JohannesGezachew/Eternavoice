@@ -233,7 +233,7 @@ export function NarrationStep({
   return (
     <div className="flex flex-1 flex-col">
       {error ? (
-        <p className="mb-6 text-[13px] text-[var(--color-danger)]" role="alert">
+        <p className="mb-6 text-small text-[var(--color-danger)]" role="alert">
           {error}
         </p>
       ) : null}
@@ -250,10 +250,10 @@ export function NarrationStep({
             className="flex max-w-xl flex-col gap-8"
           >
             <div className="flex flex-col gap-3">
-              <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+              <h1 className="font-serif text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero">
                 Tell me about {name}.
               </h1>
-              <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
+              <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
                 Speak freely for two or three minutes, the way you&rsquo;d
                 describe them to someone who never got to meet them. This is
                 your voice, not theirs — it&rsquo;s how {name} learns who they
@@ -271,7 +271,7 @@ export function NarrationStep({
                   setError(null);
                   setPhase("write");
                 }}
-                className="text-[13px] text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
+                className="text-small text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
               >
                 Prefer to write?
               </button>
@@ -283,7 +283,7 @@ export function NarrationStep({
                 trackEvent("narration_skipped");
                 onComplete(null);
               }}
-              className="self-start text-[12px] text-[var(--color-text-tertiary)] underline-offset-4 transition hover:text-[var(--color-bone-dim)] hover:underline"
+              className="self-start text-small text-[var(--color-text-tertiary)] underline-offset-4 transition hover:text-[var(--color-bone-dim)] hover:underline"
             >
               Skip for now — I can tell them later
             </button>
@@ -315,7 +315,7 @@ export function NarrationStep({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.5 }}
-                  className="font-serif text-[19px] leading-[1.4] text-balance text-[var(--color-bone)]/85 sm:text-[22px]"
+                  className="font-serif text-lead leading-[1.4] text-balance text-[var(--color-bone)]/85 sm:text-title"
                 >
                   {PROMPTS[promptIndex]}
                 </motion.p>
@@ -323,7 +323,7 @@ export function NarrationStep({
             </div>
 
             <div className="flex flex-col items-center gap-4">
-              <span className="text-[12px] tabular-nums tracking-[0.2em] text-[var(--color-text-tertiary)]">
+              <span className="text-small tabular-nums tracking-[0.2em] text-[var(--color-text-tertiary)]">
                 {formatSeconds(elapsed / 1000)}
               </span>
               <Button
@@ -333,7 +333,7 @@ export function NarrationStep({
               >
                 {canFinish ? "That's enough — done" : "Keep going…"}
               </Button>
-              <p className="text-[12px] text-[var(--color-text-tertiary)]">
+              <p className="text-small text-[var(--color-text-tertiary)]">
                 {canFinish
                   ? "Stop whenever you're ready."
                   : "Take your time. You can stop after a minute."}
@@ -353,7 +353,7 @@ export function NarrationStep({
             className="flex flex-1 flex-col items-center justify-center gap-7 py-10"
           >
             <VoiceOrb state="processing" playbackAmplitude={0} />
-            <p className="max-w-sm text-center font-serif text-[19px] leading-[1.4] text-balance text-[var(--color-bone)]/85 sm:text-[22px]">
+            <p className="max-w-sm text-center font-serif text-lead leading-[1.4] text-balance text-[var(--color-bone)]/85 sm:text-title">
               Taking in everything you said about {name}…
             </p>
           </motion.div>
@@ -370,10 +370,10 @@ export function NarrationStep({
             className="flex max-w-xl flex-col gap-6"
           >
             <div className="flex flex-col gap-3">
-              <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+              <h1 className="font-serif text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero">
                 Your recording is safe.
               </h1>
-              <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
+              <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
                 Something went wrong while I was taking it in — nothing you said
                 was lost. Try again, and you won&rsquo;t have to speak twice.
               </p>
@@ -390,7 +390,7 @@ export function NarrationStep({
                   setError(null);
                   setPhase("write");
                 }}
-                className="text-[13px] text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
+                className="text-small text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
               >
                 {transcriptRef.current ? "Edit what I heard instead" : "Write it instead"}
               </button>
@@ -403,7 +403,7 @@ export function NarrationStep({
                 setError(null);
                 setPhase("intro");
               }}
-              className="self-start text-[12px] text-[var(--color-text-tertiary)] underline-offset-4 transition hover:text-[var(--color-bone-dim)] hover:underline"
+              className="self-start text-small text-[var(--color-text-tertiary)] underline-offset-4 transition hover:text-[var(--color-bone-dim)] hover:underline"
             >
               Start over
             </button>
@@ -421,10 +421,10 @@ export function NarrationStep({
             className="flex max-w-xl flex-col gap-6"
           >
             <div className="flex flex-col gap-3">
-              <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+              <h1 className="font-serif text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero">
                 Tell me about {name}.
               </h1>
-              <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
+              <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
                 Write as much or as little as you like — who they were, how they
                 spoke, what you never want to forget.
               </p>
@@ -436,7 +436,7 @@ export function NarrationStep({
               rows={8}
               maxLength={8000}
               placeholder={`${name} was…`}
-              className="hairline-strong w-full resize-none rounded-2xl bg-white/[0.02] p-4 text-[15px] leading-[1.7] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/70 focus:outline-none"
+              className="hairline-strong w-full resize-none rounded-2xl bg-white/[0.02] p-4 text-body leading-[1.7] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/70 focus:outline-none"
             />
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <Button variant="primary" size="lg" onClick={() => void submitTyped()} disabled={!typed.trim()}>
@@ -448,7 +448,7 @@ export function NarrationStep({
                   setError(null);
                   setPhase("intro");
                 }}
-                className="text-[13px] text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
+                className="text-small text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
               >
                 Speak instead
               </button>
@@ -526,10 +526,10 @@ function ReviewStep({
       className="flex max-w-xl flex-col gap-8"
     >
       <div className="flex flex-col gap-3">
-        <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+        <h1 className="font-serif text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero">
           Here&rsquo;s what I heard.
         </h1>
-        <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
+        <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
           Change anything that isn&rsquo;t right. {name} will carry this into
           every conversation — you can always add more later.
         </p>
@@ -537,7 +537,7 @@ function ReviewStep({
 
       {/* Personality read */}
       <div className="flex flex-col gap-2">
-        <span className="text-[12px] tracking-[0.14em] text-[var(--color-bone-dim)] uppercase">
+        <span className="text-small tracking-[0.14em] text-[var(--color-bone-dim)] uppercase">
           Who they were
         </span>
         <textarea
@@ -546,13 +546,13 @@ function ReviewStep({
           rows={3}
           maxLength={600}
           placeholder="A sentence or two about them…"
-          className="hairline-strong w-full resize-none rounded-2xl bg-white/[0.02] p-4 text-[15px] leading-[1.65] text-[var(--color-bone)]/90 placeholder:text-[var(--color-bone-dim)]/70 focus:outline-none"
+          className="hairline-strong w-full resize-none rounded-2xl bg-white/[0.02] p-4 text-body leading-[1.65] text-[var(--color-bone)]/90 placeholder:text-[var(--color-bone-dim)]/70 focus:outline-none"
         />
       </div>
 
       {/* Memories */}
       <div className="flex flex-col gap-3">
-        <span className="text-[12px] tracking-[0.14em] text-[var(--color-bone-dim)] uppercase">
+        <span className="text-small tracking-[0.14em] text-[var(--color-bone-dim)] uppercase">
           What they&rsquo;ll remember
         </span>
         <div className="flex flex-col gap-2">
@@ -566,20 +566,20 @@ function ReviewStep({
                 onChange={(e) => updateMemory(i, e.target.value)}
                 maxLength={240}
                 aria-label={`Memory ${i + 1}`}
-                className="min-w-0 flex-1 bg-transparent text-[14px] leading-[1.5] text-[var(--color-bone)]/90 focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-body leading-[1.5] text-[var(--color-bone)]/90 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => removeMemory(i)}
                 aria-label="Remove"
-                className="flex min-h-[44px] shrink-0 items-center rounded-lg px-3 text-[12px] text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-danger)]"
+                className="flex min-h-[44px] shrink-0 items-center rounded-lg px-3 text-small text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-danger)]"
               >
                 Remove
               </button>
             </div>
           ))}
           {memories.length === 0 ? (
-            <p className="text-[13px] text-[var(--color-text-tertiary)]">
+            <p className="text-small text-[var(--color-text-tertiary)]">
               Nothing captured yet — add anything they should carry.
             </p>
           ) : null}
@@ -594,7 +594,7 @@ function ReviewStep({
             maxLength={240}
             placeholder="Add something they should always remember"
             aria-label="Add a memory"
-            className="hairline min-w-0 flex-1 rounded-xl bg-white/[0.02] px-3 py-2 text-[14px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/70 focus:outline-none"
+            className="hairline min-w-0 flex-1 rounded-xl bg-white/[0.02] px-3 py-2 text-body text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/70 focus:outline-none"
           />
           <Button variant="outline" size="md" onClick={addMemory} disabled={!draft.trim()}>
             Add
@@ -609,7 +609,7 @@ function ReviewStep({
         <button
           type="button"
           onClick={onRedo}
-          className="text-[13px] text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
+          className="text-small text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
         >
           Tell it again
         </button>

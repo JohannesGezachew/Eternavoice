@@ -20,14 +20,14 @@ export function PageHeader({ eyebrow, title, lede, children }: PageHeaderProps) 
       </motion.p>
       <motion.h1
         variants={fadeUp}
-        className="font-serif mt-4 text-[30px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]"
+        className="font-serif mt-4 text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero"
       >
         {title}
       </motion.h1>
       {lede ? (
         <motion.p
           variants={fadeUp}
-          className="mt-3 text-[15px] leading-[1.7] text-[var(--color-text-secondary)]"
+          className="mt-3 text-body leading-[1.7] text-[var(--color-text-secondary)]"
         >
           {lede}
         </motion.p>

@@ -34,7 +34,7 @@ export function Mark({ className }: { className?: string }) {
           className="transition-all duration-700 group-hover/mark:[fill:rgba(194,120,74,1)]"
         />
       </svg>
-      <span className="font-serif text-[17px] tracking-[-0.01em] text-[var(--color-bone)]">
+      <span className="font-serif text-lead tracking-[-0.01em] text-[var(--color-bone)]">
         EternaVoice
       </span>
     </div>

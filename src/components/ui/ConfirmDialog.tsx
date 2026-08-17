@@ -92,10 +92,10 @@ export function ConfirmDialog({
             className="w-full max-w-sm rounded-2xl border border-[var(--color-rule-strong)] bg-[var(--color-ink-2)] p-6 shadow-[0_32px_80px_rgba(0,0,0,0.5)]"
             style={{ marginBottom: "env(safe-area-inset-bottom)" }}
           >
-            <h2 id="confirm-title" className="font-serif text-[20px] leading-snug text-[var(--color-bone)]">
+            <h2 id="confirm-title" className="font-serif text-title leading-snug text-[var(--color-bone)]">
               {title}
             </h2>
-            <p id="confirm-body" className="mt-2.5 text-[14px] leading-[1.65] text-[var(--color-text-secondary)]">
+            <p id="confirm-body" className="mt-2.5 text-body leading-[1.65] text-[var(--color-text-secondary)]">
               {body}
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">

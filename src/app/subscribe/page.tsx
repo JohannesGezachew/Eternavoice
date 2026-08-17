@@ -96,10 +96,10 @@ export default function SubscribePage() {
       >
         {/* Headline */}
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-2 text-center">
-          <h1 className="font-serif text-[28px] leading-[1.1] tracking-[-0.02em] text-[var(--color-bone)] sm:text-[34px]">
+          <h1 className="font-serif text-display leading-[1.1] tracking-[-0.02em] text-[var(--color-bone)]">
             Keep the conversation going.
           </h1>
-          <p className="max-w-xs text-[14px] leading-[1.65] text-[var(--color-bone-dim)]">
+          <p className="max-w-xs text-body leading-[1.65] text-[var(--color-bone-dim)]">
             {subline}
           </p>
         </motion.div>
@@ -115,7 +115,7 @@ export default function SubscribePage() {
         >
           {/* Price header */}
           <div className="border-b border-[var(--color-rule)] px-8 py-7">
-            <p className="text-[12px] tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">
+            <p className="text-small tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">
               EternaVoice
             </p>
             <div className="mt-3 flex items-baseline gap-2.5">
@@ -123,8 +123,8 @@ export default function SubscribePage() {
                 $30
               </span>
               <div className="flex flex-col leading-tight">
-                <span className="text-[13px] text-[var(--color-bone-dim)]">/month</span>
-                <span className="text-[11px] text-[var(--color-bone-dim)]">billed monthly</span>
+                <span className="text-small text-[var(--color-bone-dim)]">/month</span>
+                <span className="text-micro text-[var(--color-bone-dim)]">billed monthly</span>
               </div>
             </div>
           </div>
@@ -134,7 +134,7 @@ export default function SubscribePage() {
             {FEATURES.map((f) => (
               <div key={f} className="flex items-start gap-3">
                 <CheckIcon />
-                <span className="text-[13px] leading-[1.55] text-[var(--color-bone-dim)]">{f}</span>
+                <span className="text-small leading-[1.55] text-[var(--color-bone-dim)]">{f}</span>
               </div>
             ))}
           </div>
@@ -142,7 +142,7 @@ export default function SubscribePage() {
           {/* CTA */}
           <div className="flex flex-col gap-3 px-8 pb-8">
             {error && (
-              <p className="text-[13px] text-[var(--color-danger)]" role="alert">{error}</p>
+              <p className="text-small text-[var(--color-danger)]" role="alert">{error}</p>
             )}
             <button
               onClick={() => void startCheckout()}
@@ -159,7 +159,7 @@ export default function SubscribePage() {
                 "Continue — $30/month"
               )}
             </button>
-            <p className="text-center text-[12px] leading-relaxed text-[var(--color-bone-dim)]/80">
+            <p className="text-center text-small leading-relaxed text-[var(--color-bone-dim)]/80">
               About $1 a day to keep talking · Cancel anytime · Secure checkout via Stripe
             </p>
           </div>

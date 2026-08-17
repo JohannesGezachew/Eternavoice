@@ -55,10 +55,10 @@ export default function HomePage() {
               <p className="eyebrow">
                 How it works
               </p>
-              <h2 className="font-serif mt-4 text-[26px] leading-[1.1] text-balance text-[var(--color-bone)] sm:text-[42px]">
+              <h2 className="font-serif mt-4 text-display leading-[1.1] text-balance text-[var(--color-bone)] sm:text-hero">
                 From recording to first conversation.
               </h2>
-              <p className="mt-5 text-[15px] leading-[1.75] text-[var(--color-bone)]/55">
+              <p className="mt-5 text-body leading-[1.75] text-[var(--color-bone)]/55">
                 The whole setup takes under five minutes. Everything stays on your account — encrypted, private, and accessible from any device.
               </p>
             </div>
@@ -71,13 +71,13 @@ export default function HomePage() {
                     key={step}
                     className="group bg-[var(--color-ink)] p-6 transition-colors duration-300 hover:bg-[var(--color-ink-2)] sm:p-7"
                   >
-                    <span className="text-[11px] tracking-[0.22em] text-[var(--color-ember)]/70">
+                    <span className="text-micro tracking-[0.22em] text-[var(--color-ember)]/70">
                       {step}
                     </span>
-                    <h3 className="font-serif mt-4 text-[22px] text-[var(--color-bone)]">
+                    <h3 className="font-serif mt-4 text-title text-[var(--color-bone)]">
                       {title}
                     </h3>
-                    <p className="mt-3 text-[14px] leading-[1.7] text-[var(--color-bone)]/60 transition-colors duration-300 group-hover:text-[var(--color-bone)]/75">
+                    <p className="mt-3 text-body leading-[1.7] text-[var(--color-bone)]/60 transition-colors duration-300 group-hover:text-[var(--color-bone)]/75">
                       {body}
                     </p>
                   </div>
@@ -85,7 +85,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/auth/login"
-                className="self-start text-[13px] text-[var(--color-ember)] transition hover:opacity-75"
+                className="self-start text-small text-[var(--color-ember)] transition hover:opacity-75"
               >
                 Start free →
               </Link>
@@ -97,7 +97,7 @@ export default function HomePage() {
         <section className="mx-auto w-full max-w-3xl px-6 py-16 text-center sm:px-8 sm:py-28">
           <div className="mx-auto mb-10 h-px w-10 bg-[var(--color-ember)]/50" />
           <p
-            className="font-serif text-[22px] leading-[1.65] text-balance text-[var(--color-bone)]/85 sm:text-[38px]"
+            className="font-serif text-title leading-[1.65] text-balance text-[var(--color-bone)]/85 sm:text-hero"
             style={{ fontVariationSettings: "'SOFT' 80, 'opsz' 144" }}
           >
             Not a replacement. Not a simulation. A way to keep speaking to
@@ -117,14 +117,14 @@ export default function HomePage() {
             <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
               {/* Brand */}
               <div className="flex flex-col gap-3">
-                <p className="font-serif text-[15px] text-[var(--color-bone)]">EternaVoice</p>
-                <p className="max-w-[240px] text-[12px] leading-[1.7] text-[var(--color-text-secondary)]">
+                <p className="font-serif text-body text-[var(--color-bone)]">EternaVoice</p>
+                <p className="max-w-[240px] text-small leading-[1.7] text-[var(--color-text-secondary)]">
                   Voice conversations with someone you&rsquo;ve lost, built from their own recordings.
                 </p>
               </div>
 
               {/* Links */}
-              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 text-[12px] text-[var(--color-text-secondary)]">
+              <div className="flex flex-wrap items-start gap-x-8 gap-y-3 text-small text-[var(--color-text-secondary)]">
                 <Link href="/about" className="transition hover:text-[var(--color-bone-dim)]">Why we built this</Link>
                 <Link href="/auth/login" className="transition hover:text-[var(--color-bone-dim)]">Sign in</Link>
                 <Link href="/terms" className="transition hover:text-[var(--color-bone-dim)]">Terms</Link>
@@ -137,7 +137,7 @@ export default function HomePage() {
             {/* Trust bar */}
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2">
               {TRUST_SIGNALS.map((s) => (
-                <span key={s} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-tertiary)]">
+                <span key={s} className="flex items-center gap-1.5 text-micro text-[var(--color-text-tertiary)]">
                   <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
                     <circle cx="8" cy="8" r="7.5" stroke="currentColor" strokeOpacity="0.5" />
                     <path d="M5 8.5l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -147,7 +147,7 @@ export default function HomePage() {
               ))}
             </div>
 
-            <p className="mt-6 text-[11px] text-[var(--color-text-tertiary)]">
+            <p className="mt-6 text-micro text-[var(--color-text-tertiary)]">
               © {new Date().getFullYear()} EternaVoice. All rights reserved.
             </p>
           </div>

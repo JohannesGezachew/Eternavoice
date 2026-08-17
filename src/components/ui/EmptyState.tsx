@@ -19,8 +19,8 @@ export function EmptyState({ title, body, action, compact = false, variant = "or
     >
       <Illustration variant={variant} />
       <div className="flex flex-col gap-2">
-        <p className="font-serif text-[20px] text-[var(--color-bone)]">{title}</p>
-        <p className="max-w-xs text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">{body}</p>
+        <p className="font-serif text-title text-[var(--color-bone)]">{title}</p>
+        <p className="max-w-xs text-small leading-[1.65] text-[var(--color-text-secondary)]">{body}</p>
       </div>
       {action}
     </div>

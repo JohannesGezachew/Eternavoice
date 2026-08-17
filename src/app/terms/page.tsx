@@ -15,19 +15,19 @@ export default function TermsPage() {
         </Link>
         <Link
           href="/privacy"
-          className="text-[12px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+          className="text-small text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
         >
           Privacy
         </Link>
       </header>
       <main className="py-14">
-        <p className="text-[12px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
+        <p className="text-small tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
           Last updated May 26, 2026
         </p>
-        <h1 className="font-serif mt-4 text-[30px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[54px]">
+        <h1 className="font-serif mt-4 text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[54px]">
           Terms of Service
         </h1>
-        <div className="mt-10 space-y-8 border-t border-[var(--color-rule)] pt-10 text-[15px] leading-[1.85] text-[var(--color-bone)]/65 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-[22px] [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.01em] [&_h2]:text-[var(--color-bone)]">
+        <div className="mt-10 space-y-8 border-t border-[var(--color-rule)] pt-10 text-body leading-[1.85] text-[var(--color-bone)]/65 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:font-serif [&_h2]:text-title [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.01em] [&_h2]:text-[var(--color-bone)]">
           <h2>Consent</h2>
           <p>
             Only upload or record a voice when you have the legal right and
