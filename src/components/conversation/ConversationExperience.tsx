@@ -28,6 +28,7 @@ import {
 } from "@/lib/db/conversations";
 import { persistChange } from "@/lib/db/persistChange";
 import { SyncNotice } from "@/components/shell/SyncNotice";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { addMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
 import { rememberSpoken } from "@/lib/db/remember";
 import { formatRelativeDay } from "@/lib/utils";
@@ -135,6 +136,12 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [silenceMessage, setSilenceMessage] = useState<string | null>(null);
   // Post-session reflection prompt: shown before restarting.
   const [showReflection, setShowReflection] = useState(false);
+  // "Before you go…" is the last thing shown at the end of a conversation, and
+  // it declared aria-modal while letting Tab fall through into the room behind
+  // it — a room a screen reader had just been told was inert.
+  const reflectionRef = useRef<HTMLDivElement>(null);
+  const closeReflection = useCallback(() => setShowReflection(false), []);
+  useFocusTrap(showReflection, reflectionRef, closeReflection);
   const [reflectionText, setReflectionText] = useState("");
   const restartActionRef = useRef<(() => void) | null>(null);
   // Ambient (phone-call) mode: chrome falls away, the room dims to just the orb.
@@ -1798,6 +1805,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                 aria-hidden
               />
               <motion.div
+                ref={reflectionRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label="End of conversation"
@@ -1907,38 +1915,7 @@ function HistoryDrawer({
   playingId: string | null;
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab") {
-        // Keep Tab cycling inside the dialog — it is modal, the page behind
-        // is inert to the keyboard.
-        const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
-          "button, [href], input, [tabindex]:not([tabindex='-1'])",
-        );
-        if (!focusable?.length) return;
-        const first = focusable[0]!;
-        const last = focusable[focusable.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    // Move focus into the panel so keyboard users land where they clicked to.
-    panelRef.current?.focus();
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      previouslyFocused?.focus();
-    };
-  }, [open, onClose]);
+  useFocusTrap(open, panelRef, onClose);
 
   return (
     <AnimatePresence>

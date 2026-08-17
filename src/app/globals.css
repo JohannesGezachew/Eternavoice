@@ -383,6 +383,24 @@ html:not([data-theme="dark"]) [class*="hover:bg-white/"]:hover {
   }
 }
 
+/* iOS zooms the whole page in when a focused form control is under 16px, and
+   then does not zoom back out — so the layout is left permanently oversized
+   and shifted, and the user has to pinch it back by hand. Several inputs here
+   use --text-body (15px): the inline conversation rename, the memory field on
+   a person's page, and the narration script box in onboarding.
+
+   Unlayered and !important because Tailwind's `text-body` utility is a class
+   selector and would otherwise win. Only on coarse pointers, so the designed
+   type scale is untouched on desktop; `1em` keeps whatever was intended
+   wherever it was already 16px or more. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
 /* Keyboard focus ring. Deliberately UNLAYERED so it always wins: several
    inputs carry Tailwind's `focus:outline-none` utility, and a layered rule
    would lose to it, leaving keyboard users with only a faint border tint

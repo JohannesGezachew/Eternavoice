@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 const SHORTCUTS: Array<{ keys: string[]; label: string }> = [
   { keys: ["Space"], label: "Interrupt the voice" },
@@ -14,14 +15,11 @@ const SHORTCUTS: Array<{ keys: string[]; label: string }> = [
 
 /** Keyboard-shortcut reference, opened with "?" on desktop. */
 export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  // Escape and the focus trap both come from the hook now. This claimed
+  // aria-modal and let Tab walk straight out into a page a screen reader had
+  // been told was inert.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, panelRef, onClose);
 
   return (
     <AnimatePresence>
@@ -37,6 +35,7 @@ export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: ()
             aria-hidden
           />
           <motion.div
+            ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-label="Keyboard shortcuts"

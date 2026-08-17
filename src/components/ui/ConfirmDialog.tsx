@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { buttonClasses } from "./buttonClasses";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -28,44 +29,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const cancelRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    cancelRef.current?.focus();
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onCancel();
-      }
-      if (e.key === "Tab") {
-        // Minimal focus trap: keep Tab cycling inside the dialog.
-        const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
-          "button, [href], input, [tabindex]:not([tabindex='-1'])",
-        );
-        if (!focusable?.length) return;
-        const first = focusable[0]!;
-        const last = focusable[focusable.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      document.body.style.overflow = "";
-      previouslyFocused?.focus();
-    };
-  }, [open, onCancel]);
+  useFocusTrap(open, panelRef, onCancel);
 
   return (
     <AnimatePresence>
@@ -100,7 +65,6 @@ export function ConfirmDialog({
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
-                ref={cancelRef}
                 type="button"
                 onClick={onCancel}
                 className={buttonClasses({ variant: "outline", size: "md" })}
