@@ -24,6 +24,9 @@ export class PlaybackQueue {
   private nextStart = 0;
   private activeSources = 0;
   private sources = new Set<AudioBufferSourceNode>();
+  /** Pending onStart timers, cleared on stop so a cancelled reading doesn't
+   *  keep advancing the words it is no longer speaking. */
+  private startTimers = new Set<ReturnType<typeof setTimeout>>();
   private rafId = 0;
   private timeBuffer: Uint8Array<ArrayBuffer> | null = null;
   private opts: PlaybackQueueOptions;
@@ -67,7 +70,20 @@ export class PlaybackQueue {
     }
   }
 
-  async enqueue(buffer: ArrayBuffer, pauseMs = 0): Promise<void> {
+  /**
+   * Hooks that fire against the *clock*, not against delivery.
+   *
+   * Audio arrives far faster than it plays — a five-minute reading is fully
+   * downloaded in seconds — so anything following along on screen has to be
+   * driven by when a clip actually starts, or the words race ahead of the
+   * voice. Source nodes have no onstart, but the start time is known at
+   * schedule time, so the delay is exact.
+   */
+  async enqueue(
+    buffer: ArrayBuffer,
+    pauseMs = 0,
+    hooks?: { onStart?: () => void; onEnd?: () => void },
+  ): Promise<void> {
     if (this.destroyed) return;
     await this.unlock();
     if (!this.context || !this.master) return;
@@ -89,11 +105,20 @@ export class PlaybackQueue {
     source.onended = () => {
       this.sources.delete(source);
       this.activeSources -= 1;
+      hooks?.onEnd?.();
       if (this.activeSources <= 0) {
         this.activeSources = 0;
         this.opts.onActivityChange?.(false);
       }
     };
+    if (hooks?.onStart) {
+      const delayMs = Math.max(0, (startAt - this.context.currentTime) * 1000);
+      const timer = setTimeout(() => {
+        this.startTimers.delete(timer);
+        if (!this.destroyed) hooks.onStart?.();
+      }, delayMs);
+      this.startTimers.add(timer);
+    }
     this.activeSources += 1;
     if (this.activeSources === 1) {
       this.opts.onActivityChange?.(true);
@@ -139,6 +164,8 @@ export class PlaybackQueue {
       }
     }
     this.sources.clear();
+    for (const timer of this.startTimers) clearTimeout(timer);
+    this.startTimers.clear();
     this.nextStart = 0;
     this.activeSources = 0;
     // A pause that survived being stopped would silently swallow the next
@@ -151,6 +178,8 @@ export class PlaybackQueue {
   destroy(): void {
     this.destroyed = true;
     cancelAnimationFrame(this.rafId);
+    for (const timer of this.startTimers) clearTimeout(timer);
+    this.startTimers.clear();
     this.opts.onActivityChange?.(false);
     if (this.context) {
       try {

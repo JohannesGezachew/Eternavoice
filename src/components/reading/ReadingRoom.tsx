@@ -48,6 +48,8 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
   // Kept so the whole reading can be downloaded as one file afterwards.
   const clipsRef = useRef<ArrayBuffer[]>([]);
   const savedIdRef = useRef<string | undefined>(undefined);
+  const totalRef = useRef(0);
+  const spokenTotalRef = useRef(0);
 
   useEffect(() => {
     const queue = new PlaybackQueue({});
@@ -92,6 +94,8 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
     setSpokenIndex(-1);
     setSegments([]);
     clipsRef.current = [];
+    totalRef.current = 0;
+    spokenTotalRef.current = 0;
     setPhase("preparing");
     haptic("begin");
     trackEvent("reading_started", { chars: length });
@@ -111,22 +115,34 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
       )) {
         if (event.type === "ready") {
           setSegments(event.segments);
+          totalRef.current = event.segments.length;
         } else if (event.type === "audio") {
           const buffer = base64ToArrayBuffer(event.base64);
           clipsRef.current.push(buffer.slice(0));
-          if (phaseIsStale(controller)) return;
-          setPhase("reading");
-          // Light the line as it is scheduled — the queue plays gaplessly, so
-          // this tracks the read closely enough to follow along.
-          setSpokenIndex(event.index);
-          await queueRef.current?.enqueue(buffer, event.pauseMs ?? 0);
+          if (controller.signal.aborted) return;
+          spokenTotalRef.current += 1;
+          const index = event.index;
+          const isLast = index === totalRef.current - 1;
+          // Follow the voice, not the download. Audio for a five-minute
+          // reading arrives in seconds; lighting each line on arrival would
+          // race the words far ahead of the person speaking them.
+          await queueRef.current?.enqueue(buffer, event.pauseMs ?? 0, {
+            onStart: () => {
+              setPhase("reading");
+              setSpokenIndex(index);
+            },
+            onEnd: isLast ? () => setPhase("finished") : undefined,
+          });
         } else if (event.type === "notice") {
           setNotice(event.message);
         } else if (event.type === "error") {
           setError(event.message);
         }
       }
-      setPhase("finished");
+      // The stream ending only means every clip has arrived — the voice is
+      // still speaking. "Finished" is set by the last clip's onEnd above.
+      // Unless nothing could be spoken at all, in which case nothing will.
+      if (spokenTotalRef.current === 0) setPhase("finished");
       trackEvent("reading_finished");
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
@@ -227,13 +243,18 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
                 <motion.p
                   key={i}
                   initial={false}
-                  animate={{ opacity: i <= spokenIndex ? 1 : 0.35 }}
+                  animate={{ opacity: i <= spokenIndex ? 1 : 0.4 }}
                   transition={{ duration: 0.5 }}
                   className={cn(
                     "font-serif text-title leading-[1.55] text-balance transition-colors duration-500",
-                    i === spokenIndex
-                      ? "text-[var(--color-bone)]"
-                      : "text-[var(--color-bone-dim)]",
+                    // Words already spoken stay lit — they have been said, and
+                    // dimming them again left a finished reading looking
+                    // entirely unread. Only what is still to come waits.
+                    i < spokenIndex
+                      ? "text-[var(--color-bone-dim)]"
+                      : i === spokenIndex
+                        ? "text-[var(--color-bone)]"
+                        : "text-[var(--color-text-tertiary)]",
                   )}
                 >
                   {line}
@@ -330,7 +351,3 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
   );
 }
 
-/** True once this run has been superseded or cancelled. */
-function phaseIsStale(controller: AbortController): boolean {
-  return controller.signal.aborted;
-}
