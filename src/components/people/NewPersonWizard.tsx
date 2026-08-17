@@ -2,18 +2,52 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
-import { RecordExperience, type CloneResult } from "@/components/recording/RecordExperience";
-import { NarrationStep, type NarrationResult } from "./NarrationStep";
+import type { CloneResult } from "@/components/recording/RecordExperience";
+import type { NarrationResult } from "./NarrationStep";
 import { PersonAvatar } from "./PersonAvatar";
 import { useSession } from "@/lib/session";
 import { addMemoryDb } from "@/lib/db/memories";
 import { trackEvent } from "@/lib/analytics";
 import { cn, formatSeconds } from "@/lib/utils";
 import type { PersonaConfig } from "@/lib/types";
+
+/**
+ * The two heaviest steps, loaded when they are reached rather than up front.
+ *
+ * This is the screen someone lands on to make the person they have lost, and
+ * the first thing it shows is a name field and a row of relationship chips.
+ * It was shipping roughly sixteen hundred lines of recording and narration
+ * code — microphone handling, waveform rendering, audio conversion — before
+ * any of that could paint. None of it is reachable until step two, and the
+ * time spent typing a name is exactly when it can arrive unnoticed.
+ *
+ * ssr: false because both touch MediaRecorder and AudioContext on mount.
+ */
+const RecordExperience = dynamic(
+  () => import("@/components/recording/RecordExperience").then((m) => m.RecordExperience),
+  { ssr: false, loading: () => <StepLoading /> },
+);
+
+const NarrationStep = dynamic(
+  () => import("./NarrationStep").then((m) => m.NarrationStep),
+  { ssr: false, loading: () => <StepLoading /> },
+);
+
+/** Holds the step's height so advancing doesn't collapse the layout. */
+function StepLoading() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading"
+      className="h-64 w-full animate-pulse rounded-2xl bg-white/[0.03]"
+    />
+  );
+}
 
 type Step = "who" | "narrate" | "voice" | "listen";
 
