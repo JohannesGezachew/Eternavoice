@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { isTrialExpired, trialDaysLeft } from "@/lib/entitlement";
+import { usageLines, formatResetDate, type UsageSnapshot } from "@/lib/usageView";
 import { fadeUp, stagger } from "@/lib/motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { buttonClasses } from "@/components/ui/buttonClasses";
@@ -17,24 +18,6 @@ interface Profile {
   stripe_customer_id: string | null;
   trial_ends_at: string | null;
   display_name: string | null;
-}
-
-interface Allowance {
-  used: number;
-  limit: number;
-  fraction: number;
-  resetsAt: string;
-}
-interface UsageResponse {
-  chat: Allowance;
-  clone: Allowance;
-}
-
-/** "on 1 September" — a date, not a countdown. */
-function formatResetDate(iso: string): string {
-  const when = new Date(iso);
-  if (Number.isNaN(when.getTime())) return "next month";
-  return `on ${when.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`;
 }
 
 function formatTrialEnd(isoDate: string): string {
@@ -204,13 +187,13 @@ export default function AccountPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [usage, setUsage] = useState<UsageResponse | null>(null);
+  const [usage, setUsage] = useState<UsageSnapshot | null>(null);
 
   useEffect(() => {
     // Usage is advisory — if it can't be read, the section simply stays hidden.
     void fetch("/api/usage")
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: UsageResponse | null) => setUsage(data))
+      .then((data: UsageSnapshot | null) => setUsage(data))
       .catch(() => null);
   }, []);
 
@@ -317,6 +300,10 @@ export default function AccountPage() {
   // one — the badge is the first thing read, so it has to tell the truth.
   const statusKey = trialExpired ? "canceled" : (profile?.subscription_status ?? "inactive");
   const statusCfg = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG["inactive"]!;
+
+  // One line per allowance, quiet unless one of them is nearly spent.
+  const allowances = usageLines(usage);
+  const pressing = allowances.find((line) => line.emphasised);
 
   if (loading) {
     // The page shape is known — skeleton it rather than blanking the shell.
@@ -428,12 +415,16 @@ export default function AccountPage() {
                 </p>
               </div>
               {profile?.stripe_customer_id ? (
+                // "Manage billing" hid the thing people actually come looking
+                // for. The portal is where invoices live, and there is no other
+                // route to them in the app, so the button says so rather than
+                // a second button being added beside it.
                 <button
                   onClick={() => void openPortal()}
                   disabled={portalLoading}
                   className={buttonClasses({ variant: "outline", size: "md", className: "px-4 text-small" })}
                 >
-                  {portalLoading ? "Opening…" : "Manage billing"}
+                  {portalLoading ? "Opening…" : "Billing & invoices"}
                 </button>
               ) : (
                 <Link
@@ -445,32 +436,26 @@ export default function AccountPage() {
               )}
             </div>
 
-            {/* Deliberately silent until usage is actually high — a running
-                meter has no place in a product people use to grieve. */}
-            {usage && usage.chat.fraction >= 0.8 ? (
-              <div className="flex flex-col gap-2 border-t border-[var(--color-rule)] pt-4">
-                <div className="flex items-baseline justify-between">
-                  <p className="text-small text-[var(--color-bone)]/90">
-                    {usage.chat.used >= usage.chat.limit
-                      ? "You've used this month's conversations."
-                      : "You've used most of this month's conversations."}
-                  </p>
-                  <span className="text-micro tabular-nums text-[var(--color-bone-dim)]">
-                    {Math.min(usage.chat.used, usage.chat.limit)} / {usage.chat.limit}
-                  </span>
-                </div>
-                <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-rule-strong)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--color-ember)]/70"
-                    style={{ width: `${Math.round(usage.chat.fraction * 100)}%` }}
-                  />
-                </div>
-                <p className="text-small text-[var(--color-bone-dim)]">
-                  Resets {formatResetDate(usage.chat.resetsAt)}. Everything you&rsquo;ve
-                  made stays exactly where it is.
+            {/* What cancelling actually costs you.
+                The subscribe page promises everything is "saved and waiting"
+                and this page said nothing at all, so the only answer to "what
+                happens to my mother if I stop paying?" was a guess — and the
+                guess people make is the frightening one. Retention is the
+                truth; deletion is the only thing that isn't reversible. */}
+            <div className="flex flex-col gap-2 border-t border-[var(--color-rule)] pt-4">
+              <p className="text-small leading-[1.6] text-[var(--color-text-secondary)]">
+                If you cancel, everything you&rsquo;ve made is kept — voices,
+                memories, conversations. You just can&rsquo;t reach them until you
+                subscribe again. Deleting your account is the only thing that
+                erases them.
+              </p>
+              {profile?.stripe_customer_id ? (
+                <p className="text-small leading-[1.6] text-[var(--color-text-tertiary)]">
+                  Invoices, receipts, your card and cancelling all live in the
+                  billing portal.
                 </p>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </Section>
 
@@ -491,6 +476,59 @@ export default function AccountPage() {
               </div>
             ))}
           </div>
+          {/* This month.
+              The allowances were invisible until you were nearly on top of one,
+              which meant the only way to learn a ceiling existed was to meet it
+              — usually mid-sentence, in the middle of a conversation with
+              someone who is gone. Shown plainly here instead, so a month can be
+              planned. The meters stay grey and the numbers stay small until a
+              line is genuinely close; nothing about this section is meant to be
+              felt on an ordinary visit. */}
+          {allowances.length ? (
+            <div className="mt-5 flex flex-col gap-4 border-t border-[var(--color-rule)] pt-4">
+              <h3 className="text-micro uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
+                This month
+              </h3>
+              {allowances.map((line) => (
+                <div key={line.scope} className="flex flex-col gap-1.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span
+                      className={`text-small ${
+                        line.emphasised
+                          ? "text-[var(--color-bone)]"
+                          : "text-[var(--color-text-secondary)]"
+                      }`}
+                    >
+                      {line.label}
+                    </span>
+                    <span className="text-micro tabular-nums text-[var(--color-text-tertiary)]">
+                      {line.used} of {line.limit}
+                    </span>
+                  </div>
+                  <div
+                    className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-rule-strong)]"
+                    role="img"
+                    aria-label={`${line.label}: ${line.used} of ${line.limit} used this month`}
+                  >
+                    <div
+                      className={`h-full rounded-full ${
+                        line.emphasised
+                          ? "bg-[var(--color-ember)]/70"
+                          : "bg-[var(--color-bone-dim)]/30"
+                      }`}
+                      style={{ width: `${line.percent}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <p className="text-small leading-[1.6] text-[var(--color-text-secondary)]">
+                {pressing
+                  ? `You've used ${pressing.spent ? "" : "most of "}this month's ${pressing.noun}. They come back ${formatResetDate(pressing.resetsAt)}, and everything you've made stays exactly where it is.`
+                  : `Everything resets ${formatResetDate(allowances[0]?.resetsAt)}.`}
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-1 flex flex-col">
             <Link
               href="/people"

@@ -11,6 +11,7 @@ import { PersonAvatar } from "./PersonAvatar";
 import { useSession } from "@/lib/session";
 import { fadeUp, stagger } from "@/lib/motion";
 import { formatRelativeDay } from "@/lib/utils";
+import { countArchived, isArchived, selectPeople } from "@/lib/peopleView";
 import { createClient } from "@/lib/supabase/client";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { PersonaConfig } from "@/lib/types";
@@ -34,6 +35,7 @@ interface PersonItem {
   relationship: string | null;
   persona: PersonaConfig | null;
   createdAt: number;
+  archived: boolean;
 }
 
 export function PeopleLibrary() {
@@ -49,6 +51,7 @@ export function PeopleLibrary() {
   const [loading, setLoading] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
   const [sort, setSort] = useState<SortKey>("recent");
+  const [showArchived, setShowArchived] = useState(false);
   const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
 
   useEffect(() => {
@@ -70,14 +73,21 @@ export function PeopleLibrary() {
   }, []);
 
   const dbPeople = subjects.filter((s) => s.voice_id);
-  const basePeople: PersonItem[] = isAuthed && dbPeople.length
-    ? dbPeople.map((s) => ({
+  // The database/localStorage choice is made on everyone, before the archive
+  // filter. Deciding it on the filtered list would mean that archiving your
+  // last visible person falls back to the local voice cache and puts every
+  // archived person straight back on the shelf.
+  const usingDb = isAuthed && dbPeople.length > 0;
+  const archivedCount = usingDb ? countArchived(dbPeople) : 0;
+  const basePeople: PersonItem[] = usingDb
+    ? selectPeople(dbPeople, { includeArchived: showArchived }).map((s) => ({
         voiceId: s.voice_id!,
         subjectId: s.id,
         name: s.name,
         relationship: s.relationship ?? null,
         persona: (s.persona as PersonaConfig) ?? null,
         createdAt: new Date(s.created_at).getTime(),
+        archived: isArchived(s),
       }))
     : voices.map((v) => ({
         voiceId: v.id,
@@ -86,6 +96,7 @@ export function PeopleLibrary() {
         relationship: null,
         persona: null,
         createdAt: v.createdAt,
+        archived: false,
       }));
 
   const lastConvAt = (person: PersonItem): number | null => {
@@ -148,29 +159,52 @@ export function PeopleLibrary() {
           title="Who would you like to speak with?"
         />
 
-        {/* Sort controls — only shown once there's more than one person */}
-        {people.length > 1 && (
-          <div className="flex items-center gap-1 -mt-6">
-            {(
-              [
-                { key: "recent" as SortKey, label: "Recently spoken" },
-                { key: "alpha" as SortKey, label: "A–Z" },
-                { key: "added" as SortKey, label: "Recently added" },
-              ] as const
-            ).map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setSort(key)}
-                className={`cursor-pointer rounded-full px-3.5 py-1.5 text-small transition-colors duration-150 ${
-                  sort === key
-                    ? "bg-white/[0.07] text-[var(--color-bone)]"
-                    : "text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        {(archivedCount > 0 || people.length > 1) && (
+          <div className="-mt-6 flex flex-col gap-3">
+            {/* The count is the control, as on the memories page: it says the
+                archived people are still here without turning the shelf into a
+                settings screen. */}
+            {archivedCount > 0 ? (
+              <p className="flex flex-wrap items-center gap-2 text-small text-[var(--color-text-tertiary)]">
+                {showArchived
+                  ? "Showing everyone, archived included."
+                  : `${archivedCount} archived.`}
+                <button
+                  type="button"
+                  onClick={() => setShowArchived((v) => !v)}
+                  aria-pressed={showArchived}
+                  className="cursor-pointer text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+                >
+                  {showArchived ? "Hide archived" : "Show"}
+                </button>
+              </p>
+            ) : null}
+
+            {/* Sort controls — only shown once there's more than one person */}
+            {people.length > 1 && (
+              <div className="flex items-center gap-1">
+                {(
+                  [
+                    { key: "recent" as SortKey, label: "Recently spoken" },
+                    { key: "alpha" as SortKey, label: "A–Z" },
+                    { key: "added" as SortKey, label: "Recently added" },
+                  ] as const
+                ).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSort(key)}
+                    className={`cursor-pointer rounded-full px-3.5 py-1.5 text-small transition-colors duration-150 ${
+                      sort === key
+                        ? "bg-white/[0.07] text-[var(--color-bone)]"
+                        : "text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -281,6 +315,14 @@ function PersonCard({
               {person.name}
             </h2>
             <div className="flex flex-wrap items-center gap-1.5">
+              {/* Only ever visible while the archived people are revealed, so
+                  it explains why they are on screen rather than labelling
+                  anyone. */}
+              {person.archived ? (
+                <span className="inline-flex items-center rounded-full border border-[var(--color-rule-strong)] px-2.5 py-0.5 text-micro text-[var(--color-bone-dim)]">
+                  Archived
+                </span>
+              ) : null}
               {person.relationship ? (
                 <span className="inline-flex items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-micro text-[var(--color-text-secondary)]">
                   {person.relationship}

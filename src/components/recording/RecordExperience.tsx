@@ -43,6 +43,10 @@ export interface CloneResult {
 interface RecordExperienceProps {
   /** The person's name, collected before this step. */
   subjectName: string;
+  /** An existing person this sample belongs to. Set only when improving a
+   *  voice that already exists — the clone route then replaces that person's
+   *  voice instead of creating a second copy of them in the library. */
+  subjectId?: string;
   /** Called once the clone is created. The caller owns navigation. */
   onCloned: (result: CloneResult) => void;
 }
@@ -57,7 +61,7 @@ interface Take {
   url: string;
 }
 
-export function RecordExperience({ subjectName, onCloned }: RecordExperienceProps) {
+export function RecordExperience({ subjectName, subjectId, onCloned }: RecordExperienceProps) {
   const [mode, setMode] = useState<Mode>("upload");
   const [phase, setPhase] = useState<Phase>("intro");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -267,6 +271,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
 
       fd.append("audio", audioForClone, audioForClone.name);
       fd.append("name", subjectName);
+      if (subjectId) fd.append("subjectId", subjectId);
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
         throw new Error(await readCloneError(res));
@@ -283,7 +288,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
     } finally {
       setCloneStartedAt(null);
     }
-  }, [uploadFile, selectedRegion, uploadDuration, subjectName, onCloned]);
+  }, [uploadFile, selectedRegion, uploadDuration, subjectName, subjectId, onCloned]);
 
   // ── Record handlers ────────────────────────────────────────────────────────
 
@@ -367,6 +372,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
       trackEvent("clone_started", { mode: "record" });
       fd.append("audio", file, file.name);
       fd.append("name", subjectName);
+      if (subjectId) fd.append("subjectId", subjectId);
       const res = await fetch("/api/clone", { method: "POST", body: fd });
       if (!res.ok) {
         throw new Error(await readCloneError(res));
@@ -384,7 +390,7 @@ export function RecordExperience({ subjectName, onCloned }: RecordExperienceProp
     } finally {
       setCloneStartedAt(null);
     }
-  }, [take, subjectName, onCloned]);
+  }, [take, subjectName, subjectId, onCloned]);
 
   const elapsedSeconds = elapsedMs / 1000;
   const overshoot = elapsedSeconds > SCRIPT_MAX_SECONDS;

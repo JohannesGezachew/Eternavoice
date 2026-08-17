@@ -8,6 +8,9 @@ const PatchBody = z.object({
   name: z.string().min(1).max(80).optional(),
   relationship: z.string().max(120).optional(),
   persona: z.record(z.string(), z.unknown()).optional(),
+  /** Archive / unarchive. A boolean rather than a timestamp so the client can
+   *  never backdate the archive, and so "unarchive" is unambiguous. */
+  archived: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -30,6 +33,9 @@ export async function PATCH(
   if (body.name !== undefined) updates.name = body.name;
   if (body.relationship !== undefined) updates.relationship = body.relationship;
   if (body.persona !== undefined) updates.persona = body.persona;
+  if (body.archived !== undefined) {
+    updates.archived_at = body.archived ? new Date().toISOString() : null;
+  }
 
   const { error } = await supabase
     .from("subjects")

@@ -64,6 +64,11 @@ export async function POST(request: Request) {
 
   const file = form.get("audio");
   const rawName = form.get("name");
+  // Present when someone is improving a voice they already have. Only ever an
+  // id of a row we then re-check against the caller's user_id — the voice id
+  // itself is never taken from the client, which is what keeps this off the
+  // path assertVoiceOwner protects.
+  const targetSubjectId = z.uuid().safeParse(form.get("subjectId"));
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No audio attached." }, { status: 400 });
@@ -118,33 +123,80 @@ export async function POST(request: Request) {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Upsert: if a subject with this voice_id already exists (re-clone), update it
-        const { data: existing } = await supabase
-          .from("subjects")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("voice_id", result.voiceId)
-          .maybeSingle();
-
-        if (existing) {
-          subjectId = existing.id as string;
-          await supabase
+        // Improving an existing person's voice.
+        //
+        // Every clone comes back with a brand new provider voice id, so without
+        // this the "record a better sample" flow would quietly create a second
+        // Margaret beside the first — with none of her conversations, none of
+        // her memories, and no way to tell them apart on the shelf. Re-pointing
+        // the row she already owns is the only behaviour that matches what the
+        // person asked for.
+        //
+        // The ownership predicate is the security control: the row must be the
+        // caller's and not deleted. The voice being written was created by this
+        // request, so no client-supplied voice id ever reaches this column.
+        if (targetSubjectId.success) {
+          const { data: owned } = await supabase
             .from("subjects")
-            .update({ name, voice_name: labelledName, updated_at: new Date().toISOString() })
-            .eq("id", subjectId);
-        } else {
-          const { data: inserted } = await supabase
-            .from("subjects")
-            .insert({
-              user_id: user.id,
-              name,
-              voice_id: result.voiceId,
-              voice_name: labelledName,
-              persona: { mode: "persona", name },
-            })
             .select("id")
-            .single();
-          subjectId = inserted?.id as string | undefined;
+            .eq("user_id", user.id)
+            .eq("id", targetSubjectId.data)
+            .is("deleted_at", null)
+            .maybeSingle();
+
+          if (owned) {
+            subjectId = owned.id as string;
+            // The name is left alone: it may have been edited since, and the
+            // form carries whatever the recording screen was showing.
+            //
+            // The previous provider voice is deliberately not deleted. If the
+            // new sample turns out worse, the old one is the only copy of how
+            // they sounded, and the original audio may be long gone. Removing
+            // a voice stays an explicit act, in the delete flow.
+            await supabase
+              .from("subjects")
+              .update({
+                voice_id: result.voiceId,
+                voice_name: labelledName,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", subjectId)
+              .eq("user_id", user.id);
+          }
+        }
+
+        // Only when this sample was not claimed by an existing person above —
+        // otherwise the insert below would create the duplicate that whole
+        // branch exists to prevent.
+        if (!subjectId) {
+          // Upsert: if a subject with this voice_id already exists (re-clone), update it
+          const { data: existing } = await supabase
+            .from("subjects")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("voice_id", result.voiceId)
+            .maybeSingle();
+
+          if (existing) {
+            subjectId = existing.id as string;
+            await supabase
+              .from("subjects")
+              .update({ name, voice_name: labelledName, updated_at: new Date().toISOString() })
+              .eq("id", subjectId);
+          } else {
+            const { data: inserted } = await supabase
+              .from("subjects")
+              .insert({
+                user_id: user.id,
+                name,
+                voice_id: result.voiceId,
+                voice_name: labelledName,
+                persona: { mode: "persona", name },
+              })
+              .select("id")
+              .single();
+            subjectId = inserted?.id as string | undefined;
+          }
         }
       }
     } catch {
