@@ -9,7 +9,7 @@ import { isTrialExpired, isTrialLive } from "@/lib/entitlement";
 import { fadeUp, stagger } from "@/lib/motion";
 
 const FEATURES = [
-  "Unlimited conversations with every voice",
+  "600 spoken replies a month, with every voice",
   "Multiple voice profiles — family, friends, anyone",
   "Memory that persists across every session",
   "AES-256 encrypted — your data stays yours",

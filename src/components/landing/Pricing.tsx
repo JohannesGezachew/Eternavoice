@@ -6,8 +6,8 @@ import { buttonClasses } from "@/components/ui/buttonClasses";
 import { fadeUp, stagger } from "@/lib/motion";
 
 const FEATURES = [
-  "Unlimited voice conversations",
-  "Up to 10 voice profiles",
+  "600 spoken replies a month — far more than anyone uses",
+  "Up to 12 new voices a month",
   "Memory that persists across every session",
   "AES-256 encrypted — your data stays yours",
   "Access on any device, any time",

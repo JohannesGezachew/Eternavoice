@@ -152,15 +152,27 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   // Auto-send a conversation starter after the persona's opening greeting.
   // The starter fires when status first returns to idle in a new session.
   const starterSentRef = useRef(false);
+  const starterTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (starterTimerRef.current !== null) window.clearTimeout(starterTimerRef.current);
+    };
+  }, []);
   useEffect(() => {
     if (!pendingStarter || starterSentRef.current) return;
     if (status === "idle" && hasBegun && turns.some((t) => t.role === "assistant")) {
       starterSentRef.current = true;
       const text = pendingStarter;
       setPendingStarter(null);
-      // Small delay so it doesn't feel robotic.
-      const t = window.setTimeout(() => void send(text), 600);
-      return () => window.clearTimeout(t);
+      // The timer is held in a ref, cleared only on unmount.
+      //
+      // Clearing it from this effect's cleanup meant it never fired at all:
+      // setPendingStarter(null) changes a dependency, so React ran the cleanup
+      // on the very next commit — milliseconds later, and 600ms before the
+      // send. Tapping "I just needed to hear your voice" opened the session,
+      // played the greeting, and silently threw the message away while the
+      // person waited for a reply to something they believed they had said.
+      starterTimerRef.current = window.setTimeout(() => void send(text), 600);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, hasBegun, turns, pendingStarter]);
@@ -372,7 +384,15 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     if (!currentConversationId || !voiceId || turns.length === 0) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      const conv = conversations.find((c) => c.id === currentConversationId);
+      // Read at fire time, never from the closure. Streaming tokens append to
+      // an existing turn, so turns.length does not change during a reply — the
+      // effect never re-ran, and the captured `conversations` stayed pinned to
+      // the render where the assistant turn held only its first sentence. That
+      // stale record was then upserted by primary key, overwriting the full
+      // reply with its opening line.
+      const conv = useSession
+        .getState()
+        .conversations.find((c) => c.id === currentConversationId);
       if (!conv) return;
       const run = ++saveRunRef.current;
       void (async () => {
@@ -407,8 +427,13 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
+  // The length of the last turn is what actually changes while a reply
+  // streams, so the debounce re-arms as text arrives and settles after the
+  // final sentence — which is what "save 2s after it stops changing" was
+  // always meant to mean. Feedback on a turn moves it too, so thumbs up/down
+  // now persists instead of waiting for the next message.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turns.length, currentConversationId]);
+  }, [turns.length, turns.at(-1)?.content.length, turns.at(-1)?.feedback, currentConversationId]);
 
   useEffect(() => {
     const queue = new PlaybackQueue({
@@ -1412,12 +1437,14 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               >
                 {connection.message}
               </p>
-            ) : status === "speaking" || status === "thinking" ? (
+            ) : status === "speaking" || status === "thinking" || paused ? (
               <div className="flex items-center gap-2">
                 {/* Hold is not Interrupt. Interrupt ends the reply; hold keeps
                     it exactly where it is, for when a line lands and you need
                     a moment with it before the next one arrives. */}
-                {status === "speaking" ? (
+                {/* Also while paused: a held reply reports itself idle, and
+                    gating on "speaking" alone unmounted the only way back. */}
+                {status === "speaking" || paused ? (
                   <button
                     type="button"
                     onClick={() => void holdThought()}

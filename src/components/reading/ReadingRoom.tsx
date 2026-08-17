@@ -61,16 +61,24 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
   // inserts, and refs may not be read during render.
   const [openId, setOpenId] = useState<string | undefined>(undefined);
   const totalRef = useRef(0);
+  // Highest clip index actually enqueued — the one that ends the reading.
+  const lastEnqueuedRef = useRef(-1);
   const spokenTotalRef = useRef(0);
 
+  // Built once. Keying this on playbackRate tore the whole AudioContext down
+  // mid-reading whenever someone adjusted the listening speed — killing the
+  // audio and, because destroy() fires no hooks, leaving the room stuck.
   useEffect(() => {
     const queue = new PlaybackQueue({});
-    queue.setRate(prefs.playbackRate);
     queueRef.current = queue;
     return () => {
       queue.destroy();
       queueRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    queueRef.current?.setRate(prefs.playbackRate);
   }, [prefs.playbackRate]);
 
   useEffect(() => {
@@ -150,6 +158,7 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
     clipsRef.current = [];
     totalRef.current = 0;
     spokenTotalRef.current = 0;
+    lastEnqueuedRef.current = -1;
     setPhase("preparing");
     haptic("begin");
     trackEvent("reading_started", { chars: length });
@@ -176,7 +185,11 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
           if (controller.signal.aborted) return;
           spokenTotalRef.current += 1;
           const index = event.index;
-          const isLast = index === totalRef.current - 1;
+          // The LAST CLIP THAT EXISTS, not the last segment. A line the
+          // provider failed on emits a notice and no audio, so pinning the
+          // finish to `total - 1` left the room reading "Reading…" in silence
+          // for ever whenever the failure happened to be the final line.
+          lastEnqueuedRef.current = index;
           // Follow the voice, not the download. Audio for a five-minute
           // reading arrives in seconds; lighting each line on arrival would
           // race the words far ahead of the person speaking them.
@@ -185,7 +198,12 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
               setPhase("reading");
               setSpokenIndex(index);
             },
-            onEnd: isLast ? () => setPhase("finished") : undefined,
+            onEnd: () => {
+              // Whichever clip turns out to have been the last one enqueued
+              // ends the reading, resolved as the stream goes rather than
+              // guessed in advance.
+              if (index === lastEnqueuedRef.current) setPhase("finished");
+            },
           });
         } else if (event.type === "notice") {
           setNotice(event.message);

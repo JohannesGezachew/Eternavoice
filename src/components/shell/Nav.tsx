@@ -8,6 +8,7 @@ import { Mark } from "./Mark";
 import { cn } from "@/lib/utils";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { createClient } from "@/lib/supabase/client";
+import { clearLocalSession } from "@/lib/session";
 
 export function Nav() {
   const router = useRouter();
@@ -48,6 +49,8 @@ export function Nav() {
     setSigningOut(true);
     const supabase = createClient();
     await supabase.auth.signOut();
+    // Before navigating: the persisted store holds decrypted transcripts.
+    clearLocalSession();
     router.push("/");
   };
 

@@ -36,6 +36,16 @@ export class PlaybackQueue {
    *  resume the context the moment the next sentence arrived — so a paused
    *  reply would start speaking again on its own. */
   private userPaused = false;
+  /**
+   * Bumped by stop() and destroy(). enqueue() awaits unlock() and then
+   * decodeAudioData — tens of milliseconds on a slow phone — and a barge-in
+   * landing inside that window could not unwind the caller, so the decode
+   * finished and the sentence played *over* the person who had just
+   * interrupted, with the status flipping back to "speaking" underneath the
+   * "I'm listening" they were shown. Every await now checks it is still the
+   * same generation before touching anything.
+   */
+  private generation = 0;
 
   constructor(opts: PlaybackQueueOptions = {}) {
     this.opts = opts;
@@ -85,8 +95,9 @@ export class PlaybackQueue {
     hooks?: { onStart?: () => void; onEnd?: () => void },
   ): Promise<void> {
     if (this.destroyed) return;
+    const mine = this.generation;
     await this.unlock();
-    if (!this.context || !this.master) return;
+    if (this.generation !== mine || !this.context || !this.master) return;
 
     let decoded: AudioBuffer;
     try {
@@ -94,7 +105,8 @@ export class PlaybackQueue {
     } catch {
       return;
     }
-    if (this.destroyed || !this.context) return;
+    // Checked again after the decode: this is the window a barge-in lands in.
+    if (this.destroyed || this.generation !== mine || !this.context) return;
 
     const startAt = Math.max(this.context.currentTime + 0.02, this.nextStart);
     const source = this.context.createBufferSource();
@@ -105,7 +117,11 @@ export class PlaybackQueue {
     source.onended = () => {
       this.sources.delete(source);
       this.activeSources -= 1;
-      hooks?.onEnd?.();
+      // Only for a clip that actually finished. stop() also triggers onended,
+      // and firing onEnd there told the reading room a reading had completed
+      // when it had just been cancelled — bouncing "Edit" straight back to the
+      // finished screen, and opening a saved reading into an empty one.
+      if (this.generation === mine) hooks?.onEnd?.();
       if (this.activeSources <= 0) {
         this.activeSources = 0;
         this.opts.onActivityChange?.(false);
@@ -140,7 +156,10 @@ export class PlaybackQueue {
     if (this.context.state !== "running") return;
     this.userPaused = true;
     await this.context.suspend();
-    this.opts.onActivityChange?.(false);
+    // Deliberately NOT onActivityChange(false): a suspended context is held,
+    // not idle. Reporting it as inactive flipped the room to "idle", which
+    // unmounted the very control that offers to continue — so holding a
+    // thought became a one-way trap with the reply unreachable behind it.
   }
 
   async resume(): Promise<void> {
@@ -156,6 +175,8 @@ export class PlaybackQueue {
   }
 
   stop(): void {
+    // Invalidates every decode still in flight and every scheduled hook.
+    this.generation++;
     for (const source of this.sources) {
       try {
         source.stop();
@@ -177,6 +198,7 @@ export class PlaybackQueue {
 
   destroy(): void {
     this.destroyed = true;
+    this.generation++;
     cancelAnimationFrame(this.rafId);
     for (const timer of this.startTimers) clearTimeout(timer);
     this.startTimers.clear();

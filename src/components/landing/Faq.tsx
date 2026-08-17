@@ -15,7 +15,7 @@ const FAQS = [
   },
   {
     q: "Who can access my data?",
-    a: "Only you. Conversations and memories are encrypted with a key derived from your account — our team cannot read them. We use ElevenLabs for voice synthesis and OpenAI for conversation. Only the text of each turn is sent to them; their voice never leaves ElevenLabs.",
+    a: "Only you. Conversations and memories are encrypted with a key derived from your account — they cannot be read from the database alone. We use ElevenLabs for voice synthesis and OpenAI for conversation. Only the text of each turn is sent to them; their voice never leaves ElevenLabs.",
   },
   {
     q: "Can I delete everything?",

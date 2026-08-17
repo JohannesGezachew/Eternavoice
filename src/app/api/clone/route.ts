@@ -3,6 +3,26 @@ import { z } from "zod";
 import { elevenlabs } from "@/lib/elevenlabs";
 import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { env } from "@/lib/env";
+
+/**
+ * Service-role client for the columns that decide what a row may speak in.
+ *
+ * voice_id and voice_name are not writable by `authenticated` (migration 009),
+ * because assertVoiceOwner grants access by asking which voice a subject
+ * carries — so a user-writable voice_id is a cross-tenant escalation. The
+ * ownership predicate on every statement below is still the security control;
+ * this client only carries the write past the grant. Same pattern as the
+ * checkout route uses for stripe_customer_id.
+ */
+function adminSupabase() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { persistSession: false } },
+  );
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -153,7 +173,12 @@ export async function POST(request: Request) {
             // new sample turns out worse, the old one is the only copy of how
             // they sounded, and the original audio may be long gone. Removing
             // a voice stays an explicit act, in the delete flow.
-            await supabase
+            // Service role, because migration 009 revoked voice_id from the
+            // `authenticated` grant — the column decides what assertVoiceOwner
+            // will let you speak in, so nothing holding a user's JWT may write
+            // it. The ownership predicate below is still the security control;
+            // the elevated client only carries the write past the grant.
+            await adminSupabase()
               .from("subjects")
               .update({
                 voice_id: result.voiceId,
@@ -179,12 +204,18 @@ export async function POST(request: Request) {
 
           if (existing) {
             subjectId = existing.id as string;
-            await supabase
+            // voice_name is revoked alongside voice_id — both name the voice
+            // this row is allowed to speak in, so neither is user-writable.
+            await adminSupabase()
               .from("subjects")
               .update({ name, voice_name: labelledName, updated_at: new Date().toISOString() })
-              .eq("id", subjectId);
+              .eq("id", subjectId)
+              .eq("user_id", user.id);
           } else {
-            const { data: inserted } = await supabase
+            // Inserted under the service role for the same reason: user_id is
+            // pinned to the authenticated caller here, and the voice is the one
+            // this request just created at the provider.
+            const { data: inserted } = await adminSupabase()
               .from("subjects")
               .insert({
                 user_id: user.id,

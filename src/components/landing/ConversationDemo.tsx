@@ -138,7 +138,7 @@ export function ConversationDemo() {
           {lastIsAi ? "Speaking…" : "Listening"}
         </span>
         <div className="ml-auto text-micro tracking-[0.06em] text-[var(--color-bone-dim)]/80">
-          End-to-end encrypted
+          Encrypted at rest
         </div>
       </div>
 

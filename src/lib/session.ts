@@ -47,6 +47,32 @@ export const MAX_CONVERSATIONS = 200;
  */
 export const MAX_MEMORIES = 500;
 
+/**
+ * Forget everything held locally, and erase the persisted copy.
+ *
+ * Sign-out used to call supabase.auth.signOut() and navigate away, leaving a
+ * localStorage blob holding decrypted transcripts, memories, person names and
+ * the active voice id. hydrateFromDb merges rather than replaces, so the next
+ * person to sign in on that browser saw the previous one's bereavement history
+ * in their own — and opening any of it could push those turns through the
+ * debounced save into their account, re-encrypted under their key.
+ *
+ * On a shared family device after a death, that is the worst possible audience.
+ */
+export function clearLocalSession(): void {
+  try {
+    useSession.getState().resetAll();
+  } catch {
+    // still clear the disk copy below
+  }
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // storage blocked — the in-memory reset above still stands
+  }
+}
+
 // One-time migration: if a previous build wrote the session to sessionStorage,
 // copy it into localStorage so the user keeps their cloned voice across reloads.
 if (typeof window !== "undefined") {

@@ -72,7 +72,7 @@ export function CtaBanner() {
               Get started free
             </Link>
             <p className="text-small text-[var(--color-text-secondary)]">
-              Private by design · End-to-end encrypted · No voice is ever shared
+              Private by design · Encrypted at rest · No voice is ever shared
             </p>
           </motion.div>
         </motion.div>

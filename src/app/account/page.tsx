@@ -11,7 +11,7 @@ import { fadeUp, stagger } from "@/lib/motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { Input } from "@/components/ui/Field";
-import { useSession } from "@/lib/session";
+import { useSession, clearLocalSession } from "@/lib/session";
 
 interface Profile {
   subscription_status: string;
@@ -237,6 +237,7 @@ export default function AccountPage() {
     setSigningOut(true);
     const supabase = createClient();
     await supabase.auth.signOut();
+      clearLocalSession();
     router.push("/");
   };
 
@@ -244,6 +245,7 @@ export default function AccountPage() {
     setSigningOut(true);
     const supabase = createClient();
     await supabase.auth.signOut({ scope: "global" });
+    clearLocalSession();
     router.push("/");
   };
 
@@ -283,6 +285,7 @@ export default function AccountPage() {
     if (res.ok) {
       const supabase = createClient();
       await supabase.auth.signOut();
+      clearLocalSession();
       window.location.href = "/";
     } else {
       const json = (await res.json()) as { error?: string };

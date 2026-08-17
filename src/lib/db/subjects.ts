@@ -29,32 +29,12 @@ export async function getSubjects(): Promise<SubjectRow[]> {
   return (data ?? []) as SubjectRow[];
 }
 
-export async function createSubject(params: {
-  name: string;
-  relationship?: string;
-  voiceId?: string;
-  voiceName?: string;
-  persona?: PersonaConfig;
-}): Promise<SubjectRow> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-
-  const { data, error } = await supabase
-    .from("subjects")
-    .insert({
-      user_id: user.id,
-      name: params.name,
-      relationship: params.relationship ?? null,
-      voice_id: params.voiceId ?? null,
-      voice_name: params.voiceName ?? null,
-      persona: params.persona ?? { mode: "persona", name: params.name },
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as SubjectRow;
-}
+// There is deliberately no createSubject here. One existed, took a voiceId
+// straight from its caller, and had no callers at all — which made it a dead
+// public endpoint (every export in a "use server" module is one) that let any
+// signed-in user mint a subject pointing at somebody else's cloned voice, and
+// so pass assertVoiceOwner for it. Subjects are created by the clone route,
+// from a voice that request just made, under the service role.
 
 /**
  * Update a subject the caller owns.

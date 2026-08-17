@@ -8,7 +8,7 @@ import { stagger, fadeUp } from "@/lib/motion";
 const FACTS = [
   { value: "90 seconds", label: "of any recording is enough to begin" },
   { value: "Yours alone", label: "every word encrypted, no voice ever shared" },
-  { value: "No limit", label: "on conversations, memory, or time" },
+  { value: "No clock", label: "on any single conversation" },
 ];
 
 export function Stats() {

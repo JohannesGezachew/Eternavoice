@@ -31,7 +31,7 @@ const HOW_IT_WORKS = [
 ];
 
 const TRUST_SIGNALS = [
-  "End-to-end encrypted",
+  "Encrypted at rest",
   "No voice is ever shared",
   "GDPR compliant",
   "Cancel anytime",
