@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
+import { shapeExtraction } from "./personaExtraction";
 
-vi.mock("server-only", () => ({}));
-process.env.OPENAI_API_KEY ??= "test-key";
-
-const { shapeExtraction } = await import("./route");
+// No server-only mock and no fake API key needed any more: this used to import
+// the route module, which pulled in the OpenAI client and the env loader just
+// to test a pure function.
 
 /**
  * These cover the failure modes that would otherwise cost a user their whole
