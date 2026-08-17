@@ -1,7 +1,7 @@
 import { NewPersonWizard } from "@/components/people/NewPersonWizard";
 
 export const metadata = {
-  title: "New person · EternaVoice",
+  title: "New person",
 };
 
 // The wizard renders its own AppShell so the back arrow can step back
