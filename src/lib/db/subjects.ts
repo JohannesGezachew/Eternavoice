@@ -11,14 +11,18 @@ export interface SubjectRow {
   voice_name: string | null;
   persona: PersonaConfig;
   corpus_quality_score: number | null;
+  /** Set means "hidden from the people page"; the person is otherwise intact. */
+  archived_at: string | null;
   created_at: string;
 }
 
 export async function getSubjects(): Promise<SubjectRow[]> {
   const supabase = await createClient();
+  // Archived subjects are returned like any other: the library hides them, but
+  // their page, conversations and memories all still have to load.
   const { data, error } = await supabase
     .from("subjects")
-    .select("id, name, relationship, voice_id, voice_name, persona, corpus_quality_score, created_at")
+    .select("id, name, relationship, voice_id, voice_name, persona, corpus_quality_score, archived_at, created_at")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
