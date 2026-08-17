@@ -3,7 +3,8 @@ import { PeopleLibrary } from "@/components/people/PeopleLibrary";
 import { AppShell } from "@/components/shell/AppShell";
 
 export const metadata = {
-  title: "Your people · EternaVoice",
+  // The root layout's metadata template already appends " · EternaVoice".
+  title: "Your people",
 };
 
 export default function PeoplePage() {

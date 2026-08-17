@@ -2,7 +2,7 @@ import { TalkGate } from "@/components/people/TalkGate";
 import { DbHydrator } from "@/components/shell/DbHydrator";
 
 export const metadata = {
-  title: "Conversation · EternaVoice",
+  title: "Conversation",
 };
 
 export default async function TalkPage({ params }: { params: Promise<{ id: string }> }) {

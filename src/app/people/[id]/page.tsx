@@ -2,7 +2,7 @@ import { AppShell } from "@/components/shell/AppShell";
 import { PersonHub } from "@/components/people/PersonHub";
 
 export const metadata = {
-  title: "Person · EternaVoice",
+  title: "Person",
 };
 
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
