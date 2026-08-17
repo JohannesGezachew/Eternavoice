@@ -20,7 +20,14 @@ import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
 import { haptic } from "@/lib/haptics";
 import { openingTone, closingTone, saveChime } from "@/lib/sound";
-import { saveConversation, deleteConversationDb, renameConversationDb } from "@/lib/db/conversations";
+import {
+  saveConversation,
+  deleteConversationDb,
+  renameConversationDb,
+  pinConversationDb,
+} from "@/lib/db/conversations";
+import { persistChange } from "@/lib/db/persistChange";
+import { SyncNotice } from "@/components/shell/SyncNotice";
 import { addMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
 import { rememberSpoken } from "@/lib/db/remember";
 import { formatRelativeDay } from "@/lib/utils";
@@ -77,6 +84,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const openConversation = useSession((s) => s.openConversation);
   const deleteConversation = useSession((s) => s.deleteConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
+  const restoreConversation = useSession((s) => s.restoreConversation);
   const renameConversation = useSession((s) => s.renameConversation);
   const resetConversation = useSession((s) => s.resetConversation);
   const addMemoryRecord = useSession((s) => s.addMemoryRecord);
@@ -902,10 +910,18 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     const id = lastKeptMemoryRef.current;
     if (!id) return;
     lastKeptMemoryRef.current = null;
+    const record = useSession.getState().memories.find((m) => m.id === id);
     deleteMemory(id);
-    await deleteMemoryDb(id).catch(console.error);
+    await persistChange({
+      source: "talk-undo-remember",
+      run: () => deleteMemoryDb(id),
+      revert: () => {
+        if (record) addMemoryRecord(record);
+      },
+      describe: "undo that",
+    });
     trackEvent("memory_kept_undone");
-  }, [deleteMemory]);
+  }, [deleteMemory, addMemoryRecord]);
 
   // The transcript pill has no confirmation surface of its own, so it borrows
   // the status line. The bookmark confirms inline and skips this.
@@ -1301,6 +1317,11 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         </div>
       </header>
 
+      {/* No AppShell in the talk room, so this renders its own. Floating,
+          because the room is a fixed-height layout and a banner in the flow
+          would push the conversation itself down. */}
+      <SyncNotice floating />
+
       <main
         className={`relative z-10 flex flex-1 flex-col items-center justify-center px-6 transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] sm:px-8 ${
           showTranscript && !ambient ? "lg:pr-[28rem]" : ""
@@ -1635,10 +1656,30 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             setShowHistory(false);
             router.push(`/people/${person}/conversations/${conversation.id}`);
           }}
-          onPin={toggleConversationPin}
+          onPin={(id) => {
+            // This only ever changed the local store, so a pin set from inside
+            // the conversation survived until the next load and then quietly
+            // came undone.
+            const pinned = conversations.find((c) => c.id === id)?.pinned ?? false;
+            toggleConversationPin(id);
+            void persistChange({
+              source: "talk-pin",
+              run: () => pinConversationDb(id, !pinned),
+              revert: () => toggleConversationPin(id),
+              describe: pinned ? "unpin that" : "pin that",
+            });
+          }}
           onRename={(id, title) => {
+            const previous = conversations.find((c) => c.id === id)?.title;
             renameConversation(id, title);
-            void renameConversationDb(id, title).catch(console.error);
+            void persistChange({
+              source: "talk-rename",
+              run: () => renameConversationDb(id, title),
+              revert: () => {
+                if (previous !== undefined) renameConversation(id, previous);
+              },
+              describe: "rename that conversation",
+            });
           }}
           onDelete={(id, title) => setPendingDelete({ id, title })}
           onPlay={(conversation) => void playConversationLine(conversation)}
@@ -1652,8 +1693,16 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           confirmLabel="Delete conversation"
           onConfirm={() => {
             if (pendingDelete) {
+              const record = conversations.find((c) => c.id === pendingDelete.id);
               deleteConversation(pendingDelete.id);
-              void deleteConversationDb(pendingDelete.id).catch(console.error);
+              void persistChange({
+                source: "talk-delete",
+                run: () => deleteConversationDb(pendingDelete.id),
+                revert: () => {
+                  if (record) restoreConversation(record);
+                },
+                describe: "delete that conversation",
+              });
             }
             setPendingDelete(null);
           }}

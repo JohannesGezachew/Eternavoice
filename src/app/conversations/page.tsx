@@ -14,6 +14,7 @@ import {
   pinConversationDb,
   deleteConversationDb,
 } from "@/lib/db/conversations";
+import { persistChange } from "@/lib/db/persistChange";
 import { exportConversation } from "@/lib/exportConversation";
 import type { SubjectRow } from "@/lib/db/subjects";
 import type { ConversationRecord } from "@/lib/types";
@@ -34,6 +35,7 @@ export default function ConversationsPage() {
   const renameConversation = useSession((s) => s.renameConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
   const deleteConversation = useSession((s) => s.deleteConversation);
+  const restoreConversation = useSession((s) => s.restoreConversation);
 
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [personFilter, setPersonFilter] = useState<string | null>(null);
@@ -151,11 +153,22 @@ export default function ConversationsPage() {
               }}
               onPin={(conversation) => {
                 toggleConversationPin(conversation.id);
-                void pinConversationDb(conversation.id, !conversation.pinned).catch(console.error);
+                void persistChange({
+                  source: "conversations-pin",
+                  run: () => pinConversationDb(conversation.id, !conversation.pinned),
+                  revert: () => toggleConversationPin(conversation.id),
+                  describe: conversation.pinned ? "unpin that" : "pin that",
+                });
               }}
               onRename={(conversation, title) => {
+                const previous = conversation.title;
                 renameConversation(conversation.id, title);
-                void renameConversationDb(conversation.id, title).catch(console.error);
+                void persistChange({
+                  source: "conversations-rename",
+                  run: () => renameConversationDb(conversation.id, title),
+                  revert: () => renameConversation(conversation.id, previous),
+                  describe: "rename that conversation",
+                });
               }}
               onDelete={(conversation) =>
                 setPendingDelete({ id: conversation.id, title: conversation.title })
@@ -175,8 +188,18 @@ export default function ConversationsPage() {
         confirmLabel="Delete conversation"
         onConfirm={() => {
           if (pendingDelete) {
+            // Captured before the store drops it, so a failed delete can put
+            // the whole record back rather than a stub.
+            const record = conversations.find((c) => c.id === pendingDelete.id);
             deleteConversation(pendingDelete.id);
-            void deleteConversationDb(pendingDelete.id).catch(console.error);
+            void persistChange({
+              source: "conversations-delete",
+              run: () => deleteConversationDb(pendingDelete.id),
+              revert: () => {
+                if (record) restoreConversation(record);
+              },
+              describe: "delete that conversation",
+            });
           }
           setPendingDelete(null);
         }}
