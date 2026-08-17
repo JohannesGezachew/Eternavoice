@@ -233,7 +233,7 @@ export function NewPersonWizard() {
                       ? "text-[var(--color-ember)]"
                       : state === "done"
                         ? "text-[var(--color-text-secondary)]"
-                        : "text-[var(--color-text-tertiary)]/70",
+                        : "text-[var(--color-text-tertiary)]",
                   )}
                   aria-current={state === "active" ? "step" : undefined}
                 >

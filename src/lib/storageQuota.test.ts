@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { isQuotaExceeded, quotaAwareStorage } from "./storageQuota";
 
 /**
@@ -37,6 +37,17 @@ function fakeStorage(limitBytes = Infinity): Storage & { size: () => number } {
   };
 }
 
+// Writes are debounced (600ms trailing) so a streamed reply does not block the
+// main thread fifteen times. Every assertion below therefore advances timers.
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => vi.useRealTimers());
+
+/** Perform a write and let the debounce settle. */
+function write(storage: Storage, key: string, value: string) {
+  storage.setItem(key, value);
+  vi.advanceTimersByTime(1000);
+}
+
 describe("isQuotaExceeded", () => {
   it("recognises the quota error from every engine that raises one", () => {
     // Chrome / Safari.
@@ -66,7 +77,7 @@ describe("quotaAwareStorage", () => {
   it("reads and writes through when there is room, and reports healthy", () => {
     const flags: boolean[] = [];
     const store = quotaAwareStorage(fakeStorage(), (full) => flags.push(full));
-    store.setItem("a", "1");
+    write(store, "a", "1");
     expect(store.getItem("a")).toBe("1");
     expect(store.length).toBe(1);
     expect(flags).toEqual([false]);
@@ -75,11 +86,11 @@ describe("quotaAwareStorage", () => {
   it("reports a full store instead of letting the write vanish silently", () => {
     const flags: boolean[] = [];
     const store = quotaAwareStorage(fakeStorage(8), (full) => flags.push(full));
-    store.setItem("k", "v");
+    write(store, "k", "v");
     expect(flags).toEqual([false]);
 
     // Over the ceiling: persist would have swallowed this and carried on.
-    store.setItem("k", "a".repeat(64));
+    write(store, "k", "a".repeat(64));
     expect(flags).toEqual([false, true]);
     // The old value survives — a failed write must not destroy what was there.
     expect(store.getItem("k")).toBe("v");
@@ -87,17 +98,17 @@ describe("quotaAwareStorage", () => {
 
   it("does not throw on a quota failure — a cache write must not end a conversation", () => {
     const store = quotaAwareStorage(fakeStorage(1), () => {});
-    expect(() => store.setItem("k", "value")).not.toThrow();
+    expect(() => write(store, "k", "value")).not.toThrow();
   });
 
   it("clears the flag once a write lands again", () => {
     const flags: boolean[] = [];
     const base = fakeStorage(24);
     const store = quotaAwareStorage(base, (full) => flags.push(full));
-    store.setItem("k", "a".repeat(64));
+    write(store, "k", "a".repeat(64));
     expect(flags.at(-1)).toBe(true);
     // The user freed up space. Leaving the notice up after that is its own bug.
-    store.setItem("k", "small");
+    write(store, "k", "small");
     expect(flags.at(-1)).toBe(false);
   });
 
@@ -111,6 +122,33 @@ describe("quotaAwareStorage", () => {
     const store = quotaAwareStorage(base, () => {});
     // Swallowing this would hide a different problem behind a "disk full"
     // message the user cannot act on.
-    expect(() => store.setItem("k", "v")).toThrow("blocked");
+    expect(() => write(store, "k", "v")).toThrow("blocked");
+  });
+
+  it("collapses a burst into one write", () => {
+    // The whole point: a streamed reply produced ~15 synchronous serialisations
+    // of the entire persisted slice, between sentences, on the main thread.
+    let writes = 0;
+    const base = fakeStorage();
+    const inner = base.setItem.bind(base);
+    base.setItem = (k: string, v: string) => {
+      writes++;
+      inner(k, v);
+    };
+    const store = quotaAwareStorage(base, () => {});
+    for (let i = 0; i < 15; i++) store.setItem("k", `value ${i}`);
+    expect(writes).toBe(0);
+    vi.advanceTimersByTime(1000);
+    expect(writes).toBe(1);
+    expect(base.getItem("k")).toBe("value 14");
+  });
+
+  it("reads back a write that has not reached the disk yet", () => {
+    // A reload inside the debounce window must not rehydrate a stale version.
+    const base = fakeStorage();
+    const store = quotaAwareStorage(base, () => {});
+    store.setItem("k", "fresh");
+    expect(base.getItem("k")).toBeNull();
+    expect(store.getItem("k")).toBe("fresh");
   });
 });

@@ -49,29 +49,76 @@ export function isQuotaExceeded(error: unknown): boolean {
  * Anything else — a SecurityError from a blocked origin, say — still throws,
  * because pretending to have handled it would hide a different problem.
  */
+/**
+ * How long writes are held before hitting the disk.
+ *
+ * zustand's persist writes on every single `set()`, synchronously. A five
+ * sentence reply produces roughly fifteen of them — one per streamed sentence,
+ * one per audio chunk, plus the status transitions — and each one serialises
+ * the whole persisted slice and blocks the main thread on a disk write. That
+ * lands squarely between sentences, while two animation-frame loops are trying
+ * to hold 60fps and decodeAudioData is trying to schedule gapless audio.
+ *
+ * Trailing-edge, so a burst collapses to one write once it settles.
+ */
+const WRITE_DELAY_MS = 600;
+
 export function quotaAwareStorage(
   base: Storage,
   onFull: (full: boolean) => void,
 ): Storage {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: { key: string; value: string } | null = null;
+
+  const flush = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    const write = pending;
+    pending = null;
+    if (write) commit(write.key, write.value);
+  };
+
+  const commit = (key: string, value: string) => {
+    try {
+      base.setItem(key, value);
+      onFull(false);
+    } catch (error) {
+      if (!isQuotaExceeded(error)) throw error;
+      onFull(true);
+    }
+  };
+
+  // A tab closing mid-debounce would otherwise lose the last write. This is
+  // the one moment the synchronous cost is worth paying.
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush();
+    });
+  }
+
   return {
     get length() {
       return base.length;
     },
     key: (index) => base.key(index),
-    getItem: (key) => base.getItem(key),
-    removeItem: (key) => base.removeItem(key),
-    clear: () => base.clear(),
+    // Reads must see the pending write, or a reload during the debounce
+    // window would rehydrate from a version that is already stale.
+    getItem: (key) => (pending?.key === key ? pending.value : base.getItem(key)),
+    removeItem: (key) => {
+      if (pending?.key === key) pending = null;
+      base.removeItem(key);
+    },
+    clear: () => {
+      pending = null;
+      base.clear();
+    },
     setItem(key, value) {
-      try {
-        base.setItem(key, value);
-        // A write that lands means room was made since the last failure.
-        // Without this the notice would stay up for the rest of the session
-        // after the user had already fixed it.
-        onFull(false);
-      } catch (error) {
-        if (!isQuotaExceeded(error)) throw error;
-        onFull(true);
-      }
+      pending = { key, value };
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(flush, WRITE_DELAY_MS);
     },
   };
 }
