@@ -32,6 +32,23 @@ export const MONTHLY_ALLOWANCE = {
    *  minutes of speech — roughly what forty conversational replies cost — and
    *  the provider bills per character. */
   reading: 40,
+  /** Replaying or re-saving a past line. Its own ceiling because it
+   *  synthesizes up to 4,000 characters per call and had only an hourly burst
+   *  guard — which bounds the rate and not the month, so the yearly total was
+   *  unbounded. */
+  tts: 300,
+  /** Voice input. Same reasoning: a 12 MB upload is ~50 minutes of billable
+   *  audio, and an hourly guard alone never meets a wall. */
+  transcribe: 1200,
+  /** Building a persona from a spoken narration. This route had no limiter of
+   *  any kind — not even a burst guard — on a gpt-4o call with a 12,000
+   *  character input. It was the only paid endpoint in the app with no cost
+   *  control whatsoever. */
+  personaExtract: 30,
+  /** Summarising a conversation into memories. Called periodically and on
+   *  every exit, so the ceiling is generous — but it had none at all, on a
+   *  route that accepts an 800,000 character transcript. */
+  summarise: 400,
 } as const;
 
 export type AllowanceScope = keyof typeof MONTHLY_ALLOWANCE;

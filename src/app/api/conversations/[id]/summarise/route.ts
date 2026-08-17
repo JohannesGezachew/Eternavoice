@@ -5,6 +5,7 @@ import { deriveUserKey, encryptField, decryptField } from "@/lib/crypto";
 import { isAutoTitle, normaliseTitle } from "@/lib/conversations";
 import { openai } from "@/lib/openai";
 import { env } from "@/lib/env";
+import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 // A long transcript through gpt-4o-mini routinely exceeds the 10s default,
@@ -45,6 +46,20 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  // The only money-spending route in the app with no ceiling at all — on an
+  // endpoint the client fires periodically AND from every exit handler, with
+  // an 800,000 character input cap.
+  const limit = await checkRate(
+    { scope: "summarise", windowMs: 60 * 60 * 1000, max: 60 },
+    user.id,
+  );
+  if (!limit.ok) return NextResponse.json({ ok: false, reason: "rate_limited" }, { status: 429 });
+
+  const allowance = await consumeAllowance("summarise", user.id);
+  if (!allowance.ok) {
+    return NextResponse.json({ ok: false, reason: "allowance_reached" }, { status: 429 });
+  }
+
   // Told to the summariser so it writes "you" instead of reaching for the name
   // it can see in the transcript.
   let speakerName: string | undefined;
@@ -65,7 +80,9 @@ export async function POST(
 
   // One call, two artifacts: the session summary (continuity between
   // conversations) and durable facts (memories the persona carries forever).
-  const response = await openai().chat.completions.create({
+  let response;
+  try {
+    response = await openai().chat.completions.create({
     model: "gpt-4o-mini",
     max_tokens: 1500,
     response_format: { type: "json_object" },
@@ -89,7 +106,14 @@ export async function POST(
       },
       { role: "user", content: transcript },
     ],
-  });
+    });
+  } catch (err) {
+    // Arrives by sendBeacon, so there is no retry and no way to tell anyone.
+    // An unhandled throw here became a 500 that silently lost the session
+    // summary AND that conversation's durable memories.
+    console.error("[summarise] model call failed:", err);
+    return NextResponse.json({ ok: false, reason: "model_unavailable" }, { status: 200 });
+  }
 
   let summary = "";
   let facts: string[] = [];
@@ -207,7 +231,10 @@ export async function POST(
     const fresh = facts.filter((f) => !seen.has(f.trim().toLowerCase()));
     if (fresh.length) {
       const now = new Date().toISOString();
-      await supabase.from("memories").insert(
+      // Checked, unlike before: an unchecked insert here meant memory capture —
+      // the product's core promise — could fail completely while the route
+      // still returned { ok: true, facts: N } claiming N were stored.
+      const { error: memErr } = await supabase.from("memories").insert(
         fresh.map((content) => ({
           user_id: user.id,
           subject_id: body.subjectId,
@@ -219,7 +246,11 @@ export async function POST(
           updated_at: now,
         })),
       );
-      added = fresh.length;
+      if (memErr) {
+        console.error("[summarise] memories insert failed:", memErr.message);
+      } else {
+        added = fresh.length;
+      }
     }
   }
 

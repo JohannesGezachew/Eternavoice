@@ -3,7 +3,7 @@ import { z } from "zod";
 import { elevenlabs, VOICE_SETTINGS } from "@/lib/elevenlabs";
 import { env } from "@/lib/env";
 import { assertVoiceOwner } from "@/lib/db/voiceOwnership";
-import { checkRate } from "@/lib/rateLimit";
+import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,6 +45,16 @@ export async function POST(request: Request) {
   if (!limit.ok) {
     return NextResponse.json(
       { error: "That's a lot of replays at once — give it a moment." },
+      { status: 429 },
+    );
+  }
+
+  // An hourly guard bounds the rate, never the month — 120 calls an hour at
+  // 4,000 characters each has no yearly ceiling at all.
+  const allowance = await consumeAllowance("tts", owner.userId);
+  if (!allowance.ok) {
+    return NextResponse.json(
+      { error: "monthly_allowance_reached", scope: "tts", resetsAt: allowance.resetsAt },
       { status: 429 },
     );
   }

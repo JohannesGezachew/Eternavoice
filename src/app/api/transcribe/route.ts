@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
 import { env } from "@/lib/env";
-import { checkRate } from "@/lib/rateLimit";
+import { checkRate, consumeAllowance } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -23,6 +23,16 @@ export async function POST(request: Request) {
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many transcriptions in this session." },
+      { status: 429 },
+    );
+  }
+
+  // Same shape as /api/tts: an hourly burst guard with no monthly ceiling. A
+  // 12 MB upload is roughly fifty minutes of billable audio.
+  const allowance = await consumeAllowance("transcribe", user.id);
+  if (!allowance.ok) {
+    return NextResponse.json(
+      { error: "monthly_allowance_reached", scope: "transcribe", resetsAt: allowance.resetsAt },
       { status: 429 },
     );
   }
