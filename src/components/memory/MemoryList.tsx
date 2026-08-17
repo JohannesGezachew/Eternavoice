@@ -30,7 +30,15 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
   // This person's memories, plus legacy unscoped notes from before memories
   // were per-person. Auto-extracted ones stay out unless the page has asked
   // for them — see selectMemories for why that rule lives in one place.
-  const scoped = selectMemories(memories, { subjectId, includeAuto: showAuto });
+  //
+  // With nothing kept by hand for this person, theirs are shown instead: an
+  // empty panel is never more useful than the memories they are actually
+  // carrying, and it makes the whole page look broken.
+  const kept = selectMemories(memories, { subjectId });
+  const scoped =
+    showAuto || kept.length === 0
+      ? selectMemories(memories, { subjectId, includeAuto: true })
+      : kept;
 
   const saveDraft = () => {
     const trimmed = draft.trim();
