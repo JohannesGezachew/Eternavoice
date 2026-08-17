@@ -36,6 +36,30 @@
   --color-text-secondary: #b8b1a4;
   --color-text-tertiary: #948e83;
 
+  /* ── Type scale ─────────────────────────────────────────────────────────
+     Seven steps, replacing the 32 one-off pixel sizes this app had grown.
+     Named for the job rather than a t-shirt size, because "small" and "body"
+     are decisions someone can make without measuring.
+
+     In rem, deliberately: the reading-size control on the account screen
+     scales the root, and pixel values would ignore it. That control is the
+     reason this exists — the audience skews older, and a voice companion
+     someone reads at arm's length has to be legible at their size, not ours. */
+  --text-micro: 0.6875rem;    /* 11px — eyebrows, timestamps, meta */
+  --text-micro--line-height: 1.45;
+  --text-small: 0.8125rem;    /* 13px — secondary UI, buttons, captions */
+  --text-small--line-height: 1.5;
+  --text-body: 0.9375rem;     /* 15px — default reading size */
+  --text-body--line-height: 1.6;
+  --text-lead: 1.0625rem;     /* 17px — list titles, emphasis */
+  --text-lead--line-height: 1.5;
+  --text-title: 1.3125rem;    /* 21px — spotlight, serif body */
+  --text-title--line-height: 1.45;
+  --text-display: 1.75rem;    /* 28px — page headings */
+  --text-display--line-height: 1.15;
+  --text-hero: 2.75rem;       /* 44px — landing */
+  --text-hero--line-height: 1.05;
+
   --ease-calm: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -114,6 +138,13 @@ html:not([data-theme="dark"]) [class*="hover:bg-white/"]:hover {
 @layer base {
   :root {
     color-scheme: dark;
+  }
+
+  /* Reading size. --ui-scale is set on <html> by the pre-paint script from
+     the stored preference, so text never reflows after first paint. Every
+     size in the scale above is in rem, so one variable moves all of them. */
+  html {
+    font-size: calc(16px * var(--ui-scale, 1));
   }
 
   html,

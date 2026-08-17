@@ -113,7 +113,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
               <span className="absolute inset-[-5px] animate-ping rounded-full bg-[var(--color-ember)]/30" />
               <span className="relative h-2 w-2 rounded-full bg-[var(--color-ember)]" />
             </span>
-            <span className="text-[13px] text-[var(--color-bone-dim)]">
+            <span className="text-small text-[var(--color-bone-dim)]">
               Analyzing audio…
             </span>
           </div>
@@ -144,18 +144,18 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
             <button
               type="button"
               onClick={() => wsRef.current?.playPause()}
-              className="text-[12px] text-[var(--color-bone-dim)] transition-colors hover:text-[var(--color-bone)]"
+              className="text-small text-[var(--color-bone-dim)] transition-colors hover:text-[var(--color-bone)]"
             >
               {isPlaying ? "Pause" : "Play"}
             </button>
-            <span className="text-[12px] text-[var(--color-bone-dim)]/80">
+            <span className="text-small text-[var(--color-bone-dim)]/80">
               {fmt(currentTime)} / {fmt(totalDuration)}
             </span>
             <button
               type="button"
               onClick={() => void suggestBestClip()}
               disabled={isSuggesting}
-              className="text-[11px] text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)] disabled:opacity-50 sm:ml-auto"
+              className="text-micro text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)] disabled:opacity-50 sm:ml-auto"
             >
               {isSuggesting ? "Finding clip..." : "Suggest best clip"}
             </button>
@@ -163,7 +163,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
               <button
                 type="button"
                 onClick={clearRegion}
-                className="text-[11px] text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)]"
+                className="text-micro text-[var(--color-bone-dim)]/80 transition-colors hover:text-[var(--color-bone-dim)]"
               >
                 Clear selection
               </button>
@@ -183,7 +183,7 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
               key={label}
               type="button"
               onClick={() => selectRange(Number(start), Number(start) + Math.min(60, totalDuration))}
-              className="rounded-full border border-[var(--color-rule-strong)] px-3 py-1.5 text-[11px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              className="rounded-full border border-[var(--color-rule-strong)] px-3 py-1.5 text-micro text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
             >
               {label}
             </button>
@@ -192,14 +192,14 @@ export function AudioClipper({ url, showNudge, onDurationReady, onRegionChange }
       ) : null}
 
       {showNudge && !hasRegion && !isLoading ? (
-        <p className="text-[12px] leading-[1.6] text-[var(--color-bone-dim)]">
+        <p className="text-small leading-[1.6] text-[var(--color-bone-dim)]">
           Long recording — drag on the waveform to pick the clearest 30–60 seconds,
           or just use the whole thing.
         </p>
       ) : null}
 
       {hasRegion ? (
-        <p className="text-[12px] text-[var(--color-bone-dim)]">
+        <p className="text-small text-[var(--color-bone-dim)]">
           Selected clip will be used to create the voice.
         </p>
       ) : null}

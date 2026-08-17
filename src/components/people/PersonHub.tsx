@@ -181,16 +181,16 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
               editable
             />
             <div className="flex min-w-0 flex-col gap-1">
-              <h1 className="font-serif text-[30px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[36px]">
+              <h1 className="font-serif text-display leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-hero">
                 {subject.name}
               </h1>
               <div className="flex flex-wrap items-center gap-2">
                 {subject.relationship ? (
-                  <span className="inline-flex items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-secondary)]">
+                  <span className="inline-flex items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-micro text-[var(--color-text-secondary)]">
                     {subject.relationship}
                   </span>
                 ) : null}
-                <span className="text-[12px] text-[var(--color-text-tertiary)]">
+                <span className="text-small text-[var(--color-text-tertiary)]">
                   Added{" "}
                   {new Date(subject.created_at).toLocaleDateString("en-GB", {
                     day: "numeric",
@@ -209,12 +209,12 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
           className="flex flex-col gap-4 rounded-2xl border border-[var(--color-rule)] bg-white/[0.018] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
         >
           <div className="flex flex-col gap-1">
-            <p className="text-[15px] text-[var(--color-bone)]">
+            <p className="text-body text-[var(--color-bone)]">
               {lastConversation
                 ? `Last spoke ${formatRelativeDay(lastConversation.updatedAt)} · ${lastConversation.turns.length} turns`
                 : "You haven't spoken yet."}
             </p>
-            <p className="text-[12px] text-[var(--color-text-tertiary)]">
+            <p className="text-small text-[var(--color-text-tertiary)]">
               {lastConversation
                 ? "Pick up where you left off, or start fresh."
                 : `${subject.name} will speak first.`}
@@ -238,7 +238,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                 role="tab"
                 aria-selected={tab === id}
                 onClick={() => setChosenTab(id)}
-                className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-[13px] transition-colors duration-200 ${
+                className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-small transition-colors duration-200 ${
                   tab === id
                     ? "bg-white/[0.06] text-[var(--color-bone)]"
                     : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]"
@@ -298,16 +298,16 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
             <button
               type="button"
               onClick={() => { setConfirmDelete(true); setDeleteNameInput(""); setDeleteError(null); }}
-              className="cursor-pointer text-[13px] text-[var(--color-text-tertiary)] underline underline-offset-4 transition-colors hover:text-[var(--color-danger)]"
+              className="cursor-pointer text-small text-[var(--color-text-tertiary)] underline underline-offset-4 transition-colors hover:text-[var(--color-danger)]"
             >
               Remove {subject.name} from EternaVoice
             </button>
           ) : (
             <div className="w-full max-w-md rounded-2xl border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/[0.04] p-5">
-              <p className="text-[14px] font-medium text-[var(--color-danger)]">
+              <p className="text-body font-medium text-[var(--color-danger)]">
                 This permanently deletes their voice, memories, and all conversations.
               </p>
-              <p className="mt-2 text-[13px] leading-[1.6] text-[var(--color-text-secondary)]">
+              <p className="mt-2 text-small leading-[1.6] text-[var(--color-text-secondary)]">
                 Type <strong className="text-[var(--color-bone)]">{subject.name}</strong> to confirm.
               </p>
               <input
@@ -316,24 +316,24 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                 onChange={(e) => setDeleteNameInput(e.target.value)}
                 placeholder={subject.name}
                 autoFocus
-                className="mt-3 w-full rounded-xl bg-white/[0.025] px-4 py-3 text-[14px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/40 focus:outline-none focus:ring-1 focus:ring-[var(--color-danger)]/40 hairline"
+                className="mt-3 w-full rounded-xl bg-white/[0.025] px-4 py-3 text-body text-[var(--color-bone)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-danger)]/40 hairline"
               />
               {deleteError && (
-                <p className="mt-2 text-[12px] text-[var(--color-danger)]" role="alert">{deleteError}</p>
+                <p className="mt-2 text-small text-[var(--color-danger)]" role="alert">{deleteError}</p>
               )}
               <div className="mt-4 flex gap-2.5">
                 <button
                   type="button"
                   onClick={() => void deletePerson()}
                   disabled={deleting || deleteNameInput.trim() !== subject.name.trim()}
-                  className="flex h-10 cursor-pointer items-center rounded-full bg-[var(--color-danger)] px-5 text-[13px] text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-10 cursor-pointer items-center rounded-full bg-[var(--color-danger)] px-5 text-small text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {deleting ? "Removing…" : "Remove permanently"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setConfirmDelete(false); setDeleteNameInput(""); }}
-                  className="flex h-10 cursor-pointer items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+                  className="flex h-10 cursor-pointer items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
                 >
                   Cancel
                 </button>
@@ -363,21 +363,21 @@ function PersonaReadView({
       {/* Name + relationship */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Name</span>
-          <span className="text-[15px] text-[var(--color-bone)]">{subject.name}</span>
+          <span className="text-micro tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Name</span>
+          <span className="text-body text-[var(--color-bone)]">{subject.name}</span>
         </div>
         {subject.relationship && (
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Relationship</span>
-            <span className="text-[15px] text-[var(--color-bone)]">{subject.relationship}</span>
+            <span className="text-micro tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Relationship</span>
+            <span className="text-body text-[var(--color-bone)]">{subject.relationship}</span>
           </div>
         )}
       </div>
 
       {hasDescription && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Who they were</span>
-          <p className="text-[14px] leading-[1.7] text-[var(--color-bone)]/85 whitespace-pre-wrap">
+          <span className="text-micro tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Who they were</span>
+          <p className="text-body leading-[1.7] text-[var(--color-bone)]/85 whitespace-pre-wrap">
             {persona.description}
           </p>
         </div>
@@ -385,15 +385,15 @@ function PersonaReadView({
 
       {hasCatchphrases && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Things they said</span>
-          <p className="text-[14px] leading-[1.7] text-[var(--color-bone)]/85 whitespace-pre-wrap">
+          <span className="text-micro tracking-[0.12em] text-[var(--color-text-tertiary)] uppercase">Things they said</span>
+          <p className="text-body leading-[1.7] text-[var(--color-bone)]/85 whitespace-pre-wrap">
             {persona.catchphrases}
           </p>
         </div>
       )}
 
       {!hasDescription && !hasCatchphrases && (
-        <p className="text-[14px] leading-[1.7] text-[var(--color-text-secondary)]">
+        <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
           No details added yet. Edit to help shape how they speak.
         </p>
       )}
@@ -402,7 +402,7 @@ function PersonaReadView({
         <button
           type="button"
           onClick={onEdit}
-          className="flex h-10 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-rule-strong)] px-5 text-[13px] text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]"
+          className="flex h-10 cursor-pointer items-center gap-2 rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone-dim)] transition hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />

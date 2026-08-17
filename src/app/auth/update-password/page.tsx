@@ -108,12 +108,12 @@ export default function UpdatePasswordPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.25 }}
-                className="font-serif text-[28px] leading-tight tracking-[-0.02em] sm:text-[32px]"
+                className="font-serif text-display leading-tight tracking-[-0.02em]"
               >
                 {done ? "Password updated" : "Set a new password"}
               </motion.h1>
             </AnimatePresence>
-            <p className="text-[14px] leading-relaxed text-[var(--color-bone-dim)]">
+            <p className="text-body leading-relaxed text-[var(--color-bone-dim)]">
               {done
                 ? "Taking you to your voices…"
                 : "Choose something secure you'll remember."}
@@ -136,7 +136,7 @@ export default function UpdatePasswordPage() {
                 <div className="flex flex-col gap-1.5">
                   <label
                     htmlFor="new-password"
-                    className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                    className="text-micro tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
                   >
                     New password
                   </label>
@@ -158,7 +158,7 @@ export default function UpdatePasswordPage() {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       tabIndex={-1}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-bone-dim)]/40 transition hover:text-[var(--color-bone-dim)]"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone-dim)]"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? <EyeOffIcon /> : <EyeIcon />}
@@ -187,7 +187,7 @@ export default function UpdatePasswordPage() {
                             />
                           ))}
                         </div>
-                        <span className="text-[11px] text-[var(--color-bone-dim)]/60">
+                        <span className="text-micro text-[var(--color-bone-dim)]/60">
                           {strength.label}
                         </span>
                       </motion.div>
@@ -200,17 +200,17 @@ export default function UpdatePasswordPage() {
                   <div className="flex items-center justify-between">
                     <label
                       htmlFor="confirm-password"
-                      className="text-[11px] tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
+                      className="text-micro tracking-[0.1em] text-[var(--color-bone-dim)]/70 uppercase"
                     >
                       Confirm password
                     </label>
                     {matches === false && confirmPassword.length >= 4 && (
-                      <span className="text-[11px] text-[var(--color-danger)]">
+                      <span className="text-micro text-[var(--color-danger)]">
                         Doesn&apos;t match
                       </span>
                     )}
                     {matches === true && (
-                      <span className="text-[11px] text-emerald-400">Matches</span>
+                      <span className="text-micro text-emerald-400">Matches</span>
                     )}
                   </div>
                   <div className="relative">
@@ -230,7 +230,7 @@ export default function UpdatePasswordPage() {
                       type="button"
                       onClick={() => setShowConfirm((v) => !v)}
                       tabIndex={-1}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-bone-dim)]/40 transition hover:text-[var(--color-bone-dim)]"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone-dim)]"
                       aria-label={showConfirm ? "Hide password" : "Show password"}
                     >
                       {showConfirm ? <EyeOffIcon /> : <EyeIcon />}
@@ -240,13 +240,13 @@ export default function UpdatePasswordPage() {
 
                 {error && (
                   <div className="flex flex-col gap-2">
-                    <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+                    <p className="text-small text-[var(--color-danger)]" role="alert">
                       {error}
                     </p>
                     {error.includes("expired") && (
                       <a
                         href="/auth/login"
-                        className="text-[13px] text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-80"
+                        className="text-small text-[var(--color-ember)] underline underline-offset-4 transition hover:opacity-80"
                       >
                         Request a new reset link →
                       </a>
@@ -266,7 +266,7 @@ export default function UpdatePasswordPage() {
                   {loading ? <Spinner dark /> : "Update password"}
                 </button>
 
-                <p className="text-center text-[12px] text-[var(--color-text-tertiary)]">
+                <p className="text-center text-small text-[var(--color-text-tertiary)]">
                   Remember it now?{" "}
                   <a
                     href="/auth/login"
@@ -288,7 +288,7 @@ export default function UpdatePasswordPage() {
                 className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-3.5"
               >
                 <CheckIcon />
-                <p className="text-[13px] text-emerald-300">
+                <p className="text-small text-emerald-300">
                   Your password has been updated successfully.
                 </p>
               </motion.div>

@@ -77,7 +77,7 @@ function Avatar({ email }: { email: string }) {
         background: "radial-gradient(closest-side, rgba(194,120,74,0.18), rgba(194,120,74,0.04) 70%, transparent)",
       }}
     >
-      <span className="font-serif text-[18px] tracking-wide text-[var(--color-ember)]">{initials}</span>
+      <span className="font-serif text-lead tracking-wide text-[var(--color-ember)]">{initials}</span>
     </div>
   );
 }
@@ -115,6 +115,23 @@ function storedAppearance(): Appearance {
   }
 }
 
+/** Reading sizes. Kept modest — beyond ~1.3 the talk room's fixed chrome
+ *  starts to crowd, and the browser's own zoom is the better tool past that. */
+const TEXT_SIZES: Array<{ value: number; label: string }> = [
+  { value: 1, label: "Default" },
+  { value: 1.12, label: "Larger" },
+  { value: 1.25, label: "Largest" },
+];
+
+function storedTextScale(): number {
+  try {
+    const s = parseFloat(localStorage.getItem("ev-text-scale") ?? "1");
+    return TEXT_SIZES.some((t) => t.value === s) ? s : 1;
+  } catch {
+    return 1;
+  }
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const prefs = useSession((s) => s.prefs);
@@ -123,6 +140,18 @@ export default function AccountPage() {
   const conversations = useSession((s) => s.conversations);
   const memories = useSession((s) => s.memories);
   const [appearance, setAppearance] = useState<Appearance>("system");
+  const [textScale, setTextScale] = useState(1);
+
+  const applyTextScale = (scale: number) => {
+    setTextScale(scale);
+    try {
+      if (scale === 1) localStorage.removeItem("ev-text-scale");
+      else localStorage.setItem("ev-text-scale", String(scale));
+      document.documentElement.style.setProperty("--ui-scale", String(scale));
+    } catch {
+      // size stays as-is
+    }
+  };
 
   const applyAppearance = (mode: Appearance) => {
     setAppearance(mode);
@@ -162,7 +191,10 @@ export default function AccountPage() {
 
   useEffect(() => {
     // Reflect the stored appearance once we're safely past hydration.
-    const t = setTimeout(() => setAppearance(storedAppearance()), 0);
+    const t = setTimeout(() => {
+      setAppearance(storedAppearance());
+      setTextScale(storedTextScale());
+    }, 0);
     return () => clearTimeout(t);
   }, []);
 
@@ -295,8 +327,8 @@ export default function AccountPage() {
         <motion.div variants={fadeUp} className="flex items-center gap-4 py-2">
           <Avatar email={email} />
           <div className="flex flex-col gap-0.5">
-            <p className="text-[15px] text-[var(--color-bone)]">{email}</p>
-            <p className="text-[12px] text-[var(--color-bone-dim)]/80">Your account</p>
+            <p className="text-body text-[var(--color-bone)]">{email}</p>
+            <p className="text-small text-[var(--color-bone-dim)]/80">Your account</p>
           </div>
         </motion.div>
 
@@ -304,10 +336,10 @@ export default function AccountPage() {
         <Section>
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-[11px] uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
+              <h2 className="text-micro uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
                 Subscription
               </h2>
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] ${statusCfg.badge}`}>
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-micro ${statusCfg.badge}`}>
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
                 {trialExpired
                   ? "Trial ended"
@@ -321,8 +353,8 @@ export default function AccountPage() {
 
             <div className="flex items-center justify-between">
               <div className="flex flex-col gap-0.5">
-                <p className="text-[14px] text-[var(--color-bone)]">EternaVoice</p>
-                <p className="text-[12px] text-[var(--color-bone-dim)]/80">
+                <p className="text-body text-[var(--color-bone)]">EternaVoice</p>
+                <p className="text-small text-[var(--color-bone-dim)]/80">
                   $30/month · cancel anytime
                   {profile?.trial_ends_at && trialDaysLeftValue !== null && trialDaysLeftValue > 0 && (
                     <span className="block text-[var(--color-ember)]">
@@ -335,14 +367,14 @@ export default function AccountPage() {
                 <button
                   onClick={() => void openPortal()}
                   disabled={portalLoading}
-                  className={buttonClasses({ variant: "outline", size: "md", className: "px-4 text-[13px]" })}
+                  className={buttonClasses({ variant: "outline", size: "md", className: "px-4 text-small" })}
                 >
                   {portalLoading ? "Opening…" : "Manage billing"}
                 </button>
               ) : (
                 <Link
                   href="/subscribe"
-                  className={buttonClasses({ variant: "primary", size: "md", className: "px-5 text-[13px]" })}
+                  className={buttonClasses({ variant: "primary", size: "md", className: "px-5 text-small" })}
                 >
                   Subscribe
                 </Link>
@@ -354,12 +386,12 @@ export default function AccountPage() {
             {usage && usage.chat.fraction >= 0.8 ? (
               <div className="flex flex-col gap-2 border-t border-[var(--color-rule)] pt-4">
                 <div className="flex items-baseline justify-between">
-                  <p className="text-[13px] text-[var(--color-bone)]/90">
+                  <p className="text-small text-[var(--color-bone)]/90">
                     {usage.chat.used >= usage.chat.limit
                       ? "You've used this month's conversations."
                       : "You've used most of this month's conversations."}
                   </p>
-                  <span className="text-[11px] tabular-nums text-[var(--color-bone-dim)]">
+                  <span className="text-micro tabular-nums text-[var(--color-bone-dim)]">
                     {Math.min(usage.chat.used, usage.chat.limit)} / {usage.chat.limit}
                   </span>
                 </div>
@@ -369,7 +401,7 @@ export default function AccountPage() {
                     style={{ width: `${Math.round(usage.chat.fraction * 100)}%` }}
                   />
                 </div>
-                <p className="text-[12px] text-[var(--color-bone-dim)]">
+                <p className="text-small text-[var(--color-bone-dim)]">
                   Resets {formatResetDate(usage.chat.resetsAt)}. Everything you&rsquo;ve
                   made stays exactly where it is.
                 </p>
@@ -380,7 +412,7 @@ export default function AccountPage() {
 
         {/* Usage stats */}
         <Section>
-          <h2 className="mb-4 text-[11px] uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
+          <h2 className="mb-4 text-micro uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
             Your library
           </h2>
           <div className="grid grid-cols-3 gap-3">
@@ -390,15 +422,15 @@ export default function AccountPage() {
               { label: "Memories", value: memories.length },
             ].map(({ label, value }) => (
               <div key={label} className="flex flex-col items-center gap-1 rounded-xl bg-white/[0.025] py-3">
-                <span className="font-serif text-[22px] leading-none text-[var(--color-bone)]">{value}</span>
-                <span className="text-[11px] text-[var(--color-text-tertiary)]">{label}</span>
+                <span className="font-serif text-title leading-none text-[var(--color-bone)]">{value}</span>
+                <span className="text-micro text-[var(--color-text-tertiary)]">{label}</span>
               </div>
             ))}
           </div>
           <div className="mt-1 flex flex-col">
             <Link
               href="/people"
-              className="flex items-center justify-between rounded-lg px-1 py-2.5 text-[13px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              className="flex items-center justify-between rounded-lg px-1 py-2.5 text-small text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
             >
               View your people
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="opacity-40" aria-hidden>
@@ -408,7 +440,7 @@ export default function AccountPage() {
             <button
               type="button"
               onClick={exportData}
-              className="flex items-center justify-between rounded-lg px-1 py-2.5 text-[13px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+              className="flex items-center justify-between rounded-lg px-1 py-2.5 text-small text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
             >
               Download my data
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="opacity-40" aria-hidden>
@@ -420,7 +452,7 @@ export default function AccountPage() {
 
         {/* Appearance */}
         <Section>
-          <h2 className="mb-4 text-[11px] uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
+          <h2 className="mb-4 text-micro uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
             Appearance
           </h2>
           <div className="flex w-full gap-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.015] p-1" role="radiogroup" aria-label="Appearance">
@@ -431,7 +463,7 @@ export default function AccountPage() {
                 role="radio"
                 aria-checked={appearance === value}
                 onClick={() => applyAppearance(value)}
-                className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-[13px] transition-colors duration-200 ${
+                className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-small transition-colors duration-200 ${
                   appearance === value
                     ? "bg-white/[0.06] text-[var(--color-bone)]"
                     : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]"
@@ -441,16 +473,45 @@ export default function AccountPage() {
               </button>
             ))}
           </div>
+
+          {/* Reading size. Sits with appearance because it is the same kind of
+              decision — how the app should look to you — and this audience
+              skews older, where it is the difference between comfortable and
+              unusable. */}
+          <h3 className="mt-6 mb-2 text-small text-[var(--color-bone)]">Reading size</h3>
+          <div
+            className="flex w-full gap-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.015] p-1"
+            role="radiogroup"
+            aria-label="Reading size"
+          >
+            {TEXT_SIZES.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={textScale === value}
+                onClick={() => applyTextScale(value)}
+                className={`flex-1 cursor-pointer rounded-lg px-3 py-2 transition-colors duration-200 ${
+                  textScale === value
+                    ? "bg-white/[0.06] text-[var(--color-bone)]"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]"
+                }`}
+                style={{ fontSize: `${value * 0.8125}rem` }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </Section>
 
         {/* Listening preferences */}
         <Section>
-          <h2 className="mb-4 text-[11px] uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
+          <h2 className="mb-4 text-micro uppercase tracking-[0.14em] text-[var(--color-bone-dim)]/80">
             Listening
           </h2>
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2.5">
-              <p className="text-[14px] text-[var(--color-bone)]">Voice speed</p>
+              <p className="text-body text-[var(--color-bone)]">Voice speed</p>
               <div className="flex w-full gap-1 rounded-xl border border-[var(--color-rule)] bg-white/[0.015] p-1" role="radiogroup" aria-label="Voice speed">
                 {SPEEDS.map(({ value, label, hint }) => (
                   <button
@@ -465,16 +526,16 @@ export default function AccountPage() {
                         : "text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]"
                     }`}
                   >
-                    <span className="block text-[13px]">{label}</span>
-                    <span className="block text-[10px] opacity-60">{hint}</span>
+                    <span className="block text-small">{label}</span>
+                    <span className="block text-micro opacity-60">{hint}</span>
                   </button>
                 ))}
               </div>
             </div>
             <label className="flex cursor-pointer items-center justify-between gap-4">
               <span className="flex flex-col gap-0.5">
-                <span className="text-[14px] text-[var(--color-bone)]">Show transcript by default</span>
-                <span className="text-[12px] text-[var(--color-text-tertiary)]">
+                <span className="text-body text-[var(--color-bone)]">Show transcript by default</span>
+                <span className="text-small text-[var(--color-text-tertiary)]">
                   Open conversations with every word visible
                 </span>
               </span>
@@ -500,7 +561,7 @@ export default function AccountPage() {
           <button
             onClick={() => void signOutAll()}
             disabled={signingOut}
-            className="cursor-pointer text-center text-[12px] text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone-dim)]"
+            className="cursor-pointer text-center text-small text-[var(--color-text-tertiary)] transition hover:text-[var(--color-bone-dim)]"
           >
             Sign out of all devices
           </button>
@@ -511,39 +572,39 @@ export default function AccountPage() {
           variants={fadeUp}
           className="rounded-2xl border border-[var(--color-danger)]/15 bg-[var(--color-danger)]/[0.04] px-6 py-5"
         >
-          <h2 className="mb-1 text-[11px] uppercase tracking-[0.14em] text-[var(--color-danger)]/70">
+          <h2 className="mb-1 text-micro uppercase tracking-[0.14em] text-[var(--color-danger)]/70">
             Leaving EternaVoice
           </h2>
-          <p className="mb-4 text-[13px] leading-relaxed text-[var(--color-bone-dim)]/80">
+          <p className="mb-4 text-small leading-relaxed text-[var(--color-bone-dim)]/80">
             Permanently deletes your account, all voice profiles, conversations, and memories. This cannot be undone.
           </p>
 
           {!deleteConfirm ? (
             <button
               onClick={() => setDeleteConfirm(true)}
-              className="text-[13px] text-[var(--color-danger)]/70 underline underline-offset-4 transition hover:text-[var(--color-danger)]"
+              className="text-small text-[var(--color-danger)]/70 underline underline-offset-4 transition hover:text-[var(--color-danger)]"
             >
               Delete my account
             </button>
           ) : (
             <div className="flex flex-col gap-3">
-              <p className="text-[13px] font-medium text-[var(--color-danger)]">
+              <p className="text-small font-medium text-[var(--color-danger)]">
                 This will permanently delete everything. Are you sure?
               </p>
               {deleteError && (
-                <p className="text-[12px] text-[var(--color-danger)]">{deleteError}</p>
+                <p className="text-small text-[var(--color-danger)]">{deleteError}</p>
               )}
               <div className="flex flex-wrap gap-2.5">
                 <button
                   onClick={() => void deleteAccount()}
                   disabled={deleteLoading}
-                  className={buttonClasses({ variant: "danger", size: "md", className: "px-4 text-[13px]" })}
+                  className={buttonClasses({ variant: "danger", size: "md", className: "px-4 text-small" })}
                 >
                   {deleteLoading ? "Deleting…" : "Yes, delete everything"}
                 </button>
                 <button
                   onClick={() => setDeleteConfirm(false)}
-                  className={buttonClasses({ variant: "outline", size: "md", className: "px-4 text-[13px]" })}
+                  className={buttonClasses({ variant: "outline", size: "md", className: "px-4 text-small" })}
                 >
                   Cancel
                 </button>

@@ -47,7 +47,7 @@ export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: ()
             className="hairline fixed left-1/2 top-1/2 z-[121] w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-[var(--color-ink-2)]/97 p-6 shadow-2xl backdrop-blur-xl"
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-[18px] text-[var(--color-bone)]">Keyboard shortcuts</h2>
+              <h2 className="font-serif text-lead text-[var(--color-bone)]">Keyboard shortcuts</h2>
               <button
                 type="button"
                 onClick={onClose}
@@ -62,12 +62,12 @@ export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: ()
             <ul className="flex flex-col gap-2.5">
               {SHORTCUTS.map(({ keys, label }) => (
                 <li key={label} className="flex items-center justify-between gap-4">
-                  <span className="text-[13px] text-[var(--color-bone-dim)]">{label}</span>
+                  <span className="text-small text-[var(--color-bone-dim)]">{label}</span>
                   <span className="flex gap-1">
                     {keys.map((k) => (
                       <kbd
                         key={k}
-                        className="rounded-md border border-[var(--color-rule-strong)] bg-white/[0.03] px-2 py-0.5 font-sans text-[11px] text-[var(--color-bone)]/85"
+                        className="rounded-md border border-[var(--color-rule-strong)] bg-white/[0.03] px-2 py-0.5 font-sans text-micro text-[var(--color-bone)]/85"
                       >
                         {k}
                       </kbd>

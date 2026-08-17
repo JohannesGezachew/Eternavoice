@@ -41,7 +41,7 @@ export function CtaBanner() {
 
           <motion.h2
             variants={fadeUp}
-            className="font-serif text-[34px] leading-[1.08] tracking-[-0.025em] text-balance text-[var(--color-bone)] sm:text-[50px] lg:text-[60px]"
+            className="font-serif text-display leading-[1.08] tracking-[-0.025em] text-balance text-[var(--color-bone)] sm:text-[50px] lg:text-[60px]"
             style={{ fontVariationSettings: "'SOFT' 50, 'opsz' 144" }}
           >
             You already know whose voice
@@ -56,7 +56,7 @@ export function CtaBanner() {
 
           <motion.p
             variants={fadeUp}
-            className="mx-auto mt-6 max-w-md text-[17px] leading-[1.7] text-[var(--color-bone)]/60 sm:text-[18px]"
+            className="mx-auto mt-6 max-w-md text-lead leading-[1.7] text-[var(--color-bone)]/60"
           >
             It begins with ninety seconds of their voice. Your first conversation is waiting.
           </motion.p>
@@ -71,7 +71,7 @@ export function CtaBanner() {
             >
               Get started free
             </Link>
-            <p className="text-[12px] text-[var(--color-text-secondary)]">
+            <p className="text-small text-[var(--color-text-secondary)]">
               Private by design · End-to-end encrypted · No voice is ever shared
             </p>
           </motion.div>

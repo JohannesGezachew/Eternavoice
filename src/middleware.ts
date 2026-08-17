@@ -15,7 +15,11 @@ const PUBLIC_PATHS = [
   "/robots.txt",
   "/sitemap.xml",
 ];
-const PUBLIC_PREFIXES = ["/auth/", "/_next/", "/favicon", "/opengraph", "/site.web", "/apple", "/safari", "/android", "/browserconfig"];
+// "/icons/" matters: site.webmanifest points at /icons/icon-192.png, and
+// without it the manifest icons redirect to the login page — so an installed
+// PWA, and every crawler reading the manifest, gets an HTML sign-in page where
+// it asked for a PNG.
+const PUBLIC_PREFIXES = ["/auth/", "/_next/", "/icons/", "/favicon", "/opengraph", "/site.web", "/apple", "/safari", "/android", "/browserconfig"];
 const API_PATHS_SKIP_AUTH = ["/api/stripe/webhook"];
 
 function isPublic(pathname: string): boolean {

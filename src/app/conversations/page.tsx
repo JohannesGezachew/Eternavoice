@@ -97,10 +97,10 @@ export default function ConversationsPage() {
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pb-16 pt-8 sm:px-8">
         <motion.div initial="hidden" animate="enter" variants={stagger(0.07)} className="flex flex-col gap-6">
           <motion.div variants={fadeUp} className="flex flex-col gap-1.5">
-            <h1 className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-[var(--color-bone)] sm:text-[34px]">
+            <h1 className="font-serif text-display leading-tight tracking-[-0.02em] text-[var(--color-bone)]">
               Conversations
             </h1>
-            <p className="text-[14px] leading-[1.7] text-[var(--color-text-secondary)]">
+            <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
               Everything you&rsquo;ve said, with everyone — searchable, and kept.
             </p>
           </motion.div>
@@ -183,7 +183,7 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex h-9 cursor-pointer items-center rounded-full border px-3.5 text-[13px] transition-colors duration-200",
+        "flex h-9 cursor-pointer items-center rounded-full border px-3.5 text-small transition-colors duration-200",
         active
           ? "border-[var(--color-ember)]/40 bg-[var(--color-ember)]/[0.08] text-[var(--color-bone)]"
           : "border-[var(--color-rule-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-bone)]",

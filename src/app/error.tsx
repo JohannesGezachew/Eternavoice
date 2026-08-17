@@ -46,13 +46,13 @@ export default function GlobalError({
         </div>
 
         <div className="flex flex-col gap-3">
-          <p className="text-[11px] tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
+          <p className="text-micro tracking-[0.22em] text-[var(--color-bone-dim)] uppercase">
             Something interrupted us
           </p>
-          <h1 className="font-serif text-[36px] leading-[1.1] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[40px]">
+          <h1 className="font-serif text-hero leading-[1.1] tracking-[-0.02em] text-balance text-[var(--color-bone)]">
             We lost the thread.
           </h1>
-          <p className="text-[15px] leading-[1.7] text-[var(--color-bone)]/70">
+          <p className="text-body leading-[1.7] text-[var(--color-bone)]/70">
             It&apos;s rare, and it&apos;s on us. Try once more — most of the time
             the second attempt is uneventful.
           </p>
@@ -64,7 +64,7 @@ export default function GlobalError({
           </Button>
           <Link
             href="/"
-            className="inline-flex h-11 items-center px-3 text-[14px] text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
+            className="inline-flex h-11 items-center px-3 text-body text-[var(--color-bone-dim)] transition hover:text-[var(--color-bone)]"
           >
             Back to start
           </Link>

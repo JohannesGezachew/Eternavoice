@@ -115,7 +115,7 @@ export function PersonaForm({
           rows={5}
           maxLength={2000}
         />
-        <p className="mt-2 text-[12px] leading-[1.6] text-[var(--color-text-tertiary)]">
+        <p className="mt-2 text-small leading-[1.6] text-[var(--color-text-tertiary)]">
           One real quirk is worth ten &ldquo;kind, caring, loving&rdquo;.
         </p>
       </div>
@@ -199,7 +199,7 @@ export function PersonaForm({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="cursor-pointer text-[13px] text-[var(--color-text-secondary)] transition hover:text-[var(--color-bone)]"
+            className="cursor-pointer text-small text-[var(--color-text-secondary)] transition hover:text-[var(--color-bone)]"
           >
             Cancel
           </button>
@@ -210,7 +210,7 @@ export function PersonaForm({
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="flex items-center gap-1.5 text-[13px] text-[var(--color-sage)]"
+              className="flex items-center gap-1.5 text-small text-[var(--color-sage)]"
               role="status"
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -222,7 +222,7 @@ export function PersonaForm({
           ) : null}
         </AnimatePresence>
         {error ? (
-          <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+          <p className="text-small text-[var(--color-danger)]" role="alert">
             {error}
           </p>
         ) : null}
@@ -247,7 +247,7 @@ function StyleSlider({
   const pct = ((value - 1) / 9) * 100;
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3 text-[12px]">
+      <div className="flex items-center justify-between gap-3 text-small">
         <span className="text-[var(--color-bone)]/85">{label}</span>
         <span className="tabular-nums text-[var(--color-text-secondary)]">{value}/10</span>
       </div>
@@ -270,7 +270,7 @@ function StyleSlider({
           aria-valuetext={`${label}: ${value} of 10`}
         />
       </div>
-      <div className="flex justify-between text-[11px] text-[var(--color-text-tertiary)]">
+      <div className="flex justify-between text-micro text-[var(--color-text-tertiary)]">
         <span>{low}</span>
         <span>{high}</span>
       </div>

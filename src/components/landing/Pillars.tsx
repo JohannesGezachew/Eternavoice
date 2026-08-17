@@ -50,19 +50,19 @@ export function Pillars() {
             >
               {/* Large dim number — spans both rows */}
               <span
-                className="row-span-2 select-none self-start font-serif text-[40px] leading-[0.85] tracking-[-0.04em] text-[var(--color-bone)]/[0.07] transition-colors duration-500 group-hover:text-[var(--color-bone)]/[0.13] sm:text-[80px]"
+                className="row-span-2 select-none self-start font-serif text-hero leading-[0.85] tracking-[-0.04em] text-[var(--color-bone)]/[0.07] transition-colors duration-500 group-hover:text-[var(--color-bone)]/[0.13] sm:text-[80px]"
                 aria-hidden
               >
                 {item.label}
               </span>
 
               {/* Title */}
-              <h3 className="self-end font-serif text-[22px] leading-[1.1] tracking-[-0.01em] text-[var(--color-bone)] sm:text-[28px]">
+              <h3 className="self-end font-serif text-title leading-[1.1] tracking-[-0.01em] text-[var(--color-bone)] sm:text-display">
                 {item.title}
               </h3>
 
               {/* Body */}
-              <p className="mt-3 max-w-xl text-[15px] leading-[1.75] text-pretty text-[var(--color-bone)]/55 transition-colors duration-500 group-hover:text-[var(--color-bone)]/70">
+              <p className="mt-3 max-w-xl text-body leading-[1.75] text-pretty text-[var(--color-bone)]/55 transition-colors duration-500 group-hover:text-[var(--color-bone)]/70">
                 {item.body}
               </p>
             </motion.div>

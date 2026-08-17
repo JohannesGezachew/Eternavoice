@@ -53,7 +53,7 @@ export function RecordControl({ state, onClick, disabled, label }: RecordControl
       </span>
 
       {label ? (
-        <span className="absolute top-full mt-4 text-[12px] tracking-[0.2em] text-[var(--color-bone-dim)] uppercase">
+        <span className="absolute top-full mt-4 text-small tracking-[0.2em] text-[var(--color-bone-dim)] uppercase">
           {label}
         </span>
       ) : null}

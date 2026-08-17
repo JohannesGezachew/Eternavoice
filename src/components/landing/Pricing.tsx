@@ -44,10 +44,10 @@ export function Pricing() {
 
         {/* Headline */}
         <motion.div variants={fadeUp} className="flex flex-col items-center gap-3 text-center">
-          <h2 className="font-serif text-[32px] leading-[1.05] tracking-[-0.02em] text-[var(--color-bone)] sm:text-[48px]">
+          <h2 className="font-serif text-display leading-[1.05] tracking-[-0.02em] text-[var(--color-bone)] sm:text-[48px]">
             One plan. Everything included.
           </h2>
-          <p className="max-w-sm text-[16px] leading-relaxed text-[var(--color-bone-dim)]">
+          <p className="max-w-sm text-lead leading-relaxed text-[var(--color-bone-dim)]">
             Start free for 7 days — no card required to begin.
           </p>
         </motion.div>
@@ -63,12 +63,12 @@ export function Pricing() {
         >
           {/* Card header */}
           <div className="border-b border-[var(--color-rule)] px-8 py-7">
-            <p className="text-[12px] tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">EternaVoice</p>
+            <p className="text-small tracking-[0.14em] text-[var(--color-bone-dim)]/80 uppercase">EternaVoice</p>
             <div className="mt-3 flex items-baseline gap-2.5">
               <span className="font-serif text-[52px] leading-none tracking-[-0.03em] text-[var(--color-bone)]">$30</span>
               <div className="flex flex-col leading-tight">
-                <span className="text-[13px] text-[var(--color-bone-dim)]">/month</span>
-                <span className="text-[11px] text-[var(--color-bone-dim)]/80">after 7-day free trial</span>
+                <span className="text-small text-[var(--color-bone-dim)]">/month</span>
+                <span className="text-micro text-[var(--color-bone-dim)]/80">after 7-day free trial</span>
               </div>
             </div>
           </div>
@@ -78,7 +78,7 @@ export function Pricing() {
             {FEATURES.map((f) => (
               <div key={f} className="flex items-start gap-3">
                 <CheckIcon />
-                <span className="text-[13px] leading-[1.55] text-[var(--color-bone-dim)]">{f}</span>
+                <span className="text-small leading-[1.55] text-[var(--color-bone-dim)]">{f}</span>
               </div>
             ))}
           </div>
@@ -91,7 +91,7 @@ export function Pricing() {
             >
               Start 7-day free trial
             </Link>
-            <p className="text-center text-[11px] leading-relaxed text-[var(--color-bone-dim)]/80">
+            <p className="text-center text-micro leading-relaxed text-[var(--color-bone-dim)]/80">
               About $1 a day to keep talking · No card required to start · Cancel anytime
             </p>
           </div>

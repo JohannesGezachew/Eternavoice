@@ -162,7 +162,7 @@ export function PeopleLibrary() {
                 key={key}
                 type="button"
                 onClick={() => setSort(key)}
-                className={`cursor-pointer rounded-full px-3.5 py-1.5 text-[12px] transition-colors duration-150 ${
+                className={`cursor-pointer rounded-full px-3.5 py-1.5 text-small transition-colors duration-150 ${
                   sort === key
                     ? "bg-white/[0.07] text-[var(--color-bone)]"
                     : "text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
@@ -203,7 +203,7 @@ export function PeopleLibrary() {
                       <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                   </span>
-                  <span className="text-[14px] text-[var(--color-text-secondary)] transition-colors duration-300 group-hover:text-[var(--color-bone)]">
+                  <span className="text-body text-[var(--color-text-secondary)] transition-colors duration-300 group-hover:text-[var(--color-bone)]">
                     Add another person
                   </span>
                 </Link>
@@ -222,7 +222,7 @@ export function PeopleLibrary() {
                     </Button>
                     <Link
                       href="/demo"
-                      className="text-[13px] text-[var(--color-text-secondary)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+                      className="text-small text-[var(--color-text-secondary)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
                     >
                       See how a conversation works first
                     </Link>
@@ -277,17 +277,17 @@ function PersonCard({
             initial={person.name.trim().charAt(0).toUpperCase() || "·"}
           />
           <div className="flex min-w-0 flex-col gap-1">
-            <h2 className="truncate font-serif text-[24px] leading-tight text-[var(--color-bone)]">
+            <h2 className="truncate font-serif text-title leading-tight text-[var(--color-bone)]">
               {person.name}
             </h2>
             <div className="flex flex-wrap items-center gap-1.5">
               {person.relationship ? (
-                <span className="inline-flex items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-secondary)]">
+                <span className="inline-flex items-center rounded-full border border-[var(--color-rule)] bg-white/[0.04] px-2.5 py-0.5 text-micro text-[var(--color-text-secondary)]">
                   {person.relationship}
                 </span>
               ) : null}
               {conversationCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-tertiary)]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-0.5 text-micro text-[var(--color-text-tertiary)]">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
@@ -295,7 +295,7 @@ function PersonCard({
                 </span>
               )}
               {memoryCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-[var(--color-text-tertiary)]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-0.5 text-micro text-[var(--color-text-tertiary)]">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
@@ -306,7 +306,7 @@ function PersonCard({
           </div>
         </div>
         {active ? (
-          <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--color-verdigris)]">
+          <span className="flex shrink-0 items-center gap-1.5 text-micro text-[var(--color-verdigris)]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-verdigris)]" aria-hidden />
             Active
           </span>
@@ -314,7 +314,7 @@ function PersonCard({
       </div>
 
       {lastConversationTitle && (
-        <p className="line-clamp-1 text-[12px] italic text-[var(--color-text-tertiary)]">
+        <p className="line-clamp-1 text-small italic text-[var(--color-text-tertiary)]">
           &ldquo;{lastConversationTitle}&rdquo;
         </p>
       )}
@@ -323,7 +323,7 @@ function PersonCard({
         <Button variant="primary" size="md" onClick={onTalk}>
           Talk
         </Button>
-        <p className="text-[12px] text-[var(--color-text-tertiary)]">
+        <p className="text-small text-[var(--color-text-tertiary)]">
           {lastSpoke
             ? `Last spoke ${lastSpoke}`
             : `Added ${new Date(person.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}

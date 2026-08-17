@@ -227,7 +227,7 @@ export function NewPersonWizard() {
               <li key={id} className="flex flex-1 flex-col gap-2 sm:flex-none sm:flex-row sm:items-center sm:gap-3">
                 <span
                   className={cn(
-                    "text-[11px] tracking-[0.18em] uppercase transition-colors duration-300",
+                    "text-micro tracking-[0.18em] uppercase transition-colors duration-300",
                     state === "active"
                       ? "text-[var(--color-ember)]"
                       : state === "done"
@@ -263,10 +263,10 @@ export function NewPersonWizard() {
             className="flex max-w-xl flex-col gap-8"
           >
             <div className="flex flex-col gap-3">
-              <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+              <h1 className="font-serif text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero">
                 Who do you want to hear again?
               </h1>
-              <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
+              <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
                 Just a name to begin. Everything else can come later.
               </p>
             </div>
@@ -288,7 +288,7 @@ export function NewPersonWizard() {
             </div>
 
             <fieldset>
-              <legend className="pb-3 text-[12px] tracking-[0.14em] text-[var(--color-bone-dim)] uppercase">
+              <legend className="pb-3 text-small tracking-[0.14em] text-[var(--color-bone-dim)] uppercase">
                 Who are they to you? <span className="ml-1 normal-case tracking-normal opacity-60">optional</span>
               </legend>
               <div className="flex flex-wrap gap-2">
@@ -299,7 +299,7 @@ export function NewPersonWizard() {
                     onClick={() => setRelationship((cur) => (cur === r ? null : r))}
                     aria-pressed={relationship === r}
                     className={cn(
-                      "cursor-pointer rounded-full border px-4 py-2 text-[13px] transition-all duration-200",
+                      "cursor-pointer rounded-full border px-4 py-2 text-small transition-all duration-200",
                       relationship === r
                         ? "border-[var(--color-ember)]/50 bg-[var(--color-ember)]/[0.08] text-[var(--color-bone)]"
                         : "border-[var(--color-rule-strong)] text-[var(--color-text-secondary)] hover:border-[var(--color-ember)]/30 hover:text-[var(--color-bone)]",
@@ -333,7 +333,7 @@ export function NewPersonWizard() {
                 onChange={(e) => setConsent(e.target.checked)}
                 className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-ember)]"
               />
-              <span className="text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+              <span className="text-small leading-[1.65] text-[var(--color-text-secondary)]">
                 I have the right to use recordings of this person&rsquo;s voice,
                 and I&rsquo;m creating this for personal remembrance.{" "}
                 <a href="/about" className="underline underline-offset-4 transition hover:text-[var(--color-bone)]">
@@ -343,7 +343,7 @@ export function NewPersonWizard() {
             </label>
 
             {whoError ? (
-              <p className="text-[13px] text-[var(--color-danger)]" role="alert">
+              <p className="text-small text-[var(--color-danger)]" role="alert">
                 {whoError}
               </p>
             ) : null}
@@ -389,7 +389,7 @@ export function NewPersonWizard() {
             className="flex flex-1 flex-col gap-6"
           >
             <div className="flex flex-col gap-3">
-              <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+              <h1 className="font-serif text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero">
                 Bring {name.trim()}&rsquo;s voice.
               </h1>
             </div>
@@ -489,10 +489,10 @@ function ListenStep({
   return (
     <div className="w-full max-w-xl">
       <div className="flex flex-col gap-3">
-        <h1 className="font-serif text-[32px] leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[44px]">
+        <h1 className="font-serif text-display leading-[1.08] tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-hero">
           This is {name}.
         </h1>
-        <p className="text-[15px] leading-[1.7] text-[var(--color-text-secondary)]">
+        <p className="text-body leading-[1.7] text-[var(--color-text-secondary)]">
           Listen once. If it sounds like them, start talking — you can refine
           how they speak any time. It will sound like them; it won&rsquo;t
           always <em>be</em> them — that part you shape together, conversation
@@ -507,13 +507,13 @@ function ListenStep({
               <span className="absolute inset-[-6px] animate-ping rounded-full bg-[var(--color-ember)]/30" />
               <span className="relative h-2.5 w-2.5 rounded-full bg-[var(--color-ember)]" />
             </span>
-            <p className="text-[14px] text-[var(--color-bone)]/90">
+            <p className="text-body text-[var(--color-bone)]/90">
               Generating a first sentence in {name}&rsquo;s voice…
             </p>
           </div>
         ) : error ? (
           <div className="flex flex-col gap-4">
-            <p className="text-[13px] leading-[1.6] text-[var(--color-danger)]" role="alert">
+            <p className="text-small leading-[1.6] text-[var(--color-danger)]" role="alert">
               {error}
             </p>
             <Button variant="outline" size="md" onClick={() => void loadPreview()}>
@@ -523,7 +523,7 @@ function ListenStep({
         ) : previewUrl ? (
           <div className="flex flex-col gap-5">
             <PreviewPlayer src={previewUrl} audioRef={audioRef} name={name} />
-            <p className="text-[12px] text-[var(--color-text-tertiary)]">
+            <p className="text-small text-[var(--color-text-tertiary)]">
               Generated from their voice — not the original recording.
             </p>
           </div>
@@ -642,7 +642,7 @@ function PreviewPlayer({
           onChange={(e) => seek(Number(e.target.value))}
           aria-label="Seek within the preview"
         />
-        <div className="flex justify-between text-[11px] tabular-nums text-[var(--color-text-tertiary)]">
+        <div className="flex justify-between text-micro tabular-nums text-[var(--color-text-tertiary)]">
           <span>{formatSeconds(progress * duration)}</span>
           <span>{formatSeconds(duration)}</span>
         </div>

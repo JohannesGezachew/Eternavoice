@@ -27,10 +27,10 @@ export function Stats() {
             variants={fadeUp}
             className="flex flex-col items-center gap-2 px-6 py-7 text-center sm:gap-2.5 sm:py-12"
           >
-            <span className="font-serif text-[34px] leading-none tracking-[-0.03em] text-[var(--color-bone)] sm:text-[42px]">
+            <span className="font-serif text-display leading-none tracking-[-0.03em] text-[var(--color-bone)] sm:text-hero">
               {value}
             </span>
-            <span className="max-w-[180px] text-[12px] leading-[1.5] text-[var(--color-text-secondary)]">
+            <span className="max-w-[180px] text-small leading-[1.5] text-[var(--color-text-secondary)]">
               {label}
             </span>
           </motion.div>

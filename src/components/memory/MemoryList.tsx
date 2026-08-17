@@ -69,7 +69,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13px] leading-[1.65] text-[var(--color-text-secondary)]">
+      <p className="text-small leading-[1.65] text-[var(--color-text-secondary)]">
         Notes {personName} carries into every conversation — dates, names,
         habits, the specifics that would take too long to explain each time.
       </p>
@@ -91,7 +91,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
       </div>
 
       {error ? (
-        <p role="alert" className="text-[13px] text-[var(--color-danger)]">
+        <p role="alert" className="text-small text-[var(--color-danger)]">
           {error}
         </p>
       ) : null}
@@ -129,13 +129,13 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                   ) : (
                     <div className="flex flex-col gap-1">
                       <p
-                        className={`text-[14px] leading-[1.6] ${
+                        className={`text-body leading-[1.6] ${
                           fromTalk ? "text-[var(--color-bone)]/60" : "text-[var(--color-bone)]/90"
                         }`}
                       >
                         {memory.content}
                       </p>
-                      <p className="flex items-center gap-2 text-[11px] text-[var(--color-text-tertiary)]">
+                      <p className="flex items-center gap-2 text-micro text-[var(--color-text-tertiary)]">
                         {formatRelativeDay(memory.createdAt)}
                         {fromTalk ? (
                           <span className="rounded-full border border-[var(--color-rule)] px-2 py-0.5">
@@ -151,7 +151,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                     <button
                       type="button"
                       onClick={saveEdit}
-                      className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-[12px] text-[var(--color-ember)] transition-colors hover:bg-white/[0.04]"
+                      className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-small text-[var(--color-ember)] transition-colors hover:bg-white/[0.04]"
                     >
                       Save
                     </button>
@@ -162,7 +162,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                         setEditingId(memory.id);
                         setEditingValue(memory.content);
                       }}
-                      className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-bone)]"
+                      className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-small text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-bone)]"
                     >
                       Edit
                     </button>
@@ -173,7 +173,7 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                       deleteMemory(memory.id);
                       void deleteMemoryDb(memory.id).catch(console.error);
                     }}
-                    className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-danger)]"
+                    className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-small text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-danger)]"
                   >
                     Delete
                   </button>

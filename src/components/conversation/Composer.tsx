@@ -396,7 +396,7 @@ export function Composer({
             role="alert"
             className="absolute -top-14 left-1/2 flex w-max max-w-[90vw] -translate-x-1/2 items-center gap-3"
           >
-            <p className="text-[13px] text-[var(--color-danger)]">{error}</p>
+            <p className="text-small text-[var(--color-danger)]">{error}</p>
             <button
               type="button"
               onClick={() => {
@@ -404,7 +404,7 @@ export function Composer({
                 setMuted(false);
                 void armRecorder();
               }}
-              className="flex h-9 shrink-0 items-center rounded-full border border-[var(--color-rule-strong)] px-3.5 text-[12px] text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
+              className="flex h-9 shrink-0 items-center rounded-full border border-[var(--color-rule-strong)] px-3.5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
             >
               Retry mic
             </button>
@@ -429,7 +429,7 @@ export function Composer({
               />
             </div>
 
-            <div className="flex h-5 items-center text-[12px] tracking-[0.22em] uppercase">
+            <div className="flex h-5 items-center text-small tracking-[0.22em] uppercase">
               <span
                 className={cn(
                   "transition-colors duration-300",
@@ -456,7 +456,7 @@ export function Composer({
                 aria-pressed={muted}
                 aria-label={muted ? "Unmute microphone" : "Mute microphone"}
                 className={cn(
-                  "flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-3 text-[12px] transition-colors duration-200",
+                  "flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-3 text-small transition-colors duration-200",
                   muted
                     ? "border border-[var(--color-ember)]/40 text-[var(--color-ember)]"
                     : "text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]",
@@ -471,7 +471,7 @@ export function Composer({
                   setMode("text");
                   setHearingUser(false);
                 }}
-                className="min-h-[44px] px-3 py-3 text-[12px] text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
+                className="min-h-[44px] px-3 py-3 text-small text-[var(--color-bone-dim)] underline-offset-4 transition hover:text-[var(--color-bone)] hover:underline"
               >
                 or type a message
               </button>
@@ -519,7 +519,7 @@ export function Composer({
                 placeholder={disabled ? "Waiting for the reply..." : "Type a message."}
                 rows={1}
                 disabled={disabled}
-                className="block max-h-[220px] w-full resize-none bg-transparent px-3 py-2 text-[16px] leading-[1.55] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/80 focus:outline-none disabled:opacity-60"
+                className="block max-h-[220px] w-full resize-none bg-transparent px-3 py-2 text-lead leading-[1.55] text-[var(--color-bone)] placeholder:text-[var(--color-bone-dim)]/80 focus:outline-none disabled:opacity-60"
               />
 
               <button
@@ -532,7 +532,7 @@ export function Composer({
                 <SendIcon />
               </button>
             </div>
-            <p className="px-14 text-[11px] text-[var(--color-text-tertiary)]">
+            <p className="px-14 text-micro text-[var(--color-text-tertiary)]">
               Enter sends. Shift Enter adds a line.
             </p>
             </div>

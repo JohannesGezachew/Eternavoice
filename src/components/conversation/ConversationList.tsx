@@ -99,14 +99,14 @@ export function ConversationList({
       {!conversations.length ? (
         <EmptyState compact variant="conversations" title={emptyTitle} body={emptyBody} />
       ) : !filtered.length ? (
-        <p className="px-1 py-6 text-center text-[13px] leading-[1.6] text-[var(--color-text-secondary)]">
+        <p className="px-1 py-6 text-center text-small leading-[1.6] text-[var(--color-text-secondary)]">
           Nothing matches “{query.trim()}”.
         </p>
       ) : (
         <div className="flex flex-col gap-4">
           {groups.map(({ bucket, conversations: rows }) => (
             <section key={bucket} className="flex flex-col gap-1.5">
-              <h3 className="px-1 text-[11px] tracking-[0.14em] text-[var(--color-text-tertiary)] uppercase">
+              <h3 className="px-1 text-micro tracking-[0.14em] text-[var(--color-text-tertiary)] uppercase">
                 {bucket}
               </h3>
               <div className="flex flex-col gap-1">
@@ -133,12 +133,12 @@ export function ConversationList({
                           autoFocus
                           maxLength={90}
                           aria-label="Rename conversation"
-                          className="min-w-0 flex-1 bg-transparent px-2 py-2 text-[14px] text-[var(--color-bone)] outline-none"
+                          className="min-w-0 flex-1 bg-transparent px-2 py-2 text-body text-[var(--color-bone)] outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => saveRename(conversation)}
-                          className="flex h-11 shrink-0 cursor-pointer items-center rounded-lg px-3 text-[13px] text-[var(--color-ember)] transition hover:bg-white/[0.04]"
+                          className="flex h-11 shrink-0 cursor-pointer items-center rounded-lg px-3 text-small text-[var(--color-ember)] transition hover:bg-white/[0.04]"
                         >
                           Save
                         </button>
@@ -169,18 +169,18 @@ export function ConversationList({
                           <span
                             className={cn(
                               "truncate font-serif leading-snug text-[var(--color-bone)]",
-                              compact ? "text-[16px]" : "text-[17px]",
+                              compact ? "text-lead" : "text-lead",
                             )}
                           >
                             {conversation.title}
                           </span>
                         </span>
                         {snippet ? (
-                          <span className="truncate text-[12px] leading-[1.5] text-[var(--color-bone-dim)]/70">
+                          <span className="truncate text-small leading-[1.5] text-[var(--color-bone-dim)]/70">
                             {snippet}
                           </span>
                         ) : null}
-                        <span className="text-[11px] text-[var(--color-text-tertiary)]">
+                        <span className="text-micro text-[var(--color-text-tertiary)]">
                           {person ? `${person} · ` : ""}
                           {formatRelativeDay(conversation.updatedAt)} ·{" "}
                           {formatTimeOfDay(conversation.updatedAt)}
@@ -311,7 +311,7 @@ function MenuItem({
       role="menuitem"
       onClick={onClick}
       className={cn(
-        "flex min-h-[42px] w-full cursor-pointer items-center px-3.5 text-left text-[13px] transition-colors",
+        "flex min-h-[42px] w-full cursor-pointer items-center px-3.5 text-left text-small transition-colors",
         destructive
           ? "text-[var(--color-bone-dim)] hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
           : "text-[var(--color-bone)]/85 hover:bg-white/[0.04]",
@@ -326,7 +326,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
   const ref = useRef<HTMLInputElement | null>(null);
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-bone-dim)]/50">
+      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" />
@@ -341,7 +341,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
         aria-label="Search conversations"
         // The browser draws its own clear button on type="search", which sat
         // next to ours — two crosses in one field.
-        className="hairline h-11 w-full appearance-none rounded-xl bg-white/[0.02] pr-10 pl-10 text-[14px] text-[var(--color-bone)] transition placeholder:text-[var(--color-bone-dim)]/45 focus:border-[var(--color-ember)]/35 focus:outline-none [&::-webkit-search-cancel-button]:appearance-none"
+        className="hairline h-11 w-full appearance-none rounded-xl bg-white/[0.02] pr-10 pl-10 text-body text-[var(--color-bone)] transition placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-ember)]/35 focus:outline-none [&::-webkit-search-cancel-button]:appearance-none"
       />
       {value ? (
         <button

@@ -126,16 +126,16 @@ export function ConversationReader({
     <AppShell title="Reading" backHref={`/people/${subjectId}`} backLabel={backLabel} showTabs={false}>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 pb-32 pt-8 sm:px-8">
         <header className="flex flex-col gap-1.5 pb-6">
-          <h1 className="font-serif text-[26px] leading-tight tracking-[-0.02em] text-balance text-[var(--color-bone)] sm:text-[32px]">
+          <h1 className="font-serif text-display leading-tight tracking-[-0.02em] text-balance text-[var(--color-bone)]">
             {conversation.title}
           </h1>
-          <p className="text-[13px] text-[var(--color-text-tertiary)]">
+          <p className="text-small text-[var(--color-text-tertiary)]">
             {formatRelativeDay(conversation.updatedAt)} · {formatTimeOfDay(conversation.updatedAt)}
           </p>
         </header>
 
         {notice ? (
-          <p role="status" className="pb-4 text-[13px] text-[var(--color-bone-dim)]">
+          <p role="status" className="pb-4 text-small text-[var(--color-bone-dim)]">
             {notice}
           </p>
         ) : null}
@@ -147,7 +147,7 @@ export function ConversationReader({
               return (
                 <p
                   key={turn.id}
-                  className="text-[13px] italic text-[var(--color-text-tertiary)]"
+                  className="text-small italic text-[var(--color-text-tertiary)]"
                 >
                   One line here couldn&rsquo;t be read back.
                 </p>
@@ -165,8 +165,8 @@ export function ConversationReader({
                   className={cn(
                     "max-w-[88%] rounded-2xl text-pretty sm:max-w-[80%]",
                     isUser
-                      ? "hairline rounded-tr-sm bg-white/[0.04] px-5 py-3.5 text-[15px] leading-[1.6] text-[var(--color-bone)]/85"
-                      : "font-serif text-[19px] leading-[1.55] text-[var(--color-bone)] sm:text-[21px]",
+                      ? "hairline rounded-tr-sm bg-white/[0.04] px-5 py-3.5 text-body leading-[1.6] text-[var(--color-bone)]/85"
+                      : "font-serif text-lead leading-[1.55] text-[var(--color-bone)] sm:text-title",
                   )}
                 >
                   {turn.content}
@@ -176,7 +176,7 @@ export function ConversationReader({
                     type="button"
                     onClick={() => void speak(turn)}
                     disabled={playingId === turn.id}
-                    className="flex h-11 cursor-pointer items-center gap-1.5 rounded-full px-2 text-[12px] text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-ember)] disabled:cursor-default"
+                    className="flex h-11 cursor-pointer items-center gap-1.5 rounded-full px-2 text-small text-[var(--color-bone-dim)]/70 transition hover:text-[var(--color-ember)] disabled:cursor-default"
                     aria-label="Hear this line in their voice"
                   >
                     {playingId === turn.id ? (
@@ -201,7 +201,7 @@ export function ConversationReader({
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-4 px-6 py-3 sm:px-8">
-          <p className="hidden text-[12px] text-[var(--color-text-tertiary)] sm:block">
+          <p className="hidden text-small text-[var(--color-text-tertiary)] sm:block">
             Reading — nothing is listening.
           </p>
           <button type="button" onClick={talkAgain} className={buttonClasses({ size: "md" })}>

@@ -101,9 +101,14 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// Resolves the theme before first paint: stored choice wins, otherwise the
-// system preference. Without JS the app simply renders light.
-const themeScript = `(function(){try{var t=localStorage.getItem("ev-theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="light"}})()`;
+// Resolves the theme and the reading size before first paint: stored choice
+// wins, otherwise the system preference. Without JS the app simply renders
+// light at the default size.
+//
+// The size has to be applied here rather than in a component: every size in
+// the type scale is in rem, so setting --ui-scale after hydration would reflow
+// the entire page in front of the reader.
+const themeScript = `(function(){try{var t=localStorage.getItem("ev-theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t;var s=parseFloat(localStorage.getItem("ev-text-scale"));if(s>=1&&s<=1.35){document.documentElement.style.setProperty("--ui-scale",String(s))}}catch(e){document.documentElement.dataset.theme="light"}})()`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -114,7 +119,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="relative isolate">
         <a
           href="#main"
-          className="sr-only z-[200] rounded-lg bg-[var(--color-bone)] px-4 py-2 text-[14px] font-medium text-[var(--color-ink)] focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+          className="sr-only z-[200] rounded-lg bg-[var(--color-bone)] px-4 py-2 text-body font-medium text-[var(--color-ink)] focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
         >
           Skip to content
         </a>

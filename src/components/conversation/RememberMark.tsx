@@ -95,7 +95,7 @@ export function RememberMark({ turn, personName, onRemember, onUndo }: RememberM
             className="flex items-center gap-3"
             role="status"
           >
-            <span className="flex items-center gap-2 text-[13px] text-[var(--color-bone)]/85">
+            <span className="flex items-center gap-2 text-small text-[var(--color-bone)]/85">
               <BookmarkIcon filled />
               {phase === "known"
                 ? `${personName} already carries that.`
@@ -104,7 +104,7 @@ export function RememberMark({ turn, personName, onRemember, onUndo }: RememberM
             <button
               type="button"
               onClick={() => void undo()}
-              className="flex h-11 cursor-pointer items-center rounded-full px-2 text-[13px] text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+              className="flex h-11 cursor-pointer items-center rounded-full px-2 text-small text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
             >
               Undo
             </button>
@@ -117,7 +117,7 @@ export function RememberMark({ turn, personName, onRemember, onUndo }: RememberM
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
             role="alert"
-            className="text-[13px] text-[var(--color-danger)]"
+            className="text-small text-[var(--color-danger)]"
           >
             That didn&rsquo;t save. Tap to try again.
           </motion.p>
@@ -137,10 +137,10 @@ export function RememberMark({ turn, personName, onRemember, onUndo }: RememberM
                 : `Have ${personName} remember what you just said`
             }
             className={cn(
-              "group flex h-11 cursor-pointer items-center gap-2 rounded-full px-3 text-[13px] transition-colors duration-300",
+              "group flex h-11 cursor-pointer items-center gap-2 rounded-full px-3 text-small transition-colors duration-300",
               alreadyKept
                 ? "cursor-default text-[var(--color-ember)]/70"
-                : "text-[var(--color-bone-dim)]/45 hover:text-[var(--color-bone)]",
+                : "text-[var(--color-text-tertiary)] hover:text-[var(--color-bone)]",
               phase === "saving" && "animate-pulse",
             )}
           >
