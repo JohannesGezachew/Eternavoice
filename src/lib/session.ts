@@ -131,6 +131,8 @@ interface SessionState {
   setPersona: (persona: PersonaConfig) => void;
   appendTurn: (turn: ChatTurn) => void;
   appendAssistantToken: (id: string, token: string) => void;
+  /** Drop a half-written reply before retrying it — see runChatStream. */
+  removeTurn: (id: string) => void;
   appendAssistantAudio: (
     id: string,
     audio: NonNullable<ChatTurn["audio"]>[number],
@@ -361,6 +363,12 @@ export const useSession = create<SessionState>()(
               t.id === id ? { ...t, content: t.content + token } : t,
             );
           }
+          return { turns, ...upsertConversation(s, turns) };
+        }),
+      removeTurn: (id) =>
+        set((s) => {
+          const turns = s.turns.filter((t) => t.id !== id);
+          if (turns.length === s.turns.length) return {};
           return { turns, ...upsertConversation(s, turns) };
         }),
       appendAssistantAudio: (id, audio) =>

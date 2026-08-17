@@ -44,6 +44,12 @@ import {
 import { PresencePanel } from "./PresencePanel";
 import type { ChatTurn, ConversationRecord } from "@/lib/types";
 
+/** Cold start plus the model's first token, with room to spare. */
+const FIRST_EVENT_TIMEOUT_MS = 45_000;
+/** Silence between events once the stream is running. Sentences arrive every
+ *  second or two, so twenty means the connection is gone, not slow. */
+const STREAM_IDLE_TIMEOUT_MS = 20_000;
+
 const CHAT_CONTEXT_TURNS = 30;
 const MEMORY_CONTEXT_LIMIT = 24;
 // Re-summarise periodically as a conversation grows so anything said mid-way
@@ -79,6 +85,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const setStatus = useSession((s) => s.setStatus);
   const appendTurn = useSession((s) => s.appendTurn);
   const appendAssistantToken = useSession((s) => s.appendAssistantToken);
+  const removeTurn = useSession((s) => s.removeTurn);
   const appendAssistantAudio = useSession((s) => s.appendAssistantAudio);
   const setTurnFeedback = useSession((s) => s.setTurnFeedback);
   const openConversation = useSession((s) => s.openConversation);
@@ -337,9 +344,18 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     };
   });
 
-  // Reset the periodic counter whenever the active conversation changes.
+  /**
+   * Reopening a conversation is not new material to summarise.
+   *
+   * This reset to zero, so opening a conversation with forty turns in it
+   * immediately cleared the periodic threshold and re-sent the entire
+   * transcript to the summariser — a paid model call, on every reopen, over a
+   * conversation that had already been summarised when the user left it. The
+   * counter starts from what is already there; only what is said from here
+   * counts towards the next one.
+   */
   useEffect(() => {
-    lastSummarisedCountRef.current = 0;
+    lastSummarisedCountRef.current = useSession.getState().turns.length;
   }, [currentConversationId]);
 
   // Flush the summary on any way of leaving: navigation, tab close, and — the
@@ -549,16 +565,36 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       const controller = new AbortController();
       abortRef.current = controller;
       let timedOut = false;
-      const timeout = window.setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, 45_000);
+      /**
+       * Idle, not absolute.
+       *
+       * This was one 45-second timer over the whole request, which got it
+       * wrong at both ends: a long reply that was streaming perfectly well
+       * was cut off mid-sentence at 45s, and a connection that died after the
+       * first token — a phone leaving wifi, which is most of them — still sat
+       * there for the remaining forty. The clock now measures silence, and
+       * every event resets it.
+       *
+       * The first window is longer because it covers a cold start plus the
+       * model's first token; after that, twenty seconds without a single
+       * event means the stream is not coming back.
+       */
+      let idle: number | undefined;
+      const waitFor = (ms: number) => {
+        if (idle !== undefined) window.clearTimeout(idle);
+        idle = window.setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, ms);
+      };
+      waitFor(FIRST_EVENT_TIMEOUT_MS);
 
       let assistantId: string | null = null;
       let receivedAudio = false;
       let streamError: string | null = null;
       let textReceived = false;
       let firstAudioEnqueued = false;
+      let sawDone = false;
       try {
         for await (const event of streamChat(
           {
@@ -585,6 +621,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           },
           controller.signal,
         )) {
+          waitFor(STREAM_IDLE_TIMEOUT_MS);
           interruptedRef.current = false;
           if (event.type === "text") {
             textReceived = true;
@@ -621,6 +658,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
               elapsedMs: event.elapsedMs,
             });
           } else if (event.type === "done") {
+            sawDone = true;
             setStreamingTurnId(null);
             if (!receivedAudio) {
               setStatus("idle");
@@ -635,6 +673,28 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
             setResponseError(event.message || "The reply failed. Tap retry.");
             setStreamingTurnId(null);
           }
+        }
+
+        /**
+         * The stream ended without ever saying it was finished.
+         *
+         * A server that dies mid-reply, or a proxy that closes the connection,
+         * closes the body cleanly — so the loop above simply ran out of events
+         * and fell through here. Nothing set a status, which left the room
+         * showing "thinking" for ever, with a half-finished sentence on screen
+         * and no way to ask for the rest.
+         */
+        if (!sawDone && !streamError) {
+          setStreamingTurnId(null);
+          setStatus("idle");
+          setResponseError(
+            textReceived
+              ? "That reply was cut short. Tap retry and they'll finish the thought."
+              : "The reply didn't come through. Tap retry.",
+          );
+          trackEvent("conversation_reply_failed", {
+            reason: textReceived ? "truncated" : "empty",
+          });
         }
       } catch (err) {
         // The month's allowance is spent. Nothing failed and retrying can't
@@ -667,7 +727,11 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
           reportError("conversation-stream", err);
         }
         if (timedOut) {
-          setResponseError("The response is taking too long. Tap retry.");
+          setResponseError(
+            textReceived
+              ? "They stopped mid-sentence. Tap retry to hear the rest."
+              : "The response is taking too long. Tap retry.",
+          );
           trackEvent("conversation_reply_timeout");
         } else if ((err as Error).name !== "AbortError") {
           setResponseError("Something went wrong. Tap retry.");
@@ -676,7 +740,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
         setStreamingTurnId(null);
         setStatus("idle");
       } finally {
-        window.clearTimeout(timeout);
+        if (idle !== undefined) window.clearTimeout(idle);
         abortRef.current = null;
         setAwaitingSince(null);
         if (streamError) setStatus("idle");
@@ -842,12 +906,23 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
     const lastUser = [...turns].reverse().find((turn) => turn.role === "user");
     if (!lastUser) return;
     setResponseError(null);
+
+    // Clear the half-written reply first. It was already excluded from what
+    // gets sent to the model, but it stayed on screen — so retrying a cut-off
+    // reply left the transcript holding a broken sentence followed by a whole
+    // second answer to the same thing, and that transcript is what the
+    // conversation is saved and re-read as.
+    const abandoned = turns.filter(
+      (turn) => turn.role === "assistant" && turn.createdAt > lastUser.createdAt,
+    );
+    for (const turn of abandoned) removeTurn(turn.id);
+
     await runChatStream(
       turns
         .filter((turn) => turn.createdAt <= lastUser.createdAt)
         .map((turn) => ({ role: turn.role, content: turn.content })),
     );
-  }, [turns, runChatStream]);
+  }, [turns, runChatStream, removeTurn]);
 
   const interrupt = useCallback(() => {
     abortRef.current?.abort();

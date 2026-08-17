@@ -24,6 +24,11 @@ const MEMORY_CONTEXT_LIMIT = 24;
  *  always in the running, not just the newest rows. */
 const MEMORY_FETCH_LIMIT = 400;
 
+/** One sentence of speech, generously. Past this the provider is not answering. */
+const TTS_SENTENCE_TIMEOUT_MS = 30_000;
+/** Backstop for the drain loop once the model has finished. */
+const DRAIN_TIMEOUT_MS = 45_000;
+
 const Body = z.object({
   voiceId: z.string().min(8).max(64),
   persona: z.object({
@@ -256,7 +261,20 @@ export async function POST(request: Request) {
   // and, from there, a uuid primary key in the turns table.
   const turnId = crypto.randomUUID();
 
+  /**
+   * The user closed the tab, hit interrupt, or walked out of signal.
+   *
+   * Nothing checked for this, so a reply nobody would ever hear ran to
+   * completion anyway — the full model completion, plus ElevenLabs synthesis
+   * of every remaining sentence, all of it billed. On a product whose margin
+   * is already thin, the reply that gets abandoned halfway is not rare.
+   */
+  let clientGone = false;
+
   const stream = new ReadableStream<Uint8Array>({
+    cancel() {
+      clientGone = true;
+    },
     async start(controller) {
       const startedAt = Date.now();
       const send = (event: ChatEvent) => {
@@ -292,6 +310,7 @@ export async function POST(request: Request) {
         drainStarted = true;
         let nextIndex = 0;
         while (true) {
+          if (clientGone) break;
           const next = ttsQueue.find((e) => e.index === nextIndex);
           if (!next) {
             if (llmDone && ttsQueue.every((e) => e.index < nextIndex)) break;
@@ -325,7 +344,32 @@ export async function POST(request: Request) {
         drainResolve?.();
       };
 
+      /**
+       * A sentence's audio, or null — but never a promise that hangs.
+       *
+       * The drain awaits each sentence in order, so one ElevenLabs read that
+       * stalls without erroring stops the whole reply: nothing after it is
+       * sent, `done` never fires, and the response body stays open until the
+       * platform eventually kills the function. The client sat on "thinking"
+       * the entire time. A sentence is a few seconds of speech; if it has not
+       * arrived in thirty, it is not coming.
+       */
       const ttsForSentence = async (text: string): Promise<Buffer | null> => {
+        const deadline = new AbortController();
+        const timer = setTimeout(() => deadline.abort(), TTS_SENTENCE_TIMEOUT_MS);
+        try {
+          return await Promise.race([
+            synthesise(text, deadline.signal),
+            new Promise<null>((resolve) => {
+              deadline.signal.addEventListener("abort", () => resolve(null), { once: true });
+            }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      const synthesise = async (text: string, signal: AbortSignal): Promise<Buffer | null> => {
         try {
           if (!firstTtsStarted) {
             firstTtsStarted = true;
@@ -345,6 +389,12 @@ export async function POST(request: Request) {
             const { value, done } = await reader.read();
             if (done) break;
             if (value) chunks.push(value);
+            // The race above already resolved null; keep reading past that and
+            // this holds a provider connection open for nothing.
+            if (signal.aborted) {
+              void reader.cancel().catch(() => null);
+              return null;
+            }
           }
           const total = chunks.reduce((s, c) => s + c.byteLength, 0);
           const merged = new Uint8Array(total);
@@ -414,6 +464,7 @@ export async function POST(request: Request) {
         });
 
         for await (const chunk of response) {
+          if (clientGone) break;
           const delta = chunk.choices[0]?.delta?.content ?? "";
           if (!delta) continue;
           rawText += delta;
@@ -426,7 +477,13 @@ export async function POST(request: Request) {
         if (!fullText && rawText.trim()) enqueueSentence(rawText.trim());
 
         llmDone = true;
-        await drainComplete;
+        // Bounded. Everything queued has its own timeout, so this is the
+        // backstop for the drain loop itself — `done` has to be sent, because
+        // its absence is what leaves the room stuck mid-reply.
+        await Promise.race([
+          drainComplete,
+          new Promise<void>((resolve) => setTimeout(resolve, DRAIN_TIMEOUT_MS)),
+        ]);
         if (fullText.trim() && sentenceCount > 0 && audioChunksSent === 0) {
           send({
             type: "notice",
