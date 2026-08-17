@@ -11,6 +11,7 @@ import { fadeUp, stagger } from "@/lib/motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { Input } from "@/components/ui/Field";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useSession, clearLocalSession } from "@/lib/session";
 
 interface Profile {
@@ -773,39 +774,35 @@ export default function AccountPage() {
             Permanently deletes your account, all voice profiles, conversations, and memories. This cannot be undone.
           </p>
 
-          {!deleteConfirm ? (
-            <button
-              onClick={() => setDeleteConfirm(true)}
-              className="text-small text-[var(--color-danger)]/70 underline underline-offset-4 transition hover:text-[var(--color-danger)]"
-            >
-              Delete my account
-            </button>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <p className="text-small font-medium text-[var(--color-danger)]">
-                This will permanently delete everything. Are you sure?
-              </p>
-              {deleteError && (
-                <p className="text-small text-[var(--color-danger)]">{deleteError}</p>
-              )}
-              <div className="flex flex-wrap gap-2.5">
-                <button
-                  onClick={() => void deleteAccount()}
-                  disabled={deleteLoading}
-                  className={buttonClasses({ variant: "danger", size: "md", className: "px-4 text-small" })}
-                >
-                  {deleteLoading ? "Deleting…" : "Yes, delete everything"}
-                </button>
-                <button
-                  onClick={() => setDeleteConfirm(false)}
-                  className={buttonClasses({ variant: "outline", size: "md", className: "px-4 text-small" })}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => {
+              setDeleteError(null);
+              setDeleteConfirm(true);
+            }}
+            className="text-small text-[var(--color-danger)]/70 underline underline-offset-4 transition hover:text-[var(--color-danger)]"
+          >
+            Delete my account
+          </button>
         </motion.div>
+
+        {/* The most destructive action in the product used to confirm itself by
+            swapping the link for two buttons in place. Nothing was announced,
+            focus never moved, and Escape did nothing — so on a screen reader
+            the only signal that "Yes, delete everything" now existed was
+            tabbing onto it. It is the same alertdialog every other destructive
+            confirmation here uses. */}
+        <ConfirmDialog
+          open={deleteConfirm}
+          title="Delete everything?"
+          body={
+            deleteError ??
+            "Your account, every person you've made, every conversation and everything you've kept will be permanently removed. This cannot be undone."
+          }
+          confirmLabel="Yes, delete everything"
+          loading={deleteLoading}
+          onConfirm={() => void deleteAccount()}
+          onCancel={() => setDeleteConfirm(false)}
+        />
       </motion.div>
     </div>
     </AppShell>

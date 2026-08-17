@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { buttonClasses } from "@/components/ui/buttonClasses";
 import { createClient } from "@/lib/supabase/client";
 import { clearLocalSession } from "@/lib/session";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 export function Nav() {
   const router = useRouter();
@@ -16,6 +17,12 @@ export function Nav() {
   const [user, setUser] = useState<{ email?: string } | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The menu covers the whole viewport and declared aria-modal, but Tab walked
+  // straight through it into the page underneath — and Escape did nothing at
+  // all, so on a keyboard the only way out was to find the close button.
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useFocusTrap(menuOpen, menuRef, closeMenu);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -150,6 +157,7 @@ export function Nav() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
+            ref={menuRef}
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
