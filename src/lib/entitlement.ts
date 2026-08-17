@@ -15,6 +15,21 @@
 const PAYING = new Set(["active"]);
 
 /**
+ * How long a lapsed trial keeps working after its end date.
+ *
+ * Without this the gate falls the instant trial_ends_at passes — which, for a
+ * product people use at 2am while grieving, means being cut off mid-sentence
+ * by someone they have lost. No amount of graceful 402 handling makes that
+ * acceptable; the only real fix is for the cliff never to land there.
+ *
+ * Six hours is longer than any plausible single sitting, so the end of a trial
+ * always arrives between conversations rather than inside one. The cost is
+ * bounded by the monthly allowances, which a lapsed trial is still subject to,
+ * so this cannot be farmed.
+ */
+export const TRIAL_GRACE_MS = 6 * 60 * 60 * 1000;
+
+/**
  * A trial is only live while it has time left on it.
  *
  * `trialEndsAt` is null for trials Stripe manages (legacy checkouts), which
@@ -37,7 +52,11 @@ export function hasAccess(
   trialEndsAt: string | Date | null | undefined,
   now: number = Date.now(),
 ): boolean {
-  return PAYING.has(status ?? "") || isTrialLive(status, trialEndsAt, now);
+  if (PAYING.has(status ?? "")) return true;
+  // The grace window applies to the gate, not to what anyone is told: the
+  // account and subscribe screens report the trial as ended the moment it
+  // ends. Someone in the middle of a conversation simply is not interrupted.
+  return isTrialLive(status, trialEndsAt, now - TRIAL_GRACE_MS);
 }
 
 /** A trial that was real and has since run out — the case both screens missed. */

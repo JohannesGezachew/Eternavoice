@@ -508,9 +508,19 @@ export const useSession = create<SessionState>()(
           // Merge memories: prefer DB (more authoritative)
           const mergedMemories = memories.length ? memories : s.memories;
 
-          // Merge conversations: prefer DB
+          // Prefer the database, but never drop a conversation it has not
+          // heard of yet.
+          //
+          // This used to replace the list outright. Deep-link into a talk page
+          // on a slow connection, start speaking before /api/user/data returns,
+          // and the conversation minted locally vanished when the response
+          // landed — after which `conversations.find(id)` was undefined and the
+          // debounced save silently abandoned every write for the rest of the
+          // session. Twenty minutes of talking, gone, with no error anywhere.
+          const known = new Set(conversations.map((c) => c.id));
+          const localOnly = s.conversations.filter((c) => !known.has(c.id));
           const mergedConversations = conversations.length
-            ? sortConversations(conversations)
+            ? sortConversations([...conversations, ...localOnly])
             : s.conversations;
 
           // If no active voice but we have DB voices, set the first one

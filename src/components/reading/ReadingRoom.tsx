@@ -14,7 +14,12 @@ import { formatRelativeDay } from "@/lib/utils";
 import { MAX_READING_CHARS, readingLength, formatSpokenLength } from "@/lib/readings";
 import { trackEvent } from "@/lib/analytics";
 import { reportError } from "@/lib/reportError";
-import { SESSION_ENDED_MESSAGE, isSessionExpired } from "@/lib/authError";
+import {
+  SESSION_ENDED_MESSAGE,
+  SUBSCRIPTION_ENDED_MESSAGE,
+  SubscriptionRequiredError,
+  isSessionExpired,
+} from "@/lib/authError";
 import { haptic } from "@/lib/haptics";
 import { saveChime } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -218,6 +223,12 @@ export function ReadingRoom({ subjectId }: { subjectId: string }) {
       trackEvent("reading_finished");
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
+      if (err instanceof SubscriptionRequiredError) {
+        // Rendered the raw string "subscription_required" before this.
+        setError(SUBSCRIPTION_ENDED_MESSAGE);
+        setPhase("writing");
+        return;
+      }
       if (err instanceof ReadingAllowanceError) {
         setError("You've reached this month's readings. Everything you wrote is saved.");
         setPhase("writing");

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReadEvent } from "./sse";
+import { SubscriptionRequiredError } from "./authError";
 import { SessionExpiredError, isUnauthorizedStatus } from "./authError";
 
 export type { ReadEvent };
@@ -30,6 +31,9 @@ export async function* streamReading(
     body: JSON.stringify(payload),
     signal,
   });
+
+  // 402 is the middleware's entitlement gate, not a failure.
+  if (res.status === 402) throw new SubscriptionRequiredError();
 
   if (!res.ok || !res.body) {
     // Same as the chat stream: a lapsed session must not read as a reading

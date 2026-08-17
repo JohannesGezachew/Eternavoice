@@ -29,6 +29,8 @@ import { useConnectionHealth } from "@/lib/useConnectionHealth";
 import { withRetry } from "@/lib/retry";
 import {
   SESSION_ENDED_MESSAGE,
+  SUBSCRIPTION_ENDED_MESSAGE,
+  SubscriptionRequiredError,
   isSessionExpired,
   isUnauthorizedStatus,
 } from "@/lib/authError";
@@ -89,6 +91,9 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
   const [responseNotice, setResponseNotice] = useState<string | null>(null);
   /** Set when this month's conversation allowance is spent; ISO reset date. */
   const [allowanceResetsAt, setAllowanceResetsAt] = useState<string | null>(null);
+  /** The subscription lapsed. Held apart from errors: nothing failed, retrying
+   *  cannot help, and the only useful control is a way to subscribe. */
+  const [subscriptionEnded, setSubscriptionEnded] = useState(false);
   // The session lapsed. Kept apart from responseError because it outranks
   // everything else in the room: nothing here can work until they sign in, and
   // every other message would be a distraction from the one that helps.
@@ -621,6 +626,13 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
       } catch (err) {
         // The month's allowance is spent. Nothing failed and retrying can't
         // help, so this gets its own gentle state instead of an error + retry.
+        if (err instanceof SubscriptionRequiredError) {
+          setSubscriptionEnded(true);
+          setStreamingTurnId(null);
+          setStatus("idle");
+          trackEvent("subscription_required", { where: "conversation" });
+          return;
+        }
         if (err instanceof AllowanceReachedError) {
           setAllowanceResetsAt(err.resetsAt ?? null);
           trackEvent("monthly_allowance_reached", { scope: "chat" });
@@ -1399,6 +1411,19 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                   className="flex h-11 items-center rounded-full border border-[var(--color-rule-strong)] px-5 text-small text-[var(--color-bone)]/85 transition hover:border-[var(--color-ember)]/40"
                 >
                   Sign in again
+                </Link>
+              </div>
+            ) : subscriptionEnded ? (
+              /* Never a retry: it would 402 again, for ever. */
+              <div className="flex max-w-md flex-col items-center gap-2 text-center" role="status">
+                <p className="text-body leading-[1.6] text-[var(--color-bone)]/90">
+                  {SUBSCRIPTION_ENDED_MESSAGE}
+                </p>
+                <Link
+                  href="/subscribe"
+                  className="text-small text-[var(--color-ember)] underline underline-offset-4"
+                >
+                  Keep talking to {headerName}
                 </Link>
               </div>
             ) : allowanceResetsAt !== null ? (

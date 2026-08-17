@@ -46,6 +46,38 @@ describe("hasAccess", () => {
     expect(hasAccess("trialing", past, NOW)).toBe(false);
   });
 
+  it("does not cut someone off in the middle of a conversation", () => {
+    // The gate used to fall the instant trial_ends_at passed, which for a
+    // product used at 2am while grieving meant being cut off mid-sentence by
+    // someone you have lost. Six hours is longer than any single sitting, so
+    // the end of a trial lands between conversations rather than inside one.
+    const justEnded = new Date(NOW - 60_000).toISOString();
+    const twoHoursAgo = new Date(NOW - 2 * 3600_000).toISOString();
+    expect(hasAccess("trialing", justEnded, NOW)).toBe(true);
+    expect(hasAccess("trialing", twoHoursAgo, NOW)).toBe(true);
+  });
+
+  it("closes the grace window rather than extending the trial", () => {
+    const sevenHoursAgo = new Date(NOW - 7 * 3600_000).toISOString();
+    expect(hasAccess("trialing", sevenHoursAgo, NOW)).toBe(false);
+  });
+
+  it("grace never rescues a cancelled or unpaid subscription", () => {
+    // It applies to a trial ending, not to a payment failing.
+    const justEnded = new Date(NOW - 60_000).toISOString();
+    expect(hasAccess("canceled", justEnded, NOW)).toBe(false);
+    expect(hasAccess("past_due", justEnded, NOW)).toBe(false);
+  });
+
+  it("still tells the truth about the trial while the gate is lenient", () => {
+    // The screens must say "ended" the moment it ends — the grace is invisible
+    // and only prevents an interruption.
+    const justEnded = new Date(NOW - 60_000).toISOString();
+    expect(isTrialExpired("trialing", justEnded, NOW)).toBe(true);
+    expect(isTrialLive("trialing", justEnded, NOW)).toBe(false);
+    expect(trialDaysLeft("trialing", justEnded, NOW)).toBeNull();
+  });
+
   it("denies every non-paying status", () => {
     for (const s of ["canceled", "past_due", "unpaid", "incomplete", "incomplete_expired", "paused"]) {
       expect(hasAccess(s, null, NOW)).toBe(false);
