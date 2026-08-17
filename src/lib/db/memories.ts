@@ -132,3 +132,29 @@ export async function deleteMemoryDb(id: string): Promise<void> {
     .eq("user_id", user.id);
   if (error) throw error;
 }
+
+/**
+ * Keep an auto-captured memory as your own.
+ *
+ * The summariser's memories are hidden by default — the list is meant to read
+ * as a record of what you chose to keep — and there was no way to move one
+ * across. So finding something the persona had noticed and wanting to hold
+ * onto it meant retyping it by hand, which created a near-duplicate of a
+ * memory that was already correct, and left the original still hidden behind
+ * the toggle.
+ *
+ * Only the source changes. The content, the date it was first noticed and the
+ * person it belongs to are all part of what makes it worth keeping.
+ */
+export async function keepMemoryDb(id: string): Promise<void> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { error } = await supabase
+    .from("memories")
+    .update({ memory_type: "manual", updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw error;
+}

@@ -40,6 +40,7 @@ export default function ConversationsPage() {
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [personFilter, setPersonFilter] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  const [pendingBulk, setPendingBulk] = useState<ConversationRecord[] | null>(null);
 
   useEffect(() => {
     fetch("/api/user/data")
@@ -173,6 +174,16 @@ export default function ConversationsPage() {
               onDelete={(conversation) =>
                 setPendingDelete({ id: conversation.id, title: conversation.title })
               }
+              onDeleteMany={(chosen) => setPendingBulk(chosen)}
+              onExportMany={(chosen) => {
+                // One file each, rather than one merged file: these are
+                // separate conversations with separate people, and flattening
+                // them into a single document loses the thing that makes any
+                // of them worth keeping.
+                for (const conversation of chosen) {
+                  exportConversation(conversation, nameFor(conversation) ?? "Them");
+                }
+              }}
               emptyTitle="Nothing here yet"
               emptyBody="Once you've talked with someone, every conversation is kept here."
             />
@@ -204,6 +215,26 @@ export default function ConversationsPage() {
           setPendingDelete(null);
         }}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingBulk !== null}
+        title={`Delete ${pendingBulk?.length ?? 0} conversations?`}
+        body="Their transcripts will be permanently removed, and the people you've made will stop remembering them. This cannot be undone."
+        confirmLabel={`Delete ${pendingBulk?.length ?? 0}`}
+        onConfirm={() => {
+          for (const conversation of pendingBulk ?? []) {
+            deleteConversation(conversation.id);
+            void persistChange({
+              source: "conversations-delete-many",
+              run: () => deleteConversationDb(conversation.id),
+              revert: () => restoreConversation(conversation),
+              describe: "delete those conversations",
+            });
+          }
+          setPendingBulk(null);
+        }}
+        onCancel={() => setPendingBulk(null)}
       />
     </AppShell>
   );

@@ -157,6 +157,8 @@ interface SessionState {
   /** Swap an optimistic memory for the saved row once the id is known. */
   replaceMemory: (localId: string, memory: MemoryItem) => void;
   updateMemory: (id: string, content: string) => void;
+  /** Move an auto-captured memory into the ones the user keeps by hand. */
+  keepMemory: (id: string) => void;
   deleteMemory: (id: string) => void;
   setStatus: (status: ConversationStatus) => void;
   /** Called by DbHydrator however its pass ends, including the failures —
@@ -483,6 +485,14 @@ export const useSession = create<SessionState>()(
             ),
           };
         }),
+      keepMemory: (id) =>
+        set((s) => ({
+          memories: s.memories.map((memory) =>
+            memory.id === id
+              ? { ...memory, source: "manual" as const, updatedAt: Date.now() }
+              : memory,
+          ),
+        })),
       deleteMemory: (id) =>
         set((s) => ({ memories: s.memories.filter((memory) => memory.id !== id) })),
       setStatus: (status) => set({ status }),

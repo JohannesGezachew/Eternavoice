@@ -42,6 +42,15 @@ export interface ConversationListProps {
   emptyBody?: string;
   /** Denser rows for the in-conversation sheet. */
   compact?: boolean;
+  /**
+   * Select several at once, to delete or export them together.
+   *
+   * Only offered where the list is an archive. Clearing out a year of
+   * conversations one confirmation dialog at a time is not a thing anyone will
+   * do, so in practice the choice was keep everything or keep nothing.
+   */
+  onDeleteMany?: (conversations: ConversationRecord[]) => void;
+  onExportMany?: (conversations: ConversationRecord[]) => void;
 }
 
 const SEARCH_THRESHOLD = 5;
@@ -63,11 +72,15 @@ export function ConversationList({
   emptyTitle = "No conversations yet",
   emptyBody = "They'll appear here after your first exchange — every word saved, ready to pick back up.",
   compact = false,
+  onDeleteMany,
+  onExportMany,
 }: ConversationListProps) {
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selecting, setSelecting] = useState(false);
 
   // Close the overflow menu on any outside click or Escape.
   useEffect(() => {
@@ -103,6 +116,22 @@ export function ConversationList({
 
   const searchable = showSearch && conversations.length >= SEARCH_THRESHOLD;
 
+  const bulk = Boolean(onDeleteMany || onExportMany) && conversations.length > 1;
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const endSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  // Only what is on screen: selecting inside a search and then clearing it
+  // must not quietly widen what "all" meant.
+  const chosen = ordered.filter((c) => selected.has(c.id));
+
   const saveRename = (conversation: ConversationRecord) => {
     const clean = draftTitle.replace(/\s+/g, " ").trim();
     if (clean && clean !== conversation.title) onRename(conversation, clean);
@@ -123,13 +152,77 @@ export function ConversationList({
               ? `${filtered.length} of ${conversations.length}`
               : `${conversations.length} ${conversations.length === 1 ? "conversation" : "conversations"}`}
           </span>
+          <span className="flex items-center gap-4">
+            {bulk ? (
+              <button
+                type="button"
+                onClick={() => (selecting ? endSelecting() : setSelecting(true))}
+                className="flex h-11 cursor-pointer items-center text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+              >
+                {selecting ? "Done" : "Select"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setOrder((o) => (o === "recent" ? "oldest" : "recent"))}
+              className="flex h-11 cursor-pointer items-center text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+            >
+              {order === "recent" ? "Read from the beginning" : "Newest first"}
+            </button>
+          </span>
+        </div>
+      ) : null}
+
+      {selecting ? (
+        <div
+          role="toolbar"
+          aria-label="Selected conversations"
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-[var(--color-rule)] bg-white/[0.025] px-3 py-2"
+        >
+          <span className="text-small text-[var(--color-text-secondary)]">
+            {chosen.length} selected
+          </span>
           <button
             type="button"
-            onClick={() => setOrder((o) => (o === "recent" ? "oldest" : "recent"))}
-            className="flex h-11 cursor-pointer items-center text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
+            onClick={() =>
+              setSelected(
+                chosen.length === ordered.length
+                  ? new Set()
+                  : new Set(ordered.map((c) => c.id)),
+              )
+            }
+            className="cursor-pointer text-small text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)]"
           >
-            {order === "recent" ? "Read from the beginning" : "Newest first"}
+            {chosen.length === ordered.length ? "Clear" : "Select all"}
           </button>
+          <span className="ml-auto flex items-center gap-3">
+            {onExportMany ? (
+              <button
+                type="button"
+                disabled={!chosen.length}
+                onClick={() => {
+                  onExportMany(chosen);
+                  endSelecting();
+                }}
+                className="cursor-pointer text-small text-[var(--color-bone-dim)] underline underline-offset-4 transition hover:text-[var(--color-bone)] disabled:cursor-default disabled:opacity-40"
+              >
+                Save as text
+              </button>
+            ) : null}
+            {onDeleteMany ? (
+              <button
+                type="button"
+                disabled={!chosen.length}
+                onClick={() => {
+                  onDeleteMany(chosen);
+                  endSelecting();
+                }}
+                className="cursor-pointer text-small text-[var(--color-danger)] underline underline-offset-4 transition hover:opacity-80 disabled:cursor-default disabled:opacity-40"
+              >
+                Delete
+              </button>
+            ) : null}
+          </span>
         </div>
       ) : null}
 
@@ -191,11 +284,25 @@ export function ConversationList({
                         current ? "bg-white/[0.045]" : "hover:bg-white/[0.025]",
                       )}
                     >
+                      {selecting ? (
+                        <label className="flex h-11 w-10 shrink-0 cursor-pointer items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(conversation.id)}
+                            onChange={() => toggle(conversation.id)}
+                            aria-label={`Select “${conversation.title}”`}
+                            className="h-4 w-4 cursor-pointer accent-[var(--color-ember)]"
+                          />
+                        </label>
+                      ) : null}
                       <button
                         type="button"
-                        onClick={() => onOpen(conversation)}
+                        onClick={() =>
+                          selecting ? toggle(conversation.id) : onOpen(conversation)
+                        }
                         className={cn(
-                          "flex min-w-0 flex-1 cursor-pointer flex-col justify-center gap-1 pr-1 pl-3 text-left",
+                          "flex min-w-0 flex-1 cursor-pointer flex-col justify-center gap-1 pr-1 text-left",
+                          selecting ? "pl-1" : "pl-3",
                           compact ? "min-h-[60px] py-2.5" : "min-h-[68px] py-3",
                         )}
                       >
