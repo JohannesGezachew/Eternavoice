@@ -63,7 +63,10 @@ export async function startRecording(init: RecorderInit = {}): Promise<ActiveRec
   const audioContext = new AudioContextCtor({ sampleRate: 48000 });
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 2048;
+  // 1024 is ample for a voice-activity threshold and halves the per-frame
+  // loop, which runs for the entire session because the mic is deliberately
+  // never torn down.
+  analyser.fftSize = 1024;
   analyser.smoothingTimeConstant = 0.7;
   source.connect(analyser);
 

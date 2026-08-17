@@ -222,6 +222,13 @@ export class PlaybackQueue {
   private startMonitor() {
     const tick = () => {
       if (this.destroyed) return;
+      // Nothing is playing, so there is nothing to measure. This loop used to
+      // run from unlock() until destroy() — a 1,024-iteration RMS pass every
+      // frame for the whole session, most of it over silence.
+      if (this.activeSources === 0) {
+        this.rafId = requestAnimationFrame(tick);
+        return;
+      }
       if (this.analyser && this.timeBuffer) {
         this.analyser.getByteTimeDomainData(this.timeBuffer);
         let sumSq = 0;

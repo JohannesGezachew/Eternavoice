@@ -1,10 +1,11 @@
 "use client";
 
+import { memo } from "react";
 import { motion } from "framer-motion";
 import type { ChatTurn } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function Message({
+function MessageBase({
   turn,
   streaming,
   onReplay,
@@ -24,7 +25,10 @@ export function Message({
   const isUser = turn.role === "user";
   return (
     <motion.div
-      layout
+      // `layout` forces a getBoundingClientRect measurement per element per
+      // commit. In a vertical transcript it buys almost nothing, and with the
+      // room re-rendering as a reply streams it meant every turn on screen was
+      // measured on every frame.
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -144,3 +148,10 @@ function DownloadIcon() {
     </svg>
   );
 }
+
+/**
+ * Memoised because the transcript renders one of these per turn, and the room
+ * above it re-renders throughout a streamed reply. Without this a forty-turn
+ * conversation re-rendered forty messages for every token.
+ */
+export const Message = memo(MessageBase);
