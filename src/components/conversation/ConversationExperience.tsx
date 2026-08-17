@@ -1339,7 +1339,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4 }}
                 aria-hidden
-                className="line-clamp-1 text-center text-small text-[var(--color-text-tertiary)]/70"
+                className="line-clamp-1 text-center text-small text-[var(--color-text-tertiary)]"
               >
                 {previousTurn.role === "user" ? "you: " : ""}
                 {previousTurn.content}
@@ -1702,7 +1702,7 @@ export function ConversationExperience({ backHref = "/people" }: ConversationExp
                       restartActionRef.current?.();
                       restartActionRef.current = null;
                     }}
-                    className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-small text-white transition hover:opacity-90"
+                    className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-[var(--color-ember)] px-6 text-small text-[var(--color-ink)] transition hover:opacity-90"
                   >
                     {reflectionText.trim() ? "Save note & start new" : "Start new conversation"}
                   </button>

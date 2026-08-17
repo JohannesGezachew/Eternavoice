@@ -94,7 +94,7 @@ export function PresencePanel({
           {/* Naming the ceiling out loud. Silently dropping the rest would be
               the same broken promise as the conversation cap was. */}
           {memoriesTotal > memoriesInPlay ? (
-            <span className="text-[var(--color-text-tertiary)]/80">
+            <span className="text-[var(--color-text-tertiary)]">
               of {memoriesTotal} — the most recent reach them
             </span>
           ) : null}

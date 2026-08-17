@@ -94,6 +94,9 @@ export const BILLING_EXEMPT = [
   "/api/stripe",
   "/api/user",
   "/api/usage",
+  // Error reporting has to survive a lapsed subscription — it was returning
+  // 402 at exactly the moment a user was hitting errors worth reporting.
+  "/api/events",
 ] as const;
 
 export function isBillingExempt(pathname: string): boolean {

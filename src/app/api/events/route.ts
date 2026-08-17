@@ -14,6 +14,35 @@ const Body = z.object({
   context: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
 });
 
+/**
+ * Keys a client may attach to an error report. Everything else is discarded:
+ * a free-form record on a conversation screen is one careless call away from
+ * carrying what somebody said to their mother.
+ */
+const SAFE_CONTEXT_KEYS = new Set([
+  "status",
+  "attempts",
+  "reason",
+  "scope",
+  "label",
+  "elapsedMs",
+  "turnCount",
+  "chars",
+  "route",
+]);
+
+function pickSafeContext(
+  context: Record<string, string | number | boolean | null> | undefined,
+): Record<string, string | number | boolean | null> | undefined {
+  if (!context) return undefined;
+  const safe: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (!SAFE_CONTEXT_KEYS.has(key)) continue;
+    safe[key] = typeof value === "string" ? value.slice(0, 120) : value;
+  }
+  return Object.keys(safe).length ? safe : undefined;
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -31,6 +60,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
 
-  console.error("[client-error]", parsed.data);
+  // Redacted before it reaches the log sink.
+  //
+  // This wrote `message`, up to 6 KB of `stack` and a free-form `context`
+  // record straight into Vercel's logs. On a conversation surface those carry
+  // transcript fragments and the names of people who have died — bereavement
+  // data landing in a store with a different retention and access model than
+  // the encrypted database it was so carefully kept out of.
+  console.error("[client-error]", {
+    source: parsed.data.source,
+    message: parsed.data.message.slice(0, 300),
+    digest: parsed.data.digest,
+    // Frames only: the file/line path is what diagnoses a bug, and the
+    // surrounding source text is what leaks.
+    stack: parsed.data.stack
+      ?.split("\n")
+      .slice(0, 12)
+      .map((line) => line.trim().slice(0, 200))
+      .join("\n"),
+    // Allowlisted: anything not named here is dropped rather than trusted.
+    context: pickSafeContext(parsed.data.context),
+  });
   return NextResponse.json({ ok: true });
 }

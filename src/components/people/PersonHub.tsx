@@ -451,7 +451,7 @@ export function PersonHub({ subjectId }: { subjectId: string }) {
                   type="button"
                   onClick={() => void deletePerson()}
                   disabled={deleting || deleteNameInput.trim() !== subject.name.trim()}
-                  className="flex h-10 cursor-pointer items-center rounded-full bg-[var(--color-danger)] px-5 text-small text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-11 cursor-pointer items-center rounded-full bg-[var(--color-danger)] px-5 text-small text-[var(--color-ink)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {deleting ? "Removing…" : "Remove permanently"}
                 </button>

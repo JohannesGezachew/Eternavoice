@@ -31,8 +31,11 @@
   --color-danger: #d98873;
 
   /* Text hierarchy with guaranteed contrast on ink. Use these instead of
-     opacity-suffixed bone/bone-dim for anything that must be read:
-     secondary ≥ 7:1, tertiary ≥ 4.6:1 against --color-ink. */
+     opacity-suffixed bone/bone-dim for anything that must be read.
+     Measured against --color-ink in BOTH themes, which is the part that was
+     previously only true in dark: secondary 7.5:1 paper / 7.2:1 ink,
+     tertiary 5.6:1 paper / 6.0:1 ink. An opacity modifier on any of these
+     drops it below the floor again — use the token as it is. */
   --color-text-secondary: #b8b1a4;
   --color-text-tertiary: #948e83;
 
@@ -93,7 +96,11 @@ html:not([data-theme="dark"]) {
   --color-rule: rgba(36, 27, 17, 0.12);
   --color-rule-strong: rgba(36, 27, 17, 0.22);
   --color-text-secondary: #564b3a;
-  --color-text-tertiary: #7c6e58;
+  /* Was #7c6e58, which measures 4.38:1 on paper — under the 4.5:1 floor, and
+     this is the workhorse for timestamps, helper text and meta across the app.
+     The ≥4.6:1 promise in the @theme block above was only ever true in dark
+     mode. #6b5e4a measures 5.56:1 and is still visibly quieter than secondary. */
+  --color-text-tertiary: #6b5e4a;
   --shadow-glow: 0 0 0 1px rgba(156, 90, 46, 0.14), 0 12px 40px rgba(156, 90, 46, 0.07);
 
   /* Orb on paper: a warm copper presence, normal blending (screen blending
