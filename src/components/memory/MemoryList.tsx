@@ -10,6 +10,7 @@ import { fadeUp, stagger } from "@/lib/motion";
 import { formatRelativeDay } from "@/lib/utils";
 import { selectMemories } from "@/lib/memoryView";
 import { addMemoryDb, updateMemoryDb, deleteMemoryDb } from "@/lib/db/memories";
+import { persistChange } from "@/lib/db/persistChange";
 
 /**
  * Per-person memory editor. Everything added here is scoped to one subject
@@ -69,8 +70,18 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
 
   const saveEdit = () => {
     if (!editingId) return;
-    updateMemory(editingId, editingValue);
-    void updateMemoryDb(editingId, editingValue).catch(console.error);
+    const id = editingId;
+    const value = editingValue;
+    const previous = memories.find((m) => m.id === id)?.content;
+    updateMemory(id, value);
+    void persistChange({
+      source: "memory-edit",
+      run: () => updateMemoryDb(id, value),
+      revert: () => {
+        if (previous !== undefined) updateMemory(id, previous);
+      },
+      describe: "save that edit",
+    });
     setEditingId(null);
     setEditingValue("");
   };
@@ -179,7 +190,14 @@ export function MemoryList({ subjectId, personName }: { subjectId: string | null
                     type="button"
                     onClick={() => {
                       deleteMemory(memory.id);
-                      void deleteMemoryDb(memory.id).catch(console.error);
+                      void persistChange({
+                        source: "memory-delete",
+                        run: () => deleteMemoryDb(memory.id),
+                        // Restored whole, so a failed delete does not turn
+                        // into a memory that quietly loses its date.
+                        revert: () => addMemoryRecord(memory),
+                        describe: "delete that memory",
+                      });
                     }}
                     className="flex min-h-[44px] cursor-pointer items-center rounded-lg px-3 text-small text-[var(--color-text-secondary)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-danger)]"
                   >

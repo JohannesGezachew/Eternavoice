@@ -11,6 +11,7 @@ import {
   pinConversationDb,
   deleteConversationDb,
 } from "@/lib/db/conversations";
+import { persistChange } from "@/lib/db/persistChange";
 import type { ConversationRecord } from "@/lib/types";
 
 /**
@@ -37,6 +38,7 @@ export function ConversationHistory({
   const renameConversation = useSession((s) => s.renameConversation);
   const toggleConversationPin = useSession((s) => s.toggleConversationPin);
   const deleteConversation = useSession((s) => s.deleteConversation);
+  const restoreConversation = useSession((s) => s.restoreConversation);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
 
   const scoped = conversations.filter(
@@ -61,11 +63,22 @@ export function ConversationHistory({
         }
         onPin={(conversation) => {
           toggleConversationPin(conversation.id);
-          void pinConversationDb(conversation.id, !conversation.pinned).catch(console.error);
+          void persistChange({
+            source: "history-pin",
+            run: () => pinConversationDb(conversation.id, !conversation.pinned),
+            revert: () => toggleConversationPin(conversation.id),
+            describe: conversation.pinned ? "unpin that" : "pin that",
+          });
         }}
         onRename={(conversation, title) => {
+          const previous = conversation.title;
           renameConversation(conversation.id, title);
-          void renameConversationDb(conversation.id, title).catch(console.error);
+          void persistChange({
+            source: "history-rename",
+            run: () => renameConversationDb(conversation.id, title),
+            revert: () => renameConversation(conversation.id, previous),
+            describe: "rename that conversation",
+          });
         }}
         onDelete={(conversation: ConversationRecord) =>
           setPendingDelete({ id: conversation.id, title: conversation.title })
@@ -79,8 +92,16 @@ export function ConversationHistory({
         confirmLabel="Delete conversation"
         onConfirm={() => {
           if (pendingDelete) {
+            const record = conversations.find((c) => c.id === pendingDelete.id);
             deleteConversation(pendingDelete.id);
-            void deleteConversationDb(pendingDelete.id).catch(console.error);
+            void persistChange({
+              source: "history-delete",
+              run: () => deleteConversationDb(pendingDelete.id),
+              revert: () => {
+                if (record) restoreConversation(record);
+              },
+              describe: "delete that conversation",
+            });
           }
           setPendingDelete(null);
         }}

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Mark } from "./Mark";
 import { DbHydrator } from "./DbHydrator";
 import { useStorageHealth } from "@/lib/storageQuota";
+import { SyncNotice } from "./SyncNotice";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -167,6 +168,8 @@ export function AppShell({
           {storage.message}
         </p>
       ) : null}
+
+      <SyncNotice />
 
       {/* Page content */}
       <div className={`flex flex-1 flex-col ${showTabs ? "pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0" : ""}`}>

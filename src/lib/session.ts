@@ -141,6 +141,8 @@ interface SessionState {
   renameConversation: (conversationId: string, title: string) => void;
   toggleConversationPin: (conversationId: string) => void;
   deleteConversation: (conversationId: string) => void;
+  /** Put one back after a failed delete — see lib/db/persistChange. */
+  restoreConversation: (conversation: ConversationRecord) => void;
   /** Insert a memory whose database row already exists, so the store holds the
    *  real primary key.
    *
@@ -443,6 +445,13 @@ export const useSession = create<SessionState>()(
             status: "idle",
           };
         }),
+      restoreConversation: (conversation) =>
+        set((s) => ({
+          conversations: sortConversations([
+            conversation,
+            ...s.conversations.filter((c) => c.id !== conversation.id),
+          ]).slice(0, MAX_CONVERSATIONS),
+        })),
       addMemoryRecord: (memory) =>
         set((s) => ({
           memories: [memory, ...s.memories.filter((m) => m.id !== memory.id)].slice(
