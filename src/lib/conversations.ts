@@ -18,22 +18,33 @@ export const AUTO_TITLE_FALLBACK = "New conversation";
  * because the summariser compares the stored title against this to work out
  * whether a human has since renamed it.
  */
+/** One turn, shortened to title length. */
+function titleFromContent(content: string): string {
+  const clean = content.replace(/\s+/g, " ").trim();
+  return clean.length > 64 ? `${clean.slice(0, 61)}...` : clean;
+}
+
 export function autoTitleFromTurns(
   turns: Array<Pick<ChatTurn, "role" | "content">>,
 ): string {
   const firstUser = turns.find((turn) => turn.role === "user" && turn.content.trim());
   const source = firstUser?.content ?? turns.find((turn) => turn.content.trim())?.content;
   if (!source) return AUTO_TITLE_FALLBACK;
-  const clean = source.replace(/\s+/g, " ").trim();
-  return clean.length > 64 ? `${clean.slice(0, 61)}...` : clean;
+  return titleFromContent(source);
 }
 
 /**
- * Whether a stored title is still one we generated, and therefore safe for the
- * summariser to replace with something better.
+ * Whether a stored title is still one we generated, and therefore safe to
+ * replace with something better.
  *
- * Renaming is a deliberate act — a title someone chose must survive every later
- * summarise, so anything that doesn't match the derived opener is left alone.
+ * Any title that is just the opening words of *some* turn counts as generated.
+ * That matters twice over: the first save happens while only the persona's
+ * greeting exists, so conversations ended up named after the greeting; and the
+ * derived title changes once the person replies. Matching against every turn
+ * covers both, and lets conversations titled that way before this existed pick
+ * up a real name on their next summarise instead of staying "Hey, Safa."
+ *
+ * Renaming is a deliberate act, so anything that matches no turn is left alone.
  */
 export function isAutoTitle(
   storedTitle: string | null | undefined,
@@ -41,7 +52,8 @@ export function isAutoTitle(
 ): boolean {
   const stored = (storedTitle ?? "").trim();
   if (!stored || stored === AUTO_TITLE_FALLBACK) return true;
-  return stored === autoTitleFromTurns(turns);
+  if (stored === autoTitleFromTurns(turns)) return true;
+  return turns.some((turn) => turn.content.trim() && titleFromContent(turn.content) === stored);
 }
 
 /** Tidy a model-written title into something that fits a single line. */

@@ -63,6 +63,13 @@ export interface VoiceLibraryItem {
   name: string;
   createdAt: number;
   subjectId?: string;
+  /** Who this person is, carried alongside the voice.
+   *
+   *  Conversations loaded from the database arrive with a stub persona — the
+   *  column lives on the subject, not the conversation — so without this,
+   *  opening one from history dropped into a room labelled "Untitled voice"
+   *  with the persona lost. */
+  persona?: PersonaConfig | null;
 }
 
 export interface MemoryItem {

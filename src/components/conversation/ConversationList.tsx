@@ -339,7 +339,9 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search what was said"
         aria-label="Search conversations"
-        className="hairline h-11 w-full rounded-xl bg-white/[0.02] pr-10 pl-10 text-[14px] text-[var(--color-bone)] transition placeholder:text-[var(--color-bone-dim)]/45 focus:border-[var(--color-ember)]/35 focus:outline-none"
+        // The browser draws its own clear button on type="search", which sat
+        // next to ours — two crosses in one field.
+        className="hairline h-11 w-full appearance-none rounded-xl bg-white/[0.02] pr-10 pl-10 text-[14px] text-[var(--color-bone)] transition placeholder:text-[var(--color-bone-dim)]/45 focus:border-[var(--color-ember)]/35 focus:outline-none [&::-webkit-search-cancel-button]:appearance-none"
       />
       {value ? (
         <button
